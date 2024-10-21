@@ -1,4 +1,4 @@
-use near_sdk::near_bindgen;
+use near_sdk::{near, NearToken};
 
 use crate::*;
 
@@ -15,10 +15,11 @@ impl LockupContract {
             .unwrap();
 
         remaining_balance
-            .checked_sub(self.venear_locked_balance)
+            .checked_sub(NearToken::from_yoctonear(self.venear_locked_balance))
             .expect("Illegal balance")
-            .checked_sub(self.venear_pending_balance)
+            .checked_sub(NearToken::from_yoctonear(self.venear_pending_balance))
             .expect("Illegal balance")
+            .as_yoctonear()
     }
 
     fn set_venear_unlock_imestamp(&mut self) {
@@ -26,7 +27,7 @@ impl LockupContract {
     }
 }
 
-#[near_bindgen]
+#[near]
 impl LockupContract {
     pub fn get_venear_locked_balance(&self) -> WrappedBalance {
         self.venear_locked_balance.into()

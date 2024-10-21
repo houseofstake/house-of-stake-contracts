@@ -1,13 +1,16 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{env, AccountId, Balance};
+use near_sdk::{env, AccountId};
 use uint::construct_uint;
 
 construct_uint! {
     /// 256-bit unsigned integer.
     pub struct U256(4);
 }
+
+/// Raw type for balance in yocto NEAR.
+pub type Balance = u128;
 
 /// Raw type for duration in nanoseconds
 pub type Duration = u64;

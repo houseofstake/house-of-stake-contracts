@@ -1,9 +1,9 @@
 use near_sdk::json_types::U128;
-use near_sdk::near_bindgen;
+use near_sdk::near;
 
 use crate::*;
 
-#[near_bindgen]
+#[near]
 impl LockupContract {
     /// Returns the account ID of the owner.
     pub fn get_owner_account_id(&self) -> AccountId {

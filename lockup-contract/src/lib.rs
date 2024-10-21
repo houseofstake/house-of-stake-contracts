@@ -2,7 +2,7 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::Base58PublicKey;
-use near_sdk::{env, ext_contract, near_bindgen, AccountId, Balance};
+use near_sdk::{env, ext_contract, near, AccountId};
 
 pub use crate::getters::*;
 pub use crate::internal::*;
@@ -111,8 +111,7 @@ pub trait ExtLockupContractFoundation {
     fn on_staking_pool_withdraw_for_termination(&mut self, amount: WrappedBalance) -> bool;
 }
 
-#[near_bindgen]
-#[derive(BorshDeserialize, BorshSerialize)]
+#[near]
 pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,
@@ -147,7 +146,7 @@ impl Default for LockupContract {
     }
 }
 
-#[near_bindgen]
+#[near]
 impl LockupContract {
     /// Requires 25 TGas (1 * BASE_GAS)
     ///
@@ -204,7 +203,7 @@ impl LockupContract {
             );
         }
         let lockup_information = LockupInformation {
-            lockup_amount: env::account_balance(),
+            lockup_amount: env::account_balance().as_yoctonear(),
             termination_withdrawn_tokens: 0,
             lockup_duration: lockup_duration.0,
             release_duration: release_duration.map(|d| d.0),

@@ -1,4 +1,5 @@
 use crate::*;
+use near_sdk::NearToken;
 
 /********************/
 /* Internal methods */
@@ -9,7 +10,7 @@ impl LockupContract {
     /// NOTE: The storage staking balance can't be transferred out without deleting this contract.
     pub fn get_account_balance(&self) -> WrappedBalance {
         env::account_balance()
-            .saturating_sub(MIN_BALANCE_FOR_STORAGE)
+            .saturating_sub(NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE))
             .into()
     }
 

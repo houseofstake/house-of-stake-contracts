@@ -1,7 +1,7 @@
 use crate::*;
-use near_sdk::{near_bindgen, PromiseOrValue, assert_self, is_promise_success};
+use near_sdk::{assert_self, is_promise_success, near, PromiseOrValue};
 
-#[near_bindgen]
+#[near]
 impl LockupContract {
     /// Called after a given `staking_pool_account_id` was checked in the whitelist.
     pub fn on_whitelist_is_whitelisted(

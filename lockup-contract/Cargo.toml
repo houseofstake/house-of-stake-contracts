@@ -1,5 +1,5 @@
 [package]
-name = "lockup-contract"
+name = "venear-lockup-contract"
 description = "This crate provides the lockup contract for the House of Stake"
 version.workspace = true
 authors.workspace = true
