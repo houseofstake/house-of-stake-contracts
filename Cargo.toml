@@ -10,7 +10,8 @@ license = "MIT OR Apache-2.0"
 resolver = "2"
 members = [
     "lockup-contract",
-    "venear-contract"
+    "venear-contract",
+    "merkle-tree",
 ]
 
 [workspace.dependencies]
