@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 merkle-tree = { path = "../merkle-tree" }
+common = { path = "../common" }
 near-sdk.workspace = true
 near-contract-standards.workspace = true
 serde_json.workspace = true

@@ -12,6 +12,7 @@ members = [
     "lockup-contract",
     "venear-contract",
     "merkle-tree",
+    "common",
 ]
 
 [workspace.dependencies]

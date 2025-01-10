@@ -27,25 +27,32 @@ pub struct HeightAndIndex {
 /// We also store hashes of the leaves in the tree to make it easier to verify the proofs.
 /// To hash the leaf, we serialize it using Borsh and then hash the serialized bytes using sha256.
 /// The empty leaf hash is by all zeros hash: `[0u8; 32]`.
+/// Note, that Value `T` has to contain the `account_id` in order to be able to verify the proof.
+/// The `global` field is used to store the global state of the tree. E.g. total sum of balances.
+/// When we save the previous snapshot, we also save the global state at that time.
 #[near(serializers=[borsh])]
-pub struct MerkleTree<T>
+pub struct MerkleTree<V, G>
 where
-    T: BorshSerialize + BorshDeserialize,
+    V: BorshSerialize + BorshDeserialize,
+    G: BorshSerialize + BorshDeserialize + Clone,
 {
     pub root: CryptoHash,
     pub length: u32,
     pub hashes: LookupMap<HeightAndIndex, CryptoHash>,
-    pub data: LookupMap<u32, T>,
+    pub data: LookupMap<u32, V>,
     pub accounts: LookupMap<AccountId, u32>,
-    pub previous_snapshot: Option<MerkleTreeSnapshot>,
+    /// The global state of the tree. E.g. total sum of balances.
+    pub global_state: G,
+    pub previous_snapshot: Option<(MerkleTreeSnapshot, G)>,
     pub last_block_height: BlockHeight,
 }
 
-impl<T> MerkleTree<T>
+impl<V, G> MerkleTree<V, G>
 where
-    T: BorshSerialize + BorshDeserialize,
+    V: BorshSerialize + BorshDeserialize,
+    G: BorshSerialize + BorshDeserialize + Clone,
 {
-    pub fn new<S>(storage_key_prefix: S) -> Self
+    pub fn new<S>(storage_key_prefix: S, global_state: G) -> Self
     where
         S: IntoStorageKey,
     {
@@ -71,6 +78,7 @@ where
                 ]
                 .concat(),
             ),
+            global_state,
             previous_snapshot: None,
             last_block_height: near_sdk::env::block_height(),
         }
@@ -81,11 +89,14 @@ where
     fn internal_pre_update(&mut self) {
         let block_height = near_sdk::env::block_height();
         if self.last_block_height != block_height {
-            self.previous_snapshot = Some(MerkleTreeSnapshot {
-                root: self.root,
-                length: self.length,
-                block_height: self.last_block_height,
-            });
+            self.previous_snapshot = Some((
+                MerkleTreeSnapshot {
+                    root: self.root,
+                    length: self.length,
+                    block_height: self.last_block_height,
+                },
+                self.global_state.clone(),
+            ));
             self.last_block_height = block_height;
         }
     }
@@ -133,28 +144,31 @@ where
     }
 
     /// Returns the previous snapshot if it exists.
-    pub fn get_snapshot(&self) -> Option<MerkleTreeSnapshot> {
+    pub fn get_snapshot(&self) -> Option<(MerkleTreeSnapshot, G)> {
         let block_height = near_sdk::env::block_height();
         if self.last_block_height != block_height {
-            Some(MerkleTreeSnapshot {
-                root: self.root,
-                length: self.length,
-                block_height: self.last_block_height,
-            })
+            Some((
+                MerkleTreeSnapshot {
+                    root: self.root,
+                    length: self.length,
+                    block_height: self.last_block_height,
+                },
+                self.global_state.clone(),
+            ))
         } else {
             self.previous_snapshot.clone()
         }
     }
 
     /// Returns the value for the given account_id.
-    pub fn get(&self, account_id: &AccountId) -> Option<&T> {
+    pub fn get(&self, account_id: &AccountId) -> Option<&V> {
         self.accounts
             .get(account_id)
             .and_then(|index| self.data.get(&index))
     }
 
     /// Sets the value for the given account_id and returns the old value if it existed.
-    pub fn set(&mut self, account_id: AccountId, new_value: T) -> Option<T> {
+    pub fn set(&mut self, account_id: AccountId, new_value: V) -> Option<V> {
         self.internal_pre_update();
         let index = self.accounts.get(&account_id).cloned().unwrap_or_else(|| {
             let index = self.length;

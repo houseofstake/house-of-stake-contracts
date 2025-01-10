@@ -1,0 +1,12 @@
+[package]
+name = "common"
+description = "This crate provides common types and utils"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+near-sdk.workspace = true
+serde_json.workspace = true
