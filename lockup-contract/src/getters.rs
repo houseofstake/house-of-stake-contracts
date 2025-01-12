@@ -161,14 +161,14 @@ impl LockupContract {
     /// NOTE: Some of this tokens may be deposited to the staking pool.
     /// This method also doesn't account for tokens locked for the contract storage.
     pub fn get_owners_balance(&self) -> WrappedBalance {
-        (env::account_balance() + self.get_known_deposited_balance().0)
+        (env::account_balance().as_yoctonear() + self.get_known_deposited_balance().0)
             .saturating_sub(self.get_locked_amount().0)
             .into()
     }
 
     /// Returns total balance of the account including tokens deposited to the staking pool.
     pub fn get_balance(&self) -> WrappedBalance {
-        (env::account_balance() + self.get_known_deposited_balance().0).into()
+        (env::account_balance().as_yoctonear() + self.get_known_deposited_balance().0).into()
     }
 
     /// Returns the amount of tokens the owner can transfer from the account.

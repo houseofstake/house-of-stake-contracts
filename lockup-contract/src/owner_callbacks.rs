@@ -314,22 +314,20 @@ impl LockupContract {
                 .as_bytes(),
             );
 
-            ext_staking_pool::withdraw(
-                unstaked_balance,
-                &self
-                    .staking_information
+            ext_staking_pool::ext(
+                self.staking_information
                     .as_ref()
                     .unwrap()
-                    .staking_pool_account_id,
-                NO_DEPOSIT,
-                gas::staking_pool::WITHDRAW,
+                    .staking_pool_account_id
+                    .clone(),
             )
-            .then(ext_self_owner::on_staking_pool_withdraw(
-                unstaked_balance,
-                &env::current_account_id(),
-                NO_DEPOSIT,
-                gas::owner_callbacks::ON_STAKING_POOL_WITHDRAW,
-            ))
+            .with_static_gas(gas::staking_pool::WITHDRAW)
+            .withdraw(unstaked_balance)
+            .then(
+                ext_self_owner::ext(env::current_account_id())
+                    .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_WITHDRAW)
+                    .on_staking_pool_withdraw(unstaked_balance),
+            )
             .into()
         } else {
             env::log(b"No unstaked balance on the staking pool to withdraw");

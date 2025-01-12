@@ -11,6 +11,7 @@ impl LockupContract {
     pub fn get_account_balance(&self) -> WrappedBalance {
         env::account_balance()
             .saturating_sub(NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE))
+            .as_yoctonear()
             .into()
     }
 

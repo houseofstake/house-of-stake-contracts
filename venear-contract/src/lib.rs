@@ -2,8 +2,13 @@ use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
 
 use common::account::*;
 use common::global_state::*;
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::store::LookupMap;
-use near_sdk::{near, AccountId, BorshStorageKey, PanicOnDefault};
+use near_sdk::{
+    near,
+    serde::{Deserialize, Serialize},
+    AccountId, BorshStorageKey, PanicOnDefault,
+};
 
 #[derive(BorshStorageKey)]
 #[near]
@@ -17,6 +22,8 @@ pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
 pub struct AccountInfo {
     pub account_id: AccountId,
     // todo: add more fields
