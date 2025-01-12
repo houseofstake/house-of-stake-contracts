@@ -2,8 +2,8 @@
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::Base58PublicKey;
-use near_sdk::Gas;
 use near_sdk::{env, ext_contract, near, AccountId};
+use near_sdk::{near_bindgen, Gas};
 
 pub use crate::getters::*;
 pub use crate::internal::*;
@@ -89,7 +89,7 @@ pub trait ExtLockupContractOwner {
     );
 }
 
-#[near]
+#[near_bindgen]
 pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,

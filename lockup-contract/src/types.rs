@@ -1,4 +1,4 @@
-use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{Base64VecU8, U128, U64};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::{env, AccountId};
@@ -205,7 +205,7 @@ pub struct TerminationInformation {
 pub type PollResult = Option<WrappedTimestamp>;
 
 /// Contains a vesting schedule with a salt.
-#[derive(BorshSerialize, Deserialize, Serialize, Clone, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Deserialize, Serialize, Clone, Debug)]
 #[borsh(crate = "near_sdk::borsh")]
 #[serde(crate = "near_sdk::serde")]
 pub struct VestingScheduleWithSalt {
@@ -217,6 +217,10 @@ pub struct VestingScheduleWithSalt {
 
 impl VestingScheduleWithSalt {
     pub fn hash(&self) -> Hash {
-        env::sha256(&self.try_to_vec().expect("Failed to serialize"))
+        // before sdk update:
+        // env::sha256(&self.try_to_vec().expect("Failed to serialize"))
+        let mut bytes = Vec::new();
+        BorshSerialize::serialize(&self, &mut bytes).expect("Failed to serialize");
+        env::sha256(&bytes)
     }
 }
