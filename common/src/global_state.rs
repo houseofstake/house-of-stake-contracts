@@ -13,11 +13,13 @@ impl From<GlobalState> for VGlobalState {
 }
 
 #[near(serializers=[borsh, json])]
+#[derive(Clone)]
 pub enum VGlobalState {
     Current(GlobalState),
 }
 
 #[near(serializers=[borsh, json])]
+#[derive(Clone)]
 pub struct GlobalState {
     // E.g. total sum
 }

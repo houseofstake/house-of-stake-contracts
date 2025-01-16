@@ -3,6 +3,7 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::Base58PublicKey;
 use near_sdk::{env, ext_contract, near, AccountId};
+use near_sdk::{near_bindgen, Gas};
 
 pub use crate::getters::*;
 pub use crate::internal::*;
@@ -88,30 +89,7 @@ pub trait ExtLockupContractOwner {
     );
 }
 
-#[ext_contract(ext_self_foundation)]
-pub trait ExtLockupContractFoundation {
-    fn on_withdraw_unvested_amount(
-        &mut self,
-        amount: WrappedBalance,
-        receiver_id: AccountId,
-    ) -> bool;
-
-    fn on_get_account_staked_balance_to_unstake(
-        &mut self,
-        #[callback] staked_balance: WrappedBalance,
-    );
-
-    fn on_staking_pool_unstake_for_termination(&mut self, amount: WrappedBalance) -> bool;
-
-    fn on_get_account_unstaked_balance_to_withdraw(
-        &mut self,
-        #[callback] unstaked_balance: WrappedBalance,
-    );
-
-    fn on_staking_pool_withdraw_for_termination(&mut self, amount: WrappedBalance) -> bool;
-}
-
-#[near]
+#[near_bindgen]
 pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,

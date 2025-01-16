@@ -1,5 +1,5 @@
 use crate::*;
-use near_sdk::{near, AccountId, Promise, PublicKey};
+use near_sdk::{near, AccountId, NearToken, Promise, PublicKey};
 
 #[near]
 impl LockupContract {
@@ -26,18 +26,14 @@ impl LockupContract {
             .as_bytes(),
         );
 
-        ext_whitelist::is_whitelisted(
-            staking_pool_account_id.clone(),
-            &self.staking_pool_whitelist_account_id,
-            NO_DEPOSIT,
-            gas::whitelist::IS_WHITELISTED,
-        )
-        .then(ext_self_owner::on_whitelist_is_whitelisted(
-            staking_pool_account_id,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_WHITELIST_IS_WHITELISTED,
-        ))
+        ext_whitelist::ext(self.staking_pool_whitelist_account_id.clone())
+            .with_static_gas(gas::whitelist::IS_WHITELISTED)
+            .is_whitelisted(staking_pool_account_id.clone())
+            .then(
+                ext_self_owner::ext(env::current_account_id())
+                    .with_static_gas(gas::owner_callbacks::ON_WHITELIST_IS_WHITELISTED)
+                    .on_whitelist_is_whitelisted(staking_pool_account_id),
+            )
     }
 
     /// OWNER'S METHOD
@@ -102,21 +98,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::deposit(
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            amount.0,
-            gas::staking_pool::DEPOSIT,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_staking_pool_deposit(
-            amount,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_DEPOSIT,
-        ))
+        .with_static_gas(gas::staking_pool::DEPOSIT)
+        .deposit()
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_DEPOSIT)
+                .on_staking_pool_deposit(amount),
+        )
     }
 
     /// OWNER'S METHOD
@@ -148,21 +143,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::deposit_and_stake(
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            amount.0,
-            gas::staking_pool::DEPOSIT_AND_STAKE,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_staking_pool_deposit_and_stake(
-            amount,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_DEPOSIT_AND_STAKE,
-        ))
+        .with_static_gas(gas::staking_pool::DEPOSIT_AND_STAKE)
+        .deposit_and_stake()
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_DEPOSIT_AND_STAKE)
+                .on_staking_pool_deposit_and_stake(amount),
+        )
     }
 
     /// OWNER'S METHOD
@@ -191,21 +185,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::get_account_total_balance(
-            env::current_account_id(),
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::GET_ACCOUNT_TOTAL_BALANCE,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_get_account_total_balance(
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_GET_ACCOUNT_TOTAL_BALANCE,
-        ))
+        .with_static_gas(gas::staking_pool::GET_ACCOUNT_TOTAL_BALANCE)
+        .get_account_total_balance(env::current_account_id())
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_GET_ACCOUNT_TOTAL_BALANCE)
+                .on_get_account_total_balance(),
+        )
     }
 
     /// OWNER'S METHOD
@@ -233,22 +226,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::withdraw(
-            amount,
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::WITHDRAW,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_staking_pool_withdraw(
-            amount,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_WITHDRAW,
-        ))
+        .with_static_gas(gas::staking_pool::WITHDRAW)
+        .withdraw(amount)
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_WITHDRAW)
+                .on_staking_pool_withdraw(amount),
+        )
     }
 
     /// OWNER'S METHOD
@@ -274,22 +265,21 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::get_account_unstaked_balance(
-            env::current_account_id(),
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::GET_ACCOUNT_UNSTAKED_BALANCE,
+                .staking_pool_account_id
+                .clone(),
         )
+        .with_static_gas(gas::staking_pool::GET_ACCOUNT_UNSTAKED_BALANCE)
+        .get_account_unstaked_balance(env::current_account_id())
         .then(
-            ext_self_owner::on_get_account_unstaked_balance_to_withdraw_by_owner(
-                &env::current_account_id(),
-                NO_DEPOSIT,
-                gas::owner_callbacks::ON_GET_ACCOUNT_UNSTAKED_BALANCE_TO_WITHDRAW_BY_OWNER,
-            ),
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(
+                    gas::owner_callbacks::ON_GET_ACCOUNT_UNSTAKED_BALANCE_TO_WITHDRAW_BY_OWNER,
+                )
+                .on_get_account_unstaked_balance_to_withdraw_by_owner(),
         )
     }
 
@@ -318,22 +308,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::stake(
-            amount,
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::STAKE,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_staking_pool_stake(
-            amount,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_STAKE,
-        ))
+        .with_static_gas(gas::staking_pool::STAKE)
+        .stake(amount)
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_STAKE)
+                .on_staking_pool_stake(amount),
+        )
     }
 
     /// OWNER'S METHOD
@@ -361,22 +349,20 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::unstake(
-            amount,
-            &self
-                .staking_information
+        ext_staking_pool::ext(
+            self.staking_information
                 .as_ref()
                 .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::UNSTAKE,
+                .staking_pool_account_id
+                .clone(),
         )
-        .then(ext_self_owner::on_staking_pool_unstake(
-            amount,
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_UNSTAKE,
-        ))
+        .with_static_gas(gas::staking_pool::UNSTAKE)
+        .unstake(amount)
+        .then(
+            ext_self_owner::ext(env::current_account_id())
+                .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_UNSTAKE)
+                .on_staking_pool_unstake(amount),
+        )
     }
 
     /// OWNER'S METHOD
@@ -402,20 +388,21 @@ impl LockupContract {
 
         self.set_staking_pool_status(TransactionStatus::Busy);
 
-        ext_staking_pool::unstake_all(
-            &self
-                .staking_information
-                .as_ref()
-                .unwrap()
-                .staking_pool_account_id,
-            NO_DEPOSIT,
-            gas::staking_pool::UNSTAKE_ALL,
-        )
-        .then(ext_self_owner::on_staking_pool_unstake_all(
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_STAKING_POOL_UNSTAKE_ALL,
-        ))
+        let staking_pool_account_id: AccountId = self
+            .staking_information
+            .as_ref()
+            .unwrap()
+            .staking_pool_account_id
+            .clone();
+
+        ext_staking_pool::ext(staking_pool_account_id)
+            .with_static_gas(gas::staking_pool::UNSTAKE_ALL)
+            .unstake_all()
+            .then(
+                ext_self_owner::ext(env::current_account_id())
+                    .with_static_gas(gas::owner_callbacks::ON_STAKING_POOL_UNSTAKE_ALL)
+                    .on_staking_pool_unstake_all(),
+            )
     }
 
     /// OWNER'S METHOD
@@ -445,16 +432,14 @@ impl LockupContract {
             .as_bytes(),
         );
 
-        ext_transfer_poll::get_result(
-            &transfer_poll_account_id,
-            NO_DEPOSIT,
-            gas::transfer_poll::GET_RESULT,
-        )
-        .then(ext_self_owner::on_get_result_from_transfer_poll(
-            &env::current_account_id(),
-            NO_DEPOSIT,
-            gas::owner_callbacks::ON_VOTING_GET_RESULT,
-        ))
+        ext_transfer_poll::ext(transfer_poll_account_id.clone())
+            .with_static_gas(gas::transfer_poll::GET_RESULT)
+            .get_result()
+            .then(
+                ext_self_owner::ext(env::current_account_id())
+                    .with_static_gas(gas::owner_callbacks::ON_VOTING_GET_RESULT)
+                    .on_get_result_from_transfer_poll(),
+            )
     }
 
     /// OWNER'S METHOD
@@ -483,7 +468,7 @@ impl LockupContract {
 
         env::log(format!("Transferring {} to account @{}", amount.0, receiver_id).as_bytes());
 
-        Promise::new(receiver_id).transfer(amount.0)
+        Promise::new(receiver_id).transfer(NearToken::from_yoctonear(amount.0))
     }
 
     /// OWNER'S METHOD
