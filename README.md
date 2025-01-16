@@ -9,8 +9,7 @@ It contains the following contracts:
   depend on the venear-contract logic. This provides extra layer of security for the user. It allows to stake NEAR
   tokens to a validator, as well as lock liquid staked NEAR tokens.
 - **voting-contract**: A contract that uses end-of-the-block snapshots from the venear-contract to allow veNEAR holders
-  to
-  vote on proposals.
+  to vote on proposals.
 
 ## Development
 
