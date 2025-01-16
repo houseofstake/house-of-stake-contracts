@@ -55,6 +55,7 @@ pub mod staking_pool {
     pub const GET_ACCOUNT_TOTAL_BALANCE: Gas = super::BASE_GAS;
 }
 
+// TODO: Deprecate
 pub mod transfer_poll {
     use near_sdk::Gas;
 

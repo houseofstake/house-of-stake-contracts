@@ -46,7 +46,7 @@ impl LockupContract {
                     );
                     vesting_schedule_with_salt.vesting_schedule
                 } else {
-                    env::panic(b"Expected vesting schedule and salt, but it was not provided")
+                    env::panic_str("Expected vesting schedule and salt, but it was not provided")
                 }
             }
             VestingInformation::VestingSchedule(vesting_schedule) => {
@@ -56,14 +56,14 @@ impl LockupContract {
                 );
                 vesting_schedule.clone()
             }
-            VestingInformation::Terminating(_) => env::panic(b"Vesting was terminated"),
-            VestingInformation::None => env::panic(b"Vesting is None"),
+            VestingInformation::Terminating(_) => env::panic_str("Vesting was terminated"),
+            VestingInformation::None => env::panic_str("Vesting is None"),
         }
     }
 
     pub fn assert_no_termination(&self) {
         if let VestingInformation::Terminating(_) = &self.vesting_information {
-            env::panic(b"All operations are blocked until vesting termination is completed");
+            env::panic_str("All operations are blocked until vesting termination is completed");
         }
     }
 
@@ -83,7 +83,7 @@ impl LockupContract {
             match staking_information.status {
                 TransactionStatus::Idle => (),
                 TransactionStatus::Busy => {
-                    env::panic(b"Contract is currently busy with another operation")
+                    env::panic_str("Contract is currently busy with another operation")
                 }
             };
         }
@@ -97,7 +97,7 @@ impl LockupContract {
         match self.staking_information.as_ref().unwrap().status {
             TransactionStatus::Idle => (),
             TransactionStatus::Busy => {
-                env::panic(b"Contract is currently busy with another operation")
+                env::panic_str("Contract is currently busy with another operation")
             }
         };
     }

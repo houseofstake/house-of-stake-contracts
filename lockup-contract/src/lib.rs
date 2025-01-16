@@ -1,12 +1,9 @@
 //! A smart contract that allows tokens to be locked up.
 
-use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::Base58PublicKey;
-use near_sdk::{env, ext_contract, near, AccountId};
-use near_sdk::{near_bindgen, Gas};
+use near_sdk::Gas;
+use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
 
 pub use crate::getters::*;
-pub use crate::internal::*;
 pub use crate::owner::*;
 pub use crate::owner_callbacks::*;
 pub use crate::types::*;
@@ -20,9 +17,6 @@ pub mod getters;
 pub mod internal;
 pub mod owner;
 pub mod venear;
-
-/// Indicates there are no deposit for a cross contract call for better readability.
-const NO_DEPOSIT: u128 = 0;
 
 /// The contract keeps at least 3.5 NEAR in the account to avoid being transferred out to cover
 /// contract code storage and some internal state.
@@ -89,7 +83,8 @@ pub trait ExtLockupContractOwner {
     );
 }
 
-#[near_bindgen]
+#[near(contract_state)]
+#[derive(PanicOnDefault)]
 pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,
@@ -116,12 +111,6 @@ pub struct LockupContract {
 
     /// Pending unlocking amount
     pub venear_pending_balance: Balance,
-}
-
-impl Default for LockupContract {
-    fn default() -> Self {
-        env::panic(b"The contract is not initialized.");
-    }
 }
 
 #[near]

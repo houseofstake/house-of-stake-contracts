@@ -1,7 +1,7 @@
 use crate::*;
-use near_sdk::{is_promise_success, near, near_bindgen, PromiseOrValue};
+use near_sdk::{is_promise_success, near, PromiseOrValue};
 
-#[near_bindgen]
+#[near]
 impl LockupContract {
     /// Called after a given `staking_pool_account_id` was checked in the whitelist.
     #[private]
@@ -33,29 +33,23 @@ impl LockupContract {
 
         if deposit_succeeded {
             self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
-            env::log(
-                format!(
-                    "The deposit of {} to @{} succeeded",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The deposit of {} to @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "The deposit of {} to @{} has failed",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The deposit of {} to @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         deposit_succeeded
     }
@@ -70,29 +64,23 @@ impl LockupContract {
 
         if deposit_and_stake_succeeded {
             self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
-            env::log(
-                format!(
-                    "The deposit and stake of {} to @{} succeeded",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The deposit and stake of {} to @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "The deposit and stake of {} to @{} has failed",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The deposit and stake of {} to @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         deposit_and_stake_succeeded
     }
@@ -114,29 +102,23 @@ impl LockupContract {
                     .0
                     .saturating_sub(amount.0);
             }
-            env::log(
-                format!(
-                    "The withdrawal of {} from @{} succeeded",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The withdrawal of {} from @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "The withdrawal of {} from @{} failed",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "The withdrawal of {} from @{} failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         withdraw_succeeded
     }
@@ -149,29 +131,23 @@ impl LockupContract {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if stake_succeeded {
-            env::log(
-                format!(
-                    "Staking of {} at @{} succeeded",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Staking of {} at @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "Staking {} at @{} has failed",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Staking {} at @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         stake_succeeded
     }
@@ -185,29 +161,23 @@ impl LockupContract {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if unstake_succeeded {
-            env::log(
-                format!(
-                    "Unstaking of {} at @{} succeeded",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Unstaking of {} at @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "Unstaking {} at @{} has failed",
-                    amount.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Unstaking {} at @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         unstake_succeeded
     }
@@ -221,27 +191,21 @@ impl LockupContract {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if unstake_all_succeeded {
-            env::log(
-                format!(
-                    "Unstaking all at @{} succeeded",
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Unstaking all at @{} succeeded",
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         } else {
-            env::log(
-                format!(
-                    "Unstaking all at @{} has failed",
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Unstaking all at @{} has failed",
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
         }
         unstake_all_succeeded
     }
@@ -256,20 +220,17 @@ impl LockupContract {
         self.assert_transfers_disabled();
 
         if let Some(transfers_timestamp) = poll_result {
-            env::log(
-                format!(
-                    "Transfers were successfully enabled at {}",
-                    transfers_timestamp.0
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Transfers were successfully enabled at {}",
+                transfers_timestamp.0
+            ));
             self.lockup_information.transfers_information =
                 TransfersInformation::TransfersEnabled {
                     transfers_timestamp,
                 };
             true
         } else {
-            env::log(b"The transfers are not enabled yet");
+            env::log_str("The transfers are not enabled yet");
             false
         }
     }
@@ -279,13 +240,10 @@ impl LockupContract {
     pub fn on_get_account_total_balance(&mut self, #[callback] total_balance: WrappedBalance) {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
-        env::log(
-            format!(
-                "The current total balance on the staking pool is {}",
-                total_balance.0
-            )
-            .as_bytes(),
-        );
+        env::log_str(&format!(
+            "The current total balance on the staking pool is {}",
+            total_balance.0
+        ));
 
         self.staking_information.as_mut().unwrap().deposit_amount = total_balance;
     }
@@ -299,17 +257,14 @@ impl LockupContract {
     ) -> PromiseOrValue<bool> {
         if unstaked_balance.0 > 0 {
             // Need to withdraw
-            env::log(
-                format!(
-                    "Withdrawing {} from the staking pool @{}",
-                    unstaked_balance.0,
-                    self.staking_information
-                        .as_ref()
-                        .unwrap()
-                        .staking_pool_account_id
-                )
-                .as_bytes(),
-            );
+            env::log_str(&format!(
+                "Withdrawing {} from the staking pool @{}",
+                unstaked_balance.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
 
             ext_staking_pool::ext(
                 self.staking_information
@@ -327,7 +282,7 @@ impl LockupContract {
             )
             .into()
         } else {
-            env::log(b"No unstaked balance on the staking pool to withdraw");
+            env::log_str("No unstaked balance on the staking pool to withdraw");
             self.set_staking_pool_status(TransactionStatus::Idle);
             PromiseOrValue::Value(true)
         }
