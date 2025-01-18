@@ -16,7 +16,7 @@ It contains the following contracts:
 ### TODO:
 
 - Lockup contract
-  - [ ] Remove legacy logic for vesting schedule. There is no need to maintain vesting schedule, since there is no
+  - [✓] Remove legacy logic for vesting schedule. There is no need to maintain vesting schedule, since there is no
     termination
     of the contract.
   - [ ] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
