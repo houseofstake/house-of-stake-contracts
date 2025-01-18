@@ -2,8 +2,6 @@ use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
 
 use common::account::*;
 use common::global_state::*;
-use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::store::LookupMap;
 use near_sdk::{
     near,
     serde::{Deserialize, Serialize},
