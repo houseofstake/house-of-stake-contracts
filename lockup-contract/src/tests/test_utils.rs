@@ -1,28 +1,24 @@
-use near_sdk::json_types::Base58PublicKey;
-use near_sdk::{AccountId, MockedBlockchain, PromiseResult, VMContext};
+use std::str::FromStr;
+use near_sdk::{AccountId, Gas, NearToken, PublicKey, VMContext};
 
 pub const LOCKUP_NEAR: u128 = 1000;
 pub const GENESIS_TIME_IN_DAYS: u64 = 500;
 pub const YEAR: u64 = 365;
 
 pub fn lockup_account() -> AccountId {
-    "lockup".to_string()
+    AccountId::from_str("lockup").unwrap()
 }
 
 pub fn system_account() -> AccountId {
-    "system".to_string()
+    AccountId::from_str("system").unwrap()
 }
 
 pub fn account_owner() -> AccountId {
-    "account_owner".to_string()
+    AccountId::from_str("account_owner").unwrap()
 }
 
 pub fn non_owner() -> AccountId {
-    "non_owner".to_string()
-}
-
-pub fn account_foundation() -> AccountId {
-    "near".to_string()
+    AccountId::from_str("non_owner").unwrap()
 }
 
 pub fn to_yocto(near_balance: u128) -> u128 {
@@ -58,48 +54,37 @@ pub fn get_context(
     account_balance: u128,
     account_locked_balance: u128,
     block_timestamp: u64,
-    is_view: bool,
 ) -> VMContext {
     VMContext {
         current_account_id: lockup_account(),
         signer_account_id: predecessor_account_id.clone(),
-        signer_account_pk: vec![0, 1, 2],
+        signer_account_pk: public_key(123),
         predecessor_account_id,
         input: vec![],
         block_index: 1,
         block_timestamp,
         epoch_height: 1,
-        account_balance,
-        account_locked_balance,
+        account_balance: NearToken::from_yoctonear(account_balance),
+        account_locked_balance: NearToken::from_yoctonear(account_locked_balance),
         storage_usage: 10u64.pow(6),
-        attached_deposit: 0,
-        prepaid_gas: 10u64.pow(15),
-        random_seed: vec![0, 1, 2],
-        is_view,
+        attached_deposit: NearToken::from_yoctonear(0),
+        prepaid_gas: Gas::from_gas(10u64.pow(15)),
+        random_seed: [37u8; 32],
         output_data_receivers: vec![],
+        view_config: None,
     }
 }
 
-pub fn testing_env_with_promise_results(context: VMContext, promise_result: PromiseResult) {
-    let storage = near_sdk::env::take_blockchain_interface()
-        .unwrap()
-        .as_mut_mocked_blockchain()
-        .unwrap()
-        .take_storage();
+// version based on Base58PublicKey, before the contract upgrade
+// pub fn public_key(byte_val: u8) -> Base58PublicKey {
+//     let mut pk = vec![byte_val; 33];
+//     pk[0] = 0;
+//     Base58PublicKey(pk)
+// }
 
-    near_sdk::env::set_blockchain_interface(Box::new(MockedBlockchain::new(
-        context,
-        Default::default(),
-        Default::default(),
-        vec![promise_result],
-        storage,
-        Default::default(),
-        None,
-    )));
-}
-
-pub fn public_key(byte_val: u8) -> Base58PublicKey {
+pub fn public_key(byte_val: u8) -> PublicKey {
     let mut pk = vec![byte_val; 33];
     pk[0] = 0;
-    Base58PublicKey(pk)
+    PublicKey::try_from(pk).unwrap()
 }
+

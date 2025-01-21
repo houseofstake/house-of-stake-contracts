@@ -1,6 +1,5 @@
 use lockup_contract::{
-    LockupContractContract, TerminationStatus, TransfersInformation, VestingSchedule,
-    VestingScheduleOrHash, VestingScheduleWithSalt, WrappedBalance, MIN_BALANCE_FOR_STORAGE
+    LockupContractContract, TerminationStatus, TransfersInformation, WrappedBalance, MIN_BALANCE_FOR_STORAGE
 };
 use near_sdk::borsh::BorshSerialize;
 use near_sdk::json_types::{Base58PublicKey, U128};

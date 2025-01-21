@@ -22,51 +22,6 @@ impl LockupContract {
             .status = status;
     }
 
-    pub fn set_termination_status(&mut self, status: TerminationStatus) {
-        if let VestingInformation::Terminating(termination_information) =
-            &mut self.vesting_information
-        {
-            termination_information.status = status;
-        } else {
-            unreachable!("The vesting information is not at the terminating stage");
-        }
-    }
-
-    pub fn assert_vesting(
-        &self,
-        vesting_schedule_with_salt: Option<VestingScheduleWithSalt>,
-    ) -> VestingSchedule {
-        match &self.vesting_information {
-            VestingInformation::VestingHash(hash) => {
-                if let Some(vesting_schedule_with_salt) = vesting_schedule_with_salt {
-                    assert_eq!(
-                        &vesting_schedule_with_salt.hash(),
-                        &hash.0,
-                        "Presented vesting schedule and salt don't match the hash"
-                    );
-                    vesting_schedule_with_salt.vesting_schedule
-                } else {
-                    env::panic_str("Expected vesting schedule and salt, but it was not provided")
-                }
-            }
-            VestingInformation::VestingSchedule(vesting_schedule) => {
-                assert!(
-                    vesting_schedule_with_salt.is_none(),
-                    "Explicit vesting schedule exists"
-                );
-                vesting_schedule.clone()
-            }
-            VestingInformation::Terminating(_) => env::panic_str("Vesting was terminated"),
-            VestingInformation::None => env::panic_str("Vesting is None"),
-        }
-    }
-
-    pub fn assert_no_termination(&self) {
-        if let VestingInformation::Terminating(_) = &self.vesting_information {
-            env::panic_str("All operations are blocked until vesting termination is completed");
-        }
-    }
-
     pub fn assert_transfers_enabled(&self) {
         assert!(self.are_transfers_enabled(), "Transfers are disabled");
     }

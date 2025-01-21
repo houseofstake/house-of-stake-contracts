@@ -16,7 +16,6 @@ impl LockupContract {
             "The staking pool account ID is invalid"
         );
         self.assert_staking_pool_is_not_selected();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Selecting staking pool @{}. Going to check whitelist first.",
@@ -42,7 +41,6 @@ impl LockupContract {
     pub fn unselect_staking_pool(&mut self) {
         self.assert_owner();
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
         // NOTE: This is best effort checks. There is still some balance might be left on the
         // staking pool, but it's up to the owner whether to unselect the staking pool.
         // The contract doesn't care about leftovers.
@@ -72,7 +70,6 @@ impl LockupContract {
         self.assert_owner();
         assert!(amount.0 > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
         assert!(
             self.get_account_balance().0 >= amount.0,
             "The balance that can be deposited to the staking pool is lower than the extra amount"
@@ -97,6 +94,7 @@ impl LockupContract {
                 .clone(),
         )
         .with_static_gas(gas::staking_pool::DEPOSIT)
+        .with_attached_deposit(NearToken::from_yoctonear(amount.0))
         .deposit()
         .then(
             ext_self_owner::ext(env::current_account_id())
@@ -114,7 +112,6 @@ impl LockupContract {
         self.assert_owner();
         assert!(amount.0 > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
         assert!(
             self.get_account_balance().0 >= amount.0,
             "The balance that can be deposited to the staking pool is lower than the extra amount"
@@ -158,7 +155,6 @@ impl LockupContract {
     pub fn refresh_staking_pool_balance(&mut self) -> Promise {
         self.assert_owner();
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Fetching total balance from the staking pool @{}",
@@ -195,7 +191,6 @@ impl LockupContract {
         self.assert_owner();
         assert!(amount.0 > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Withdrawing {} from the staking pool @{}",
@@ -232,7 +227,6 @@ impl LockupContract {
     pub fn withdraw_all_from_staking_pool(&mut self) -> Promise {
         self.assert_owner();
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Going to query the unstaked balance at the staking pool @{}",
@@ -271,7 +265,6 @@ impl LockupContract {
         self.assert_owner();
         assert!(amount.0 > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Staking {} at the staking pool @{}",
@@ -309,7 +302,6 @@ impl LockupContract {
         self.assert_owner();
         assert!(amount.0 > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Unstaking {} from the staking pool @{}",
@@ -346,7 +338,6 @@ impl LockupContract {
     pub fn unstake_all(&mut self) -> Promise {
         self.assert_owner();
         self.assert_staking_pool_is_idle();
-        self.assert_no_termination();
 
         env::log_str(&format!(
             "Unstaking all tokens from the staking pool @{}",
@@ -385,7 +376,6 @@ impl LockupContract {
         // TODO: Deprecate.
         self.assert_owner();
         self.assert_transfers_disabled();
-        self.assert_no_termination();
 
         let transfer_poll_account_id = match &self.lockup_information.transfers_information {
             TransfersInformation::TransfersDisabled {
@@ -425,7 +415,6 @@ impl LockupContract {
         );
         self.assert_transfers_enabled();
         self.assert_no_staking_or_idle();
-        self.assert_no_termination();
         assert!(
             self.get_liquid_owners_balance().0 >= amount.0,
             "The available liquid balance {} is smaller than the requested transfer amount {}",
@@ -458,7 +447,6 @@ impl LockupContract {
         self.assert_owner();
         self.assert_transfers_enabled();
         self.assert_no_staking_or_idle();
-        self.assert_no_termination();
         assert_eq!(
             self.get_locked_amount().0,
             0,

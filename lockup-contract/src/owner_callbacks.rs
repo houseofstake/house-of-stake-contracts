@@ -15,7 +15,6 @@ impl LockupContract {
             "The given staking pool account ID is not whitelisted"
         );
         self.assert_staking_pool_is_not_selected();
-        self.assert_no_termination();
         self.staking_information = Some(StakingInformation {
             staking_pool_account_id,
             status: TransactionStatus::Idle,
@@ -29,29 +28,7 @@ impl LockupContract {
     #[private]
     pub fn on_staking_pool_deposit(&mut self, amount: WrappedBalance) -> bool {
         let deposit_succeeded = is_promise_success();
-        self.set_staking_pool_status(TransactionStatus::Idle);
-
-        if deposit_succeeded {
-            self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
-            env::log_str(&format!(
-                "The deposit of {} to @{} succeeded",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        } else {
-            env::log_str(&format!(
-                "The deposit of {} to @{} has failed",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        }
-        deposit_succeeded
+        self.on_staking_pool_deposit_inner(amount, deposit_succeeded)
     }
 
     /// Called after a deposit amount was transferred out of this account to the staking pool and it
@@ -91,36 +68,7 @@ impl LockupContract {
     #[private]
     pub fn on_staking_pool_withdraw(&mut self, amount: WrappedBalance) -> bool {
         let withdraw_succeeded = is_promise_success();
-        self.set_staking_pool_status(TransactionStatus::Idle);
-
-        if withdraw_succeeded {
-            {
-                let staking_information = self.staking_information.as_mut().unwrap();
-                // Due to staking rewards the deposit amount can become negative.
-                staking_information.deposit_amount.0 = staking_information
-                    .deposit_amount
-                    .0
-                    .saturating_sub(amount.0);
-            }
-            env::log_str(&format!(
-                "The withdrawal of {} from @{} succeeded",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        } else {
-            env::log_str(&format!(
-                "The withdrawal of {} from @{} failed",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        }
-        withdraw_succeeded
+        self.on_staking_pool_withdraw_inner(amount, withdraw_succeeded)
     }
 
     /// Called after the extra amount stake was staked in the staking pool contract.
@@ -128,28 +76,7 @@ impl LockupContract {
     #[private]
     pub fn on_staking_pool_stake(&mut self, amount: WrappedBalance) -> bool {
         let stake_succeeded = is_promise_success();
-        self.set_staking_pool_status(TransactionStatus::Idle);
-
-        if stake_succeeded {
-            env::log_str(&format!(
-                "Staking of {} at @{} succeeded",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        } else {
-            env::log_str(&format!(
-                "Staking {} at @{} has failed",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        }
-        stake_succeeded
+        self.on_staking_pool_stake_inner(amount, stake_succeeded)
     }
 
     /// Called after the given amount was unstaked at the staking pool contract.
@@ -158,28 +85,7 @@ impl LockupContract {
     #[private]
     pub fn on_staking_pool_unstake(&mut self, amount: WrappedBalance) -> bool {
         let unstake_succeeded = is_promise_success();
-        self.set_staking_pool_status(TransactionStatus::Idle);
-
-        if unstake_succeeded {
-            env::log_str(&format!(
-                "Unstaking of {} at @{} succeeded",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        } else {
-            env::log_str(&format!(
-                "Unstaking {} at @{} has failed",
-                amount.0,
-                self.staking_information
-                    .as_ref()
-                    .unwrap()
-                    .staking_pool_account_id
-            ));
-        }
-        unstake_succeeded
+        self.on_staking_pool_unstake_inner(amount, unstake_succeeded)
     }
 
     /// Called after all tokens were unstaked at the staking pool contract
@@ -287,4 +193,116 @@ impl LockupContract {
             PromiseOrValue::Value(true)
         }
     }
+}
+
+impl LockupContract {
+    pub fn on_staking_pool_deposit_inner(&mut self, amount: WrappedBalance, deposit_succeeded: bool) -> bool {
+        self.set_staking_pool_status(TransactionStatus::Idle);
+
+        if deposit_succeeded {
+            self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
+            env::log_str(&format!(
+                "The deposit of {} to @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        } else {
+            env::log_str(&format!(
+                "The deposit of {} to @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        }
+        deposit_succeeded
+    }
+
+    pub fn on_staking_pool_stake_inner(&mut self, amount: WrappedBalance, stake_succeeded: bool) -> bool {
+        self.set_staking_pool_status(TransactionStatus::Idle);
+
+        if stake_succeeded {
+            env::log_str(&format!(
+                "Staking of {} at @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        } else {
+            env::log_str(&format!(
+                "Staking {} at @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        }
+        stake_succeeded
+    }
+
+    pub fn on_staking_pool_unstake_inner(&mut self, amount: WrappedBalance, unstake_succeeded: bool) -> bool {
+        self.set_staking_pool_status(TransactionStatus::Idle);
+
+        if unstake_succeeded {
+            env::log_str(&format!(
+                "Unstaking of {} at @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        } else {
+            env::log_str(&format!(
+                "Unstaking {} at @{} has failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        }
+        unstake_succeeded
+    }
+
+    pub fn on_staking_pool_withdraw_inner(&mut self, amount: WrappedBalance, withdraw_succeeded: bool) -> bool {
+        self.set_staking_pool_status(TransactionStatus::Idle);
+
+        if withdraw_succeeded {
+            {
+                let staking_information = self.staking_information.as_mut().unwrap();
+                // Due to staking rewards the deposit amount can become negative.
+                staking_information.deposit_amount.0 = staking_information
+                    .deposit_amount
+                    .0
+                    .saturating_sub(amount.0);
+            }
+            env::log_str(&format!(
+                "The withdrawal of {} from @{} succeeded",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        } else {
+            env::log_str(&format!(
+                "The withdrawal of {} from @{} failed",
+                amount.0,
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .staking_pool_account_id
+            ));
+        }
+        withdraw_succeeded
+    }
+
 }

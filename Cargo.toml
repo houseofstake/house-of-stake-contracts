@@ -16,7 +16,7 @@ members = [
 ]
 
 [workspace.dependencies]
-near-sdk = "5.7.0"
+near-sdk = { version = "5.7.0", features = ["unit-testing"] }
 near-contract-standards = "5.7.0"
 serde_json = { version = "1.0", features = ["preserve_order"] }
 uint = { version = "=0.9.0", default-features = false }

@@ -1,6 +1,5 @@
 use crate::*;
-use near_sdk::borsh::BorshSerialize;
-use near_sdk::json_types::{Base64VecU8, U128, U64};
+use near_sdk::json_types::{U128, U64};
 use uint::construct_uint;
 
 construct_uint! {
@@ -23,19 +22,11 @@ pub type WrappedDuration = U64;
 /// Balance wrapped into a struct for JSON serialization as a string.
 pub type WrappedBalance = U128;
 
-/// Hash of Vesting schedule.
-pub type Hash = Vec<u8>;
-
 /// Contains information about token lockups.
 #[near(serializers=[borsh])]
 pub struct LockupInformation {
     /// The amount in yocto-NEAR tokens locked for this account.
     pub lockup_amount: Balance,
-    /// The amount of tokens that were withdrawn by NEAR foundation due to early termination
-    /// of vesting.
-    /// This amount has to be accounted separately from the lockup_amount to make sure
-    /// linear release is not being affected.
-    pub termination_withdrawn_tokens: Balance,
     /// [deprecated] - the duration in nanoseconds of the lockup period from
     /// the moment the transfers are enabled. During this period tokens are locked and
     /// the release doesn't start. Instead of this, use `lockup_timestamp` and `release_duration`
@@ -93,119 +84,7 @@ pub struct StakingInformation {
     pub deposit_amount: WrappedBalance,
 }
 
-/// Contains information about vesting schedule.
-#[derive(Clone, PartialEq, Debug)]
-#[near(serializers=[borsh, json])]
-pub struct VestingSchedule {
-    /// The timestamp in nanosecond when the vesting starts. E.g. the start date of employment.
-    pub start_timestamp: WrappedTimestamp,
-    /// The timestamp in nanosecond when the first part of lockup tokens becomes vested.
-    /// The remaining tokens will vest continuously until they are fully vested.
-    /// Example: a 1 year of employment at which moment the 1/4 of tokens become vested.
-    pub cliff_timestamp: WrappedTimestamp,
-    /// The timestamp in nanosecond when the vesting ends.
-    pub end_timestamp: WrappedTimestamp,
-}
-
-impl VestingSchedule {
-    pub fn assert_valid(&self) {
-        assert!(
-            self.start_timestamp.0 <= self.cliff_timestamp.0,
-            "Cliff timestamp can't be earlier than vesting start timestamp"
-        );
-        assert!(
-            self.cliff_timestamp.0 <= self.end_timestamp.0,
-            "Cliff timestamp can't be later than vesting end timestamp"
-        );
-        assert!(
-            self.start_timestamp.0 < self.end_timestamp.0,
-            "The total vesting time should be positive"
-        );
-    }
-}
-
-/// Initialization argument type to define the vesting schedule
-#[near(serializers=[json])]
-pub enum VestingScheduleOrHash {
-    /// [deprecated] After transfers are enabled, only public schedule is used.
-    /// The vesting schedule is private and this is a hash of (vesting_schedule, salt).
-    /// In JSON, the hash has to be encoded with base64 to a string.
-    VestingHash(Base64VecU8),
-    /// The vesting schedule (public)
-    VestingSchedule(VestingSchedule),
-}
-
-/// Contains information about vesting that contains vesting schedule and termination information.
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers=[borsh, json])]
-pub enum VestingInformation {
-    None,
-    /// [deprecated] After transfers are enabled, only public schedule is used.
-    /// Vesting schedule is hashed for privacy and only will be revealed if the NEAR foundation
-    /// has to terminate vesting.
-    /// The contract assume the vesting schedule doesn't affect lockup release and duration, because
-    /// the vesting started before transfers were enabled and the duration is shorter or the same.
-    VestingHash(Base64VecU8),
-    /// Explicit vesting schedule.
-    VestingSchedule(VestingSchedule),
-    /// The information about the early termination of the vesting schedule.
-    /// It means the termination of the vesting is currently in progress.
-    /// Once the unvested amount is transferred out, `VestingInformation` is removed.
-    Terminating(TerminationInformation),
-}
-
-/// Describes the status of transactions with the staking pool contract or terminated unvesting
-/// amount withdrawal.
-#[derive(PartialEq, Copy, Clone, Debug)]
-#[near(serializers=[borsh, json])]
-pub enum TerminationStatus {
-    /// Initial stage of the termination in case there are deficit on the account.
-    VestingTerminatedWithDeficit,
-    /// A transaction to unstake everything is in progress.
-    UnstakingInProgress,
-    /// The transaction to unstake everything from the staking pool has completed.
-    EverythingUnstaked,
-    /// A transaction to withdraw everything from the staking pool is in progress.
-    WithdrawingFromStakingPoolInProgress,
-    /// Everything is withdrawn from the staking pool. Ready to withdraw out of the account.
-    ReadyToWithdraw,
-    /// A transaction to withdraw tokens from the account is in progress.
-    WithdrawingFromAccountInProgress,
-}
-
-/// Contains information about early termination of the vesting schedule.
-#[derive(PartialEq, Clone, Debug)]
-#[near(serializers=[borsh, json])]
-pub struct TerminationInformation {
-    /// The amount of tokens that are unvested and has to be transferred back to NEAR Foundation.
-    /// These tokens are effectively locked and can't be transferred out and can't be restaked.
-    pub unvested_amount: WrappedBalance,
-
-    /// The status of the withdrawal. When the unvested amount is in progress of withdrawal the
-    /// status will be marked as busy, to avoid withdrawing the funds twice.
-    pub status: TerminationStatus,
-}
 
 /// The result of the transfer poll.
 /// Contains The timestamp when the proposal was voted in.
 pub type PollResult = Option<WrappedTimestamp>;
-
-/// Contains a vesting schedule with a salt.
-#[derive(Clone, Debug)]
-#[near(serializers=[borsh, json])]
-pub struct VestingScheduleWithSalt {
-    /// The vesting schedule
-    pub vesting_schedule: VestingSchedule,
-    /// Salt to make the hash unique
-    pub salt: Base64VecU8,
-}
-
-impl VestingScheduleWithSalt {
-    pub fn hash(&self) -> Hash {
-        // before sdk update:
-        // env::sha256(&self.try_to_vec().expect("Failed to serialize"))
-        let mut bytes = Vec::new();
-        BorshSerialize::serialize(&self, &mut bytes).expect("Failed to serialize");
-        env::sha256(&bytes)
-    }
-}
