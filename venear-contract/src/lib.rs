@@ -1,3 +1,9 @@
+mod account;
+mod config;
+mod delegation;
+mod lockup;
+mod snapshot;
+
 use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
 
 use common::account::*;
@@ -5,7 +11,7 @@ use common::global_state::*;
 use near_sdk::{
     near,
     serde::{Deserialize, Serialize},
-    AccountId, BorshStorageKey, PanicOnDefault,
+    AccountId, BorshStorageKey, NearToken, PanicOnDefault,
 };
 
 #[derive(BorshStorageKey)]
@@ -18,13 +24,6 @@ enum StorageKeys {
 #[near(contract_state)]
 pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(crate = "near_sdk::serde")]
-pub struct AccountInfo {
-    pub account_id: AccountId,
-    // todo: add more fields
 }
 
 #[near]
@@ -55,27 +54,6 @@ impl Contract {
     //
     // Voting
     // Lockup integration on account update
-
-    #[payable]
-    pub fn register_account(&mut self) {
-        todo!()
-    }
-
-    pub fn get_registration_cost(&self) -> u128 {
-        todo!()
-    }
-
-    pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
-        todo!()
-    }
-
-    pub fn get_snapshot(&self) -> (VGlobalState, MerkleTreeSnapshot) {
-        todo!()
-    }
-
-    pub fn get_proof(&self, account_id: AccountId) -> (VAccount, MerkleProof) {
-        todo!()
-    }
 
     // TODO: delegations
     // TODO: veNEAR token non-transferable implementation
