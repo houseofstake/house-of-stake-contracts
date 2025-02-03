@@ -1,37 +1,57 @@
 mod account;
 mod config;
 mod delegation;
+mod liquid_staking;
 mod lockup;
 mod snapshot;
 
 use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
+use std::collections::HashMap;
 
+use crate::account::VAccountInternal;
+use crate::config::Config;
+use crate::liquid_staking::LstData;
 use common::account::*;
 use common::global_state::*;
+use common::venear::VenearGrowsConfig;
+use common::Version;
+use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
-    near,
+    near, require,
     serde::{Deserialize, Serialize},
-    AccountId, BorshStorageKey, NearToken, PanicOnDefault,
+    sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
 };
 
 #[derive(BorshStorageKey)]
 #[near]
 enum StorageKeys {
     Tree,
+    LockupCode(CryptoHash),
+    Accounts,
+    Lsts,
 }
 
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
 pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
+    accounts: LookupMap<AccountId, VAccountInternal>,
+    lsts: LazyOption<HashMap<AccountId, LstData>>,
+    config: Config,
 }
 
 #[near]
 impl Contract {
     #[init]
-    pub fn init() -> Self {
+    pub fn init(config: Config, venear_grows_config: VenearGrowsConfig) -> Self {
         Self {
-            tree: MerkleTree::new(StorageKeys::Tree, GlobalState::new().into()),
+            tree: MerkleTree::new(
+                StorageKeys::Tree,
+                GlobalState::new(venear_grows_config).into(),
+            ),
+            accounts: LookupMap::new(StorageKeys::Accounts),
+            lsts: LazyOption::new(StorageKeys::Lsts, Some(HashMap::new())),
+            config,
         }
     }
 

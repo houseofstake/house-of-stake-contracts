@@ -1,15 +1,19 @@
+use crate::venear::VenearGrowsConfig;
 use crate::*;
 
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct GlobalState {
     pub total_venear_balance: TimedBalance,
+
+    pub venear_grows_config: VenearGrowsConfig,
 }
 
 impl GlobalState {
-    pub fn new() -> Self {
+    pub fn new(venear_grows_config: VenearGrowsConfig) -> Self {
         Self {
             total_venear_balance: TimedBalance::default(),
+            venear_grows_config,
         }
     }
 }

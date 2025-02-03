@@ -1,21 +1,28 @@
 use crate::*;
 use common::Version;
+use near_sdk::json_types::U64;
 
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
-pub struct VenearGrowsConfig {
-    // TODO
-}
-
-#[derive(Clone)]
-#[near(serializers=[json, borsh])]
-pub struct LockupConfig {
+pub struct LockupContractConfig {
     pub contract_size: u64,
     pub contract_version: Version,
-    // TODO
+    pub contract_hash: CryptoHash,
 }
 
+#[derive(Clone)]
+#[near(serializers=[json, borsh])]
 pub struct Config {
-    pub venear_growth: VenearGrowsConfig,
-    pub lockup: LockupConfig,
+    pub lockup_contract_config: LockupContractConfig,
+
+    /// Initialization arguments for the lockup contract.
+    pub lockup_duration_ns: U64,
+    /// The account ID of the staking pool whitelist for lockup contract.
+    pub staking_pool_whitelist_account_id: AccountId,
+
+    /// The list of account IDs that can store new lockup contract code.
+    pub lockup_code_deployers: Vec<AccountId>,
+
+    pub stnear_account_id: Option<AccountId>,
+    pub linear_account_id: Option<AccountId>,
 }

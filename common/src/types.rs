@@ -1,5 +1,10 @@
 use crate::*;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{U128, U64};
+use std::cmp::Ordering;
+
+uint::construct_uint!(
+    pub struct U256(4);
+);
 
 /// The timestamp in nanoseconds. It serializes as a string for JSON.
 pub type TimestampNs = U64;
@@ -29,4 +34,25 @@ pub struct FtBalance {
 
     /// The balance of the fungible token.
     pub balance: NearToken,
+}
+
+#[derive(Clone)]
+#[near(serializers=[borsh, json])]
+pub struct Fraction {
+    pub numerator: U128,
+    pub denominator: U128,
+}
+
+impl PartialEq<Self> for Fraction {
+    fn eq(&self, other: &Self) -> bool {
+        U256::from(self.numerator.0) * U256::from(other.denominator.0)
+            == U256::from(self.denominator.0) * U256::from(other.numerator.0)
+    }
+}
+
+impl PartialOrd for Fraction {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        (U256::from(self.numerator.0) * U256::from(other.denominator.0))
+            .partial_cmp(&(U256::from(self.denominator.0) * U256::from(other.numerator.0)))
+    }
 }
