@@ -9,9 +9,6 @@ pub struct LockupUpdateV1 {
     /// The amount of NEAR that is locked in the lockup contract.
     pub locked_near_balance: NearToken,
 
-    /// The list of token ID and amount of liquid staking locked in the lockup contract.
-    pub locked_fungible_tokens: Vec<FtBalance>,
-
     /// The timestamp in nanoseconds when the update was created.
     pub timestamp: TimestampNs,
 }

@@ -34,7 +34,6 @@ enum StorageKeys {
 pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
     accounts: LookupMap<AccountId, VAccountInternal>,
-    lsts: LazyOption<HashMap<AccountId, LstData>>,
     config: Config,
 }
 
@@ -48,7 +47,6 @@ impl Contract {
                 GlobalState::new(venear_grows_config).into(),
             ),
             accounts: LookupMap::new(StorageKeys::Accounts),
-            lsts: LazyOption::new(StorageKeys::Lsts, Some(HashMap::new())),
             config,
         }
     }

@@ -31,10 +31,6 @@ pub struct AccountDelegation {
 
     /// The amount of veNEAR that was delegated to the account.
     pub venear_amount: TimedBalance,
-
-    /// Whether the account want to delegate all its veNEAR to the account.
-    /// When owner of the account updates lockup, the new balance will be delegated to the account.
-    pub delegate_all: bool,
 }
 
 #[near(serializers=[borsh, json])]

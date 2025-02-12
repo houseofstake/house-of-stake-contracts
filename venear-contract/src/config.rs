@@ -22,7 +22,4 @@ pub struct Config {
 
     /// The list of account IDs that can store new lockup contract code.
     pub lockup_code_deployers: Vec<AccountId>,
-
-    pub stnear_account_id: Option<AccountId>,
-    pub linear_account_id: Option<AccountId>,
 }

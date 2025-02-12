@@ -26,17 +26,6 @@ pub struct TimedBalance {
     pub timestamp: TimestampNs,
 }
 
-/// The balance of fungible token with the token ID.
-#[derive(Clone)]
-#[near(serializers=[borsh, json])]
-pub struct FtBalance {
-    /// The account ID of the fungible token contract.
-    pub token_account_id: AccountId,
-
-    /// The balance of the fungible token.
-    pub balance: NearToken,
-}
-
 #[derive(Clone, Copy)]
 #[near(serializers=[borsh, json])]
 pub struct Fraction {
