@@ -22,13 +22,55 @@ pub struct LockupInitArgs {
 impl Contract {
     /// Called by one of the lockup contracts to update the amount of
     /// NEAR and fungible tokens locked in the lockup contract .
-    pub fn on_lockup_update(&mut self, version: Version, update: VLockupUpdate) {
+    pub fn on_lockup_update(
+        &mut self,
+        version: Version,
+        owner_account_id: AccountId,
+        update: VLockupUpdate,
+    ) {
+        let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
+        require!(
+            env::predecessor_account_id() == lockup_account_id,
+            "Permission denied"
+        );
+        let internal_account = self
+            .internal_get_account_internal(&owner_account_id)
+            .expect("Account not found");
+        require!(
+            internal_account.version == version,
+            "Invalid lockup version"
+        );
+        match update {
+            VLockupUpdate::V1(update) => {
+                self.internal_update_lockup(owner_account_id, update);
+            }
+        }
         todo!()
     }
 }
 
 /// Internal methods for the contract and lockup.
 impl Contract {
+    pub fn internal_update_lockup(
+        &mut self,
+        account_id: AccountId,
+        update: common::lockup_update::LockupUpdateV1,
+    ) {
+        let lsts = self.lsts.get().as_ref().unwrap();
+        let mut new_lockup_near_balance = update.locked_near_balance.as_yoctonear();
+        for ft_balance in update.locked_fungible_tokens {
+            if let Some(lst_data) = lsts.get(&ft_balance.token_account_id) {
+                new_lockup_near_balance += lst_data.multiplier * ft_balance.balance.as_yoctonear();
+            }
+        }
+        let new_lockup_near_balance = NearToken::from_yoctonear(new_lockup_near_balance);
+        let mut account: Account = self.tree.get(&account_id).unwrap().into();
+        require!(
+            update.timestamp > account.lockup_near_balance.timestamp,
+            "The update timestamp has to be greater"
+        );
+    }
+
     pub fn internal_set_lockup(&mut self, contract_hash: CryptoHash) {
         // read contract length
         let key = StorageKeys::LockupCode(contract_hash).into_storage_key();
@@ -61,11 +103,7 @@ impl Contract {
             deposit >= minimum_deployment_cost,
             "Deposit is not enough to deploy the lockup contract"
         );
-        let owner_account_id_hash = hex::encode(&env::sha256(owner_account_id.as_bytes())[0..20]);
-        let lockup_account_id: AccountId =
-            format!("{}.{}", owner_account_id_hash, env::current_account_id())
-                .parse()
-                .expect("Failed to create lockup account ID");
+        let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
         let contract_code_key =
             StorageKeys::LockupCode(self.config.lockup_contract_config.contract_hash)
@@ -116,16 +154,6 @@ impl Contract {
     }
 }
 
-fn internal_get_hash_and_size(register_id: u64) -> (u64, CryptoHash) {
-    let size = env::register_len(register_id).unwrap();
-    let hash_register = register_id + 1;
-    unsafe {
-        sys::sha256(u64::MAX, register_id, hash_register);
-    }
-    let hash = env::read_register(hash_register).unwrap();
-    (size, hash.try_into().unwrap())
-}
-
 #[no_mangle]
 pub extern "C" fn prepare_lockup_code() {
     env::setup_panic_hook();
@@ -160,4 +188,21 @@ pub extern "C" fn prepare_lockup_code() {
             1,
         );
     }
+}
+
+fn internal_map_owner_account_id(owner_account_id: &AccountId) -> AccountId {
+    let owner_account_id_hash = hex::encode(&env::sha256(owner_account_id.as_bytes())[0..20]);
+    format!("{}.{}", owner_account_id_hash, env::current_account_id())
+        .try_into()
+        .expect("Failed to create lockup account ID")
+}
+
+fn internal_get_hash_and_size(register_id: u64) -> (u64, CryptoHash) {
+    let size = env::register_len(register_id).unwrap();
+    let hash_register = register_id + 1;
+    unsafe {
+        sys::sha256(u64::MAX, register_id, hash_register);
+    }
+    let hash = env::read_register(hash_register).unwrap();
+    (size, hash.try_into().unwrap())
 }

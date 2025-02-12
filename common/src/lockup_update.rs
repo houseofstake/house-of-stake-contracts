@@ -5,21 +5,18 @@ use crate::*;
 /// fungible tokens that are locked in the lockup contract.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
-pub struct LockupUpdate {
+pub struct LockupUpdateV1 {
     /// The amount of NEAR that is locked in the lockup contract.
     pub locked_near_balance: NearToken,
 
     /// The list of token ID and amount of liquid staking locked in the lockup contract.
     pub locked_fungible_tokens: Vec<FtBalance>,
+
+    /// The timestamp in nanoseconds when the update was created.
+    pub timestamp: TimestampNs,
 }
 
 #[near(serializers=[borsh, json])]
 pub enum VLockupUpdate {
-    Current(LockupUpdate),
-}
-
-impl From<LockupUpdate> for VLockupUpdate {
-    fn from(lockup_update: LockupUpdate) -> Self {
-        Self::Current(lockup_update)
-    }
+    V1(LockupUpdateV1),
 }

@@ -1,16 +1,22 @@
 use crate::*;
 
 /// The account details that are stored in the Merkle Tree.
+/// The current venear balance is calculated using the following:
+/// venear_balance = lockup_near_balance * venear_grows_config.venear_grows / (now - update_timestamp) + venear_balance
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct Account {
     /// The account ID of the account. Required for the security of the Merkle Tree proofs.
     pub account_id: AccountId,
+    /// The timestamp in nanoseconds when the account was last updated.
+    pub update_timestamp: TimestampNs,
     /// The total NEAR balance of the account as reported by the lockup contract, including liquid
     /// staking tokens that were converted to NEAR amount at the time of the report.
-    pub lockup_near_balance: TimedBalance,
+    pub lockup_near_balance: NearToken,
+    /// Additional veNEAR balance accumulated over time from growth.
+    pub extra_venear_balance: NearToken,
     /// The amount of veNEAR that was delegated to this account.
-    pub delegated_venear_balance: TimedBalance,
+    pub delegated_venear_balance: NearToken,
     /// The delegation details, in case this account has the account has delegated to another
     /// account.
     pub delegation: Option<AccountDelegation>,
@@ -25,6 +31,10 @@ pub struct AccountDelegation {
 
     /// The amount of veNEAR that was delegated to the account.
     pub venear_amount: TimedBalance,
+
+    /// Whether the account want to delegate all its veNEAR to the account.
+    /// When owner of the account updates lockup, the new balance will be delegated to the account.
+    pub delegate_all: bool,
 }
 
 #[near(serializers=[borsh, json])]

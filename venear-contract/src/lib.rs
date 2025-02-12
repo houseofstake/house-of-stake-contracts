@@ -17,9 +17,7 @@ use common::venear::VenearGrowsConfig;
 use common::Version;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
-    near, require,
-    serde::{Deserialize, Serialize},
-    sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
+    near, require, sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
 };
 
 #[derive(BorshStorageKey)]

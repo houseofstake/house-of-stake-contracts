@@ -21,6 +21,7 @@ pub struct AccountInternal {
     pub deposit: NearToken,
 }
 
+#[derive(Clone)]
 #[near(serializers=[borsh])]
 pub enum VAccountInternal {
     Current(AccountInternal),
@@ -29,6 +30,14 @@ pub enum VAccountInternal {
 impl From<AccountInternal> for VAccountInternal {
     fn from(account: AccountInternal) -> Self {
         Self::Current(account)
+    }
+}
+
+impl From<VAccountInternal> for AccountInternal {
+    fn from(value: VAccountInternal) -> Self {
+        match value {
+            VAccountInternal::Current(account) => account,
+        }
     }
 }
 
@@ -48,5 +57,14 @@ impl Contract {
     /// Helper method to get the account info.
     pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
         todo!()
+    }
+}
+
+impl Contract {
+    pub fn internal_get_account_internal(&self, account_id: &AccountId) -> Option<AccountInternal> {
+        self.accounts
+            .get(account_id)
+            .cloned()
+            .map(|account| account.into())
     }
 }
