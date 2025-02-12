@@ -10,3 +10,4 @@ license.workspace = true
 [dependencies]
 near-sdk.workspace = true
 serde_json.workspace = true
+uint.workspace = true

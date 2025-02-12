@@ -1,38 +1,51 @@
-use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
+mod account;
+mod config;
+mod delegation;
+mod lockup;
+mod snapshot;
 
+use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
+use std::collections::HashMap;
+
+use crate::account::VAccountInternal;
+use crate::config::Config;
 use common::account::*;
 use common::global_state::*;
+use common::venear::VenearGrowsConfig;
+use common::Version;
+use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
-    near,
-    serde::{Deserialize, Serialize},
-    AccountId, BorshStorageKey, PanicOnDefault,
+    near, require, sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
 };
 
 #[derive(BorshStorageKey)]
 #[near]
 enum StorageKeys {
     Tree,
+    LockupCode(CryptoHash),
+    Accounts,
+    Lsts,
 }
 
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
 pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(crate = "near_sdk::serde")]
-pub struct AccountInfo {
-    pub account_id: AccountId,
-    // todo: add more fields
+    accounts: LookupMap<AccountId, VAccountInternal>,
+    config: Config,
 }
 
 #[near]
 impl Contract {
     #[init]
-    pub fn init() -> Self {
+    pub fn init(config: Config, venear_grows_config: VenearGrowsConfig) -> Self {
         Self {
-            tree: MerkleTree::new(StorageKeys::Tree, GlobalState::new().into()),
+            tree: MerkleTree::new(
+                StorageKeys::Tree,
+                GlobalState::new(venear_grows_config).into(),
+            ),
+            accounts: LookupMap::new(StorageKeys::Accounts),
+            config,
         }
     }
 
@@ -55,27 +68,6 @@ impl Contract {
     //
     // Voting
     // Lockup integration on account update
-
-    #[payable]
-    pub fn register_account(&mut self) {
-        todo!()
-    }
-
-    pub fn get_registration_cost(&self) -> u128 {
-        todo!()
-    }
-
-    pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
-        todo!()
-    }
-
-    pub fn get_snapshot(&self) -> (VGlobalState, MerkleTreeSnapshot) {
-        todo!()
-    }
-
-    pub fn get_proof(&self, account_id: AccountId) -> (VAccount, MerkleProof) {
-        todo!()
-    }
 
     // TODO: delegations
     // TODO: veNEAR token non-transferable implementation

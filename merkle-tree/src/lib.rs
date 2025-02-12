@@ -194,15 +194,15 @@ where
     }
 }
 
-#[near(serializers=[borsh, json])]
 #[derive(Clone)]
+#[near(serializers=[borsh, json])]
 pub struct MerkleProof {
     pub index: u32,
     pub path: Vec<CryptoHash>,
 }
 
-#[near(serializers=[borsh, json])]
 #[derive(Clone)]
+#[near(serializers=[borsh, json])]
 pub struct MerkleTreeSnapshot {
     pub root: CryptoHash,
     pub length: u32,

@@ -12,6 +12,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 near-sdk.workspace = true
-near-contract-standards.workspace = true
 serde_json.workspace = true
 uint.workspace = true
