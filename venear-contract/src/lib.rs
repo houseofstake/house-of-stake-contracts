@@ -1,7 +1,6 @@
 mod account;
 mod config;
 mod delegation;
-mod liquid_staking;
 mod lockup;
 mod snapshot;
 
@@ -10,7 +9,6 @@ use std::collections::HashMap;
 
 use crate::account::VAccountInternal;
 use crate::config::Config;
-use crate::liquid_staking::LstData;
 use common::account::*;
 use common::global_state::*;
 use common::venear::VenearGrowsConfig;

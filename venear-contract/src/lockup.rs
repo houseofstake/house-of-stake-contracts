@@ -56,19 +56,12 @@ impl Contract {
         account_id: AccountId,
         update: common::lockup_update::LockupUpdateV1,
     ) {
-        let lsts = self.lsts.get().as_ref().unwrap();
-        let mut new_lockup_near_balance = update.locked_near_balance.as_yoctonear();
-        for ft_balance in update.locked_fungible_tokens {
-            if let Some(lst_data) = lsts.get(&ft_balance.token_account_id) {
-                new_lockup_near_balance += lst_data.multiplier * ft_balance.balance.as_yoctonear();
-            }
-        }
-        let new_lockup_near_balance = NearToken::from_yoctonear(new_lockup_near_balance);
-        let mut account: Account = self.tree.get(&account_id).unwrap().into();
+        let mut account: Account = self.tree.get(&account_id).cloned().unwrap().into();
         require!(
-            update.timestamp > account.lockup_near_balance.timestamp,
+            update.timestamp > account.update_timestamp,
             "The update timestamp has to be greater"
         );
+        todo!("Update the account")
     }
 
     pub fn internal_set_lockup(&mut self, contract_hash: CryptoHash) {

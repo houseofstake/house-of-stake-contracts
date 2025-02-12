@@ -33,6 +33,7 @@ pub struct AccountDelegation {
     pub venear_amount: TimedBalance,
 }
 
+#[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub enum VAccount {
     Current(Account),
@@ -41,5 +42,13 @@ pub enum VAccount {
 impl From<Account> for VAccount {
     fn from(account: Account) -> Self {
         Self::Current(account)
+    }
+}
+
+impl From<VAccount> for Account {
+    fn from(value: VAccount) -> Self {
+        match value {
+            VAccount::Current(account) => account,
+        }
     }
 }
