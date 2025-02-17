@@ -1,21 +1,21 @@
 mod account;
 mod config;
 mod delegation;
+mod global_state;
 mod lockup;
 mod snapshot;
 
 use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
-use std::collections::HashMap;
 
 use crate::account::VAccountInternal;
 use crate::config::Config;
 use common::account::*;
 use common::global_state::*;
-use common::venear::VenearGrowsConfig;
+use common::venear::VenearGrowthConfig;
 use common::Version;
-use near_sdk::store::{LazyOption, LookupMap};
+use near_sdk::store::LookupMap;
 use near_sdk::{
-    near, require, sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
+    env, near, require, sys, AccountId, BorshStorageKey, CryptoHash, NearToken, PanicOnDefault,
 };
 
 #[derive(BorshStorageKey)]
@@ -38,11 +38,11 @@ pub struct Contract {
 #[near]
 impl Contract {
     #[init]
-    pub fn init(config: Config, venear_grows_config: VenearGrowsConfig) -> Self {
+    pub fn init(config: Config, venear_growth_config: VenearGrowthConfig) -> Self {
         Self {
             tree: MerkleTree::new(
                 StorageKeys::Tree,
-                GlobalState::new(venear_grows_config).into(),
+                GlobalState::new(env::block_timestamp().into(), venear_growth_config).into(),
             ),
             accounts: LookupMap::new(StorageKeys::Accounts),
             config,

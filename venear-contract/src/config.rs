@@ -23,3 +23,9 @@ pub struct Config {
     /// The list of account IDs that can store new lockup contract code.
     pub lockup_code_deployers: Vec<AccountId>,
 }
+
+impl Contract {
+    pub fn internal_get_venear_growth_config(&self) -> &VenearGrowthConfig {
+        self.tree.get_global_state().get_venear_growth_config()
+    }
+}

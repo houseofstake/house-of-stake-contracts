@@ -1,6 +1,8 @@
+use crate::account::AccountInternal;
 use crate::config::LockupContractConfig;
 use crate::*;
-use common::lockup_update::VLockupUpdate;
+use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
+use common::near_add;
 use near_sdk::json_types::U64;
 use near_sdk::{env, Gas, IntoStorageKey};
 
@@ -33,35 +35,59 @@ impl Contract {
             env::predecessor_account_id() == lockup_account_id,
             "Permission denied"
         );
-        let internal_account = self
+        let account_internal = self
             .internal_get_account_internal(&owner_account_id)
             .expect("Account not found");
         require!(
-            internal_account.version == version,
+            account_internal.version == version,
             "Invalid lockup version"
         );
         match update {
-            VLockupUpdate::V1(update) => {
-                self.internal_update_lockup(owner_account_id, update);
+            VLockupUpdate::V1(lockup_update) => {
+                self.internal_lockup_update(owner_account_id, account_internal, lockup_update);
             }
         }
-        todo!()
     }
 }
 
 /// Internal methods for the contract and lockup.
 impl Contract {
-    pub fn internal_update_lockup(
+    pub fn internal_lockup_update(
         &mut self,
         account_id: AccountId,
-        update: common::lockup_update::LockupUpdateV1,
+        mut account_internal: AccountInternal,
+        lockup_update: LockupUpdateV1,
     ) {
-        let mut account: Account = self.tree.get(&account_id).cloned().unwrap().into();
         require!(
-            update.timestamp > account.update_timestamp,
-            "The update timestamp has to be greater"
+            lockup_update.lockup_update_nonce > account_internal.lockup_update_nonce,
+            "Invalid nonce"
         );
-        todo!("Update the account")
+        account_internal.lockup_update_nonce = lockup_update.lockup_update_nonce;
+
+        let mut account: Account = self.internal_expect_account_updated(&account_id);
+        let old_balance = account.balance;
+        let mut global_state: GlobalState = self.internal_global_state_updated();
+        // Decreasing the locked NEAR will result in dropped extra veNEAR rewards.
+        if lockup_update.locked_near_balance.as_yoctonear()
+            < old_balance.near_balance.as_yoctonear()
+        {
+            account.balance.extra_venear_balance = NearToken::from_yoctonear(0);
+        }
+        // Updating balance and also adding internal balance deposit.
+        account.balance.near_balance =
+            near_add(lockup_update.locked_near_balance, account_internal.deposit);
+        global_state.total_venear_balance -= old_balance;
+        global_state.total_venear_balance += account.balance;
+
+        if let Some(delegation) = &account.delegation {
+            let mut delegation_account =
+                self.internal_expect_account_updated(&delegation.account_id);
+            delegation_account.delegated_balance -= old_balance;
+            delegation_account.delegated_balance += account.balance;
+            self.internal_set_account(delegation.account_id.clone(), delegation_account);
+        }
+        self.internal_set_account(account_id, account);
+        self.internal_set_global_state(global_state);
     }
 
     pub fn internal_set_lockup(&mut self, contract_hash: CryptoHash) {

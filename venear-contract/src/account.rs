@@ -19,6 +19,9 @@ pub struct AccountInternal {
 
     /// The amount of NEAR tokens that are retained for the storage of the account.
     pub deposit: NearToken,
+
+    /// The nonce of the last lockup update.
+    pub lockup_update_nonce: u64,
 }
 
 #[derive(Clone)]
@@ -56,7 +59,11 @@ impl Contract {
 
     /// Helper method to get the account info.
     pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
-        todo!()
+        self.internal_get_account_internal(&account_id)
+            .map(|internal| AccountInfo {
+                account: self.internal_expect_account_updated(&account_id),
+                internal,
+            })
     }
 }
 
@@ -66,5 +73,27 @@ impl Contract {
             .get(account_id)
             .cloned()
             .map(|account| account.into())
+    }
+
+    pub fn internal_get_account(&self, account_id: &AccountId) -> Option<Account> {
+        self.tree
+            .get(account_id)
+            .cloned()
+            .map(|account| account.into())
+    }
+
+    pub fn internal_expect_account_updated(&self, account_id: &AccountId) -> Account {
+        let mut account = self
+            .internal_get_account(account_id)
+            .expect(format!("Account {} not found", account_id).as_str());
+        account.update(
+            env::block_timestamp().into(),
+            self.internal_get_venear_growth_config(),
+        );
+        account
+    }
+
+    pub fn internal_set_account(&mut self, account_id: AccountId, account: Account) {
+        self.tree.set(account_id, account.into());
     }
 }
