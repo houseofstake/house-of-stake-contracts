@@ -30,6 +30,35 @@ pub struct VenearBalance {
     pub extra_venear_balance: NearToken,
 }
 
+impl VenearBalance {
+    pub fn total(&self) -> NearToken {
+        near_add(self.near_balance, self.extra_venear_balance)
+    }
+
+    pub fn update(
+        &mut self,
+        previous_timestamp: TimestampNs,
+        current_timestamp: TimestampNs,
+        venear_growth_config: &VenearGrowthConfig,
+    ) {
+        self.extra_venear_balance = near_add(
+            self.extra_venear_balance,
+            venear_growth_config.calculate(
+                previous_timestamp,
+                current_timestamp,
+                self.near_balance,
+            ),
+        );
+    }
+
+    pub fn from_near(near_balance: NearToken) -> Self {
+        Self {
+            near_balance,
+            extra_venear_balance: NearToken::from_yoctonear(0),
+        }
+    }
+}
+
 impl Add<Self> for VenearBalance {
     type Output = Self;
 
@@ -61,24 +90,6 @@ impl AddAssign<Self> for VenearBalance {
 impl SubAssign<Self> for VenearBalance {
     fn sub_assign(&mut self, rhs: Self) {
         *self = *self - rhs;
-    }
-}
-
-impl VenearBalance {
-    pub fn update(
-        &mut self,
-        previous_timestamp: TimestampNs,
-        current_timestamp: TimestampNs,
-        venear_growth_config: &VenearGrowthConfig,
-    ) {
-        self.extra_venear_balance = near_add(
-            self.extra_venear_balance,
-            venear_growth_config.calculate(
-                previous_timestamp,
-                current_timestamp,
-                self.near_balance,
-            ),
-        );
     }
 }
 

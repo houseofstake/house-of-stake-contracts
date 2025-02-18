@@ -9,6 +9,6 @@ impl Contract {
     pub fn get_proof(&self, account_id: AccountId) -> (MerkleProof, VAccount) {
         self.tree
             .get_proof(&account_id)
-            .expect("Account is not found")
+            .expect(format!("Account {} is not found", account_id).as_str())
     }
 }

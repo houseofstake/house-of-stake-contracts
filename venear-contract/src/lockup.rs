@@ -2,13 +2,14 @@ use crate::account::AccountInternal;
 use crate::config::LockupContractConfig;
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
-use common::near_add;
+use common::{near_add, near_sub, VenearBalance};
 use near_sdk::json_types::U64;
-use near_sdk::{env, Gas, IntoStorageKey};
+use near_sdk::{env, is_promise_success, Gas, IntoStorageKey};
 
 const CONTRACT_CODE_EXTRA_STORAGE_BYTES: u64 = 100;
 
 const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(100);
+const ON_LOCKUP_DEPLOYED: Gas = Gas::from_tgas(15);
 
 #[near(serializers=[json])]
 pub struct LockupInitArgs {
@@ -18,6 +19,15 @@ pub struct LockupInitArgs {
     // TODO
     lockup_duration: U64,
     staking_pool_whitelist_account_id: AccountId,
+}
+
+#[near(serializers=[json])]
+pub struct OnLockupDeployedArgs {
+    version: Version,
+
+    account_id: AccountId,
+    lockup_deposit: NearToken,
+    deposit: NearToken,
 }
 
 #[near]
@@ -48,6 +58,38 @@ impl Contract {
             }
         }
     }
+
+    #[private]
+    pub fn on_lockup_deployed(
+        &mut self,
+        version: Version,
+        account_id: AccountId,
+        lockup_deposit: NearToken,
+        deposit: NearToken,
+    ) {
+        if is_promise_success() {
+            // Successfully deployed lockup. Creating internal account.
+            self.internal_set_account_internal(
+                account_id.clone(),
+                AccountInternal {
+                    version,
+                    deposit,
+                    lockup_update_nonce: 0,
+                },
+            );
+            let mut global_state: GlobalState = self.internal_global_state_updated();
+            let account = Account {
+                account_id: account_id.clone(),
+                update_timestamp: env::block_timestamp().into(),
+                balance: VenearBalance::from_near(near_add(lockup_deposit, deposit)),
+                delegated_balance: Default::default(),
+                delegation: None,
+            };
+            global_state.total_venear_balance += account.balance;
+            self.internal_set_account(account_id, account);
+            self.internal_set_global_state(global_state);
+        }
+    }
 }
 
 /// Internal methods for the contract and lockup.
@@ -68,9 +110,7 @@ impl Contract {
         let old_balance = account.balance;
         let mut global_state: GlobalState = self.internal_global_state_updated();
         // Decreasing the locked NEAR will result in dropped extra veNEAR rewards.
-        if lockup_update.locked_near_balance.as_yoctonear()
-            < old_balance.near_balance.as_yoctonear()
-        {
+        if lockup_update.locked_near_balance < old_balance.near_balance {
             account.balance.extra_venear_balance = NearToken::from_yoctonear(0);
         }
         // Updating balance and also adding internal balance deposit.
@@ -86,6 +126,7 @@ impl Contract {
             delegation_account.delegated_balance += account.balance;
             self.internal_set_account(delegation.account_id.clone(), delegation_account);
         }
+        self.internal_set_account_internal(account_id.clone(), account_internal);
         self.internal_set_account(account_id, account);
         self.internal_set_global_state(global_state);
     }
@@ -113,14 +154,6 @@ impl Contract {
         require!(
             self.config.lockup_contract_config.contract_size > 0,
             "The lockup contract code is not initialized"
-        );
-        let minimum_deployment_cost = NearToken::from_yoctonear(
-            env::storage_byte_cost().as_yoctonear()
-                * self.config.lockup_contract_config.contract_size as u128,
-        );
-        require!(
-            deposit >= minimum_deployment_cost,
-            "Deposit is not enough to deploy the lockup contract"
         );
         let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
@@ -156,6 +189,8 @@ impl Contract {
         };
         let arguments =
             serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");
+        let local_deposit = self.config.local_deposit;
+        let lockup_deposit = near_sub(deposit, local_deposit);
         unsafe {
             sys::promise_batch_action_create_account(promise_id);
             sys::promise_batch_action_deploy_contract(promise_id, u64::MAX, CONTRACT_REGISTER);
@@ -165,10 +200,38 @@ impl Contract {
                 method_name.as_ptr() as _,
                 arguments.len() as _,
                 arguments.as_ptr() as _,
-                &deposit.as_yoctonear() as *const u128 as _,
+                &lockup_deposit.as_yoctonear() as *const u128 as _,
                 LOCKUP_DEPLOY_MIN_GAS.as_gas(),
                 1,
+            );
+        }
+        let current_account_id = env::current_account_id();
+        let current_account_id = current_account_id.as_str();
+        let method_name = b"on_lockup_deployed";
+        let arguments = OnLockupDeployedArgs {
+            version: self.config.lockup_contract_config.contract_version,
+            account_id: owner_account_id.clone(),
+            lockup_deposit,
+            deposit: local_deposit,
+        };
+        let arguments =
+            serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");
+
+        let promise_id = unsafe {
+            sys::promise_then(
+                promise_id,
+                current_account_id.len() as _,
+                current_account_id.as_ptr() as _,
+                method_name.len() as _,
+                method_name.as_ptr() as _,
+                arguments.len() as _,
+                arguments.as_ptr() as _,
+                0_u128 as *const u128 as _,
+                ON_LOCKUP_DEPLOYED.as_gas(),
             )
+        };
+        unsafe {
+            sys::promise_return(promise_id);
         }
     }
 }

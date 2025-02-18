@@ -4,6 +4,8 @@ mod delegation;
 mod global_state;
 mod lockup;
 mod snapshot;
+mod token;
+mod upgrade;
 
 use merkle_tree::{MerkleProof, MerkleTree, MerkleTreeSnapshot};
 
@@ -49,26 +51,6 @@ impl Contract {
         }
     }
 
-    //TODO
-    // Flow
-    // 1. Check if account exists (get_account_info)
-    // 2. If not, create new account (attempts to deploys a new lockup. Keeps some funds for local storage)
-    //
-    // veNEAR implementation:
-    // - Get veNear balance
-    //
-    // Internal:
-    // - update veNear from lockup, e.g. unlocking, relocking.
-    // - internal configuration
+    // TODO:
     // - contract upgrades
-    //
-    // Making snapshots for new voting
-    //
-    // Delegation of veNEAR
-    //
-    // Voting
-    // Lockup integration on account update
-
-    // TODO: delegations
-    // TODO: veNEAR token non-transferable implementation
 }

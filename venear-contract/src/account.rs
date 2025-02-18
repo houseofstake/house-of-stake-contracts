@@ -1,5 +1,5 @@
 use crate::*;
-use common::Version;
+use common::{near_add, Version};
 
 #[derive(Clone)]
 #[near(serializers=[json])]
@@ -48,13 +48,28 @@ impl From<VAccountInternal> for AccountInternal {
 impl Contract {
     /// Registers a new account and attempts to deploy the lockup.
     #[payable]
-    pub fn register_account(&mut self) {
-        todo!()
+    pub fn register_account(&mut self, account_id: Option<AccountId>) {
+        let account_id = account_id.unwrap_or_else(env::predecessor_account_id);
+        if self.internal_get_account_internal(&account_id).is_some() {
+            env::panic_str("Account already exists");
+        }
+        require!(
+            env::attached_deposit() >= self.get_registration_cost(),
+            "Attached deposit is less than the registration cost"
+        );
+        self.internal_deploy_lockup(account_id, env::attached_deposit());
     }
 
     /// The cost of registering a new account.
     pub fn get_registration_cost(&self) -> NearToken {
-        todo!()
+        let contract_deployment_cost = NearToken::from_yoctonear(
+            env::storage_byte_cost().as_yoctonear()
+                * self.config.lockup_contract_config.contract_size as u128,
+        );
+        near_add(
+            near_add(contract_deployment_cost, self.config.local_deposit),
+            self.config.min_extra_lockup_deposit,
+        )
     }
 
     /// Helper method to get the account info.
@@ -75,6 +90,14 @@ impl Contract {
             .map(|account| account.into())
     }
 
+    pub fn internal_set_account_internal(
+        &mut self,
+        account_id: AccountId,
+        account_internal: AccountInternal,
+    ) {
+        self.accounts.insert(account_id, account_internal.into());
+    }
+
     pub fn internal_get_account(&self, account_id: &AccountId) -> Option<Account> {
         self.tree
             .get(account_id)
@@ -85,7 +108,7 @@ impl Contract {
     pub fn internal_expect_account_updated(&self, account_id: &AccountId) -> Account {
         let mut account = self
             .internal_get_account(account_id)
-            .expect(format!("Account {} not found", account_id).as_str());
+            .expect(format!("Account {} is not registered", account_id).as_str());
         account.update(
             env::block_timestamp().into(),
             self.internal_get_venear_growth_config(),

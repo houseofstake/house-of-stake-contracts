@@ -68,7 +68,7 @@ impl Account {
             current_timestamp,
             venear_growth_config,
         );
-        near_add(total.near_balance, total.extra_venear_balance)
+        total.total()
     }
 
     pub fn update(
