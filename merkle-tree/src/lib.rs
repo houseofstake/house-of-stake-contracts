@@ -33,23 +33,23 @@ pub struct HeightAndIndex {
 #[near(serializers=[borsh])]
 pub struct MerkleTree<V, G>
 where
-    V: BorshSerialize + BorshDeserialize,
+    V: BorshSerialize + BorshDeserialize + Clone,
     G: BorshSerialize + BorshDeserialize + Clone,
 {
-    pub root: CryptoHash,
-    pub length: u32,
-    pub hashes: LookupMap<HeightAndIndex, CryptoHash>,
-    pub data: LookupMap<u32, V>,
-    pub accounts: LookupMap<AccountId, u32>,
+    pub(crate) root: CryptoHash,
+    pub(crate) length: u32,
+    pub(crate) hashes: LookupMap<HeightAndIndex, CryptoHash>,
+    pub(crate) data: LookupMap<u32, V>,
+    pub(crate) accounts: LookupMap<AccountId, u32>,
     /// The global state of the tree. E.g. total sum of balances.
-    pub global_state: G,
-    pub previous_snapshot: Option<(MerkleTreeSnapshot, G)>,
-    pub last_block_height: BlockHeight,
+    pub(crate) global_state: G,
+    pub(crate) previous_snapshot: Option<(MerkleTreeSnapshot, G)>,
+    pub(crate) last_block_height: BlockHeight,
 }
 
 impl<V, G> MerkleTree<V, G>
 where
-    V: BorshSerialize + BorshDeserialize,
+    V: BorshSerialize + BorshDeserialize + Clone,
     G: BorshSerialize + BorshDeserialize + Clone,
 {
     pub fn new<S>(storage_key_prefix: S, global_state: G) -> Self
@@ -160,6 +160,15 @@ where
         }
     }
 
+    pub fn get_global_state(&self) -> &G {
+        &self.global_state
+    }
+
+    pub fn set_global_state(&mut self, global_state: G) {
+        self.internal_pre_update();
+        self.global_state = global_state;
+    }
+
     /// Returns the value for the given account_id.
     pub fn get(&self, account_id: &AccountId) -> Option<&V> {
         self.accounts
@@ -181,7 +190,7 @@ where
         old_value
     }
 
-    pub fn get_proof(&self, account_id: &AccountId) -> Option<MerkleProof> {
+    pub fn get_proof(&self, account_id: &AccountId) -> Option<(MerkleProof, V)> {
         let &index = self.accounts.get(account_id)?;
         let mut path = vec![];
         for height in 0..self.tree_height() - 1 {
@@ -190,7 +199,10 @@ where
             let sibling_hash = self.internal_get_hash(height, sibling_index);
             path.push(sibling_hash);
         }
-        Some(MerkleProof { index, path })
+        Some((
+            MerkleProof { index, path },
+            self.data.get(&index).cloned().unwrap(),
+        ))
     }
 }
 

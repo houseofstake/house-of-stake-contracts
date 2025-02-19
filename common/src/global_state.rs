@@ -1,19 +1,22 @@
-use crate::venear::VenearGrowsConfig;
+use crate::venear::VenearGrowthConfig;
 use crate::*;
 
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct GlobalState {
-    pub total_venear_balance: TimedBalance,
+    pub update_timestamp: TimestampNs,
 
-    pub venear_grows_config: VenearGrowsConfig,
+    pub total_venear_balance: VenearBalance,
+
+    pub venear_growth_config: VenearGrowthConfig,
 }
 
 impl GlobalState {
-    pub fn new(venear_grows_config: VenearGrowsConfig) -> Self {
+    pub fn new(timestamp: TimestampNs, venear_growth_config: VenearGrowthConfig) -> Self {
         Self {
-            total_venear_balance: TimedBalance::default(),
-            venear_grows_config,
+            update_timestamp: timestamp,
+            total_venear_balance: VenearBalance::default(),
+            venear_growth_config,
         }
     }
 }
@@ -27,5 +30,21 @@ pub enum VGlobalState {
 impl From<GlobalState> for VGlobalState {
     fn from(global_state: GlobalState) -> Self {
         Self::Current(global_state)
+    }
+}
+
+impl From<VGlobalState> for GlobalState {
+    fn from(value: VGlobalState) -> Self {
+        match value {
+            VGlobalState::Current(global_state) => global_state,
+        }
+    }
+}
+
+impl VGlobalState {
+    pub fn get_venear_growth_config(&self) -> &VenearGrowthConfig {
+        match self {
+            VGlobalState::Current(global_state) => &global_state.venear_growth_config,
+        }
     }
 }

@@ -30,14 +30,19 @@ It contains the following contracts:
   - [ ] Add integration tests
   - [ ] Add documentation
 - veNEAR contract
-  - [ ] Lockup contract integration
-    - [ ] Add ability to deploy lockup contract for the user
-    - [ ] Add methods that receive locked near balance from the lockup contract.
-  - [ ] veNEAR grows over time
-  - [ ] Delegation
-    - [ ] Add ability to delegate veNEAR
-    - [ ] Add ability to undelegate veNEAR
-    - [ ] When delegated veNEAR balance changes, it should be reflected in 2 places. The balance can't be redelgated.
+  - [X] Lockup contract integration
+    - [X] Add ability to deploy lockup contract for the user
+    - [X] Add methods that receive locked near balance from the lockup contract.
+  - [X] veNEAR grows over time
+  - [X] Delegation
+    - [X] Add ability to delegate veNEAR
+    - [X] Add ability to undelegate veNEAR
+    - [X] When delegated veNEAR balance changes, it should be reflected in 2 places. The balance can't be redelgated.
+  - [ ] Configuration changes
+  - [ ] View methods for current lockup code
+  - [ ] Owner's method to update config
+  - [ ] Owner's method to update lockup hash
+  - [ ] Onwer's method to update venear growth config
   - [ ] Upgradeability
   - [ ] Add unit tests
   - [ ] Add integration tests

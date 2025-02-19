@@ -13,6 +13,7 @@ pub struct LockupContractConfig {
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct Config {
+    /// The configuration of the current lockup contract code.
     pub lockup_contract_config: LockupContractConfig,
 
     /// Initialization arguments for the lockup contract.
@@ -22,4 +23,19 @@ pub struct Config {
 
     /// The list of account IDs that can store new lockup contract code.
     pub lockup_code_deployers: Vec<AccountId>,
+
+    /// The amount in NEAR required for local storage in veNEAR contract.
+    pub local_deposit: NearToken,
+
+    /// The minimum additional amount in NEAR required for lockup deployment.
+    pub min_extra_lockup_deposit: NearToken,
+
+    /// The account ID that can upgrade the current contract.
+    pub owner_account_id: AccountId,
+}
+
+impl Contract {
+    pub fn internal_get_venear_growth_config(&self) -> &VenearGrowthConfig {
+        self.tree.get_global_state().get_venear_growth_config()
+    }
 }

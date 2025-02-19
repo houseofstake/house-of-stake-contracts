@@ -11,6 +11,10 @@ pub struct LockupUpdateV1 {
 
     /// The timestamp in nanoseconds when the update was created.
     pub timestamp: TimestampNs,
+
+    /// The nonce of the lockup update. It should be incremented for every new update by the lockup
+    /// contract.
+    pub lockup_update_nonce: u64,
 }
 
 #[near(serializers=[borsh, json])]

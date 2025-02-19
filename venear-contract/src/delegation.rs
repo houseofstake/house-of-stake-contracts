@@ -3,20 +3,46 @@ use near_sdk::assert_one_yocto;
 
 #[near]
 impl Contract {
-    /// Delegate NEAR tokens to the given account.
-    /// The amount is the total amount of NEAR tokens that will be delegated.
-    /// None means all NEAR tokens that are available for delegation.
-    /// Note, this method can be used to decrease the amount of NEAR tokens that are delegated.
+    /// Delegate all veNEAR tokens to the given receiver account ID.
     #[payable]
-    pub fn delegate(&mut self, account_id: AccountId, amount: Option<NearToken>) {
+    pub fn delegate_all(&mut self, account_id: AccountId) {
         assert_one_yocto();
-        todo!()
+        let predecessor_id = env::predecessor_account_id();
+        require!(account_id != predecessor_id, "Can't delegate to self");
+        let mut account = self.internal_expect_account_updated(&predecessor_id);
+        if let Some(delegation) = &account.delegation {
+            if account_id == delegation.account_id {
+                return;
+            }
+        }
+        if account.delegation.is_some() {
+            self.internal_undelegate(&mut account);
+        }
+
+        let mut delegation_account = self.internal_expect_account_updated(&account_id);
+        delegation_account.delegated_balance += account.balance;
+        self.internal_set_account(account_id.clone(), delegation_account);
+
+        account.delegation = Some(AccountDelegation { account_id });
+        self.internal_set_account(predecessor_id, account);
     }
 
     /// Undelegate all NEAR tokens.
     #[payable]
     pub fn undelegate(&mut self) {
         assert_one_yocto();
-        todo!()
+        let predecessor_id = env::predecessor_account_id();
+        let mut account = self.internal_expect_account_updated(&predecessor_id);
+        self.internal_undelegate(&mut account);
+        self.internal_set_account(predecessor_id, account);
+    }
+}
+
+impl Contract {
+    pub fn internal_undelegate(&mut self, account: &mut Account) {
+        let delegation_account_id = account.delegation.take().expect("Not delegated").account_id;
+        let mut delegation_account = self.internal_expect_account_updated(&delegation_account_id);
+        delegation_account.delegated_balance -= account.balance;
+        self.internal_set_account(delegation_account_id, delegation_account);
     }
 }
