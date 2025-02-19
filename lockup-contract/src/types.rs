@@ -40,10 +40,6 @@ pub struct LockupInformation {
     /// timestamp passes. Until this moment the tokens are locked and the release doesn't start.
     /// If not present, `transfers_timestamp` will be used.
     pub lockup_timestamp: Option<Timestamp>,
-    /// The information about the transfers. Either transfers are already enabled, then it contains
-    /// the timestamp when they were enabled. Or the transfers are currently disabled and
-    /// it contains the account ID of the transfer poll contract.
-    pub transfers_information: TransfersInformation,
 }
 
 /// Contains information about the transfers. Whether transfers are enabled or disabled.
@@ -83,7 +79,6 @@ pub struct StakingInformation {
     /// NOTE: The unstaked amount on the staking pool might be higher due to staking rewards.
     pub deposit_amount: WrappedBalance,
 }
-
 
 /// The result of the transfer poll.
 /// Contains The timestamp when the proposal was voted in.

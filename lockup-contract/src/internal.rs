@@ -22,17 +22,6 @@ impl LockupContract {
             .status = status;
     }
 
-    pub fn assert_transfers_enabled(&self) {
-        assert!(self.are_transfers_enabled(), "Transfers are disabled");
-    }
-
-    pub fn assert_transfers_disabled(&self) {
-        assert!(
-            !self.are_transfers_enabled(),
-            "Transfers are already enabled"
-        );
-    }
-
     pub fn assert_no_staking_or_idle(&self) {
         if let Some(staking_information) = &self.staking_information {
             match staking_information.status {

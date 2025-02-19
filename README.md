@@ -19,7 +19,7 @@ It contains the following contracts:
   - [x] Remove legacy logic for vesting schedule. There is no need to maintain vesting schedule, since there is no
     termination
     of the contract.
-  - [ ] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
+  - [x] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
   - [ ] Whitelist stNEAR and LINEAR as staking pools.
     unlock timer.
   - [ ] Lockup contract should return the version of itself with every venear call.
