@@ -1,5 +1,6 @@
 //! A smart contract that allows tokens to be locked up.
 
+use near_sdk::json_types::U64;
 use near_sdk::Gas;
 use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
 
@@ -17,10 +18,13 @@ pub mod getters;
 pub mod internal;
 pub mod owner;
 pub mod venear;
+pub mod venear_ext;
 
 /// The contract keeps at least 3.5 NEAR in the account to avoid being transferred out to cover
 /// contract code storage and some internal state.
 pub const MIN_BALANCE_FOR_STORAGE: u128 = 3_500_000_000_000_000_000_000_000;
+
+pub type Version = u64;
 
 #[ext_contract(ext_staking_pool)]
 pub trait ExtStakingPool {
@@ -89,6 +93,9 @@ pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,
 
+    /// Account Id of VeNEAR Contract
+    pub venear_account_id: AccountId,
+
     /// Information about lockup schedule and the amount.
     pub lockup_information: LockupInformation,
 
@@ -108,6 +115,13 @@ pub struct LockupContract {
 
     /// Pending unlocking amount
     pub venear_pending_balance: Balance,
+
+    /// The nonce of the lockup update. It should be incremented for every new update by the lockup
+    /// contract.
+    pub lockup_update_nonce: u64,
+
+    /// Version of the lockup contract
+    pub version: Version,
 }
 
 #[near]
@@ -117,6 +131,7 @@ impl LockupContract {
     /// Initializes lockup contract.
     /// - `owner_account_id` - the account ID of the owner. Only this account can call owner's
     ///    methods on this contract.
+    /// - `venear_account_id` - the account ID of the VeNEAR contract.
     /// - `lockup_duration` [deprecated] - the duration in nanoseconds of the lockup period from
     ///    the moment the transfers are enabled. During this period tokens are locked and
     ///    the release doesn't start. Instead of this, use `lockup_timestamp` and `release_duration`
@@ -133,13 +148,17 @@ impl LockupContract {
     ///    If it's used in addition to the vesting schedule, then the amount of tokens available to
     ///    transfer is subject to the minimum between vested tokens and released tokens.
     /// - `staking_pool_whitelist_account_id` - the Account ID of the staking pool whitelist contract.
+    ///    The version of the contract. It is a monotonically increasing number.
+    /// - `version` - Version of the lockup contract will be tracked by the veNEAR contract.
     #[init]
     pub fn new(
         owner_account_id: AccountId,
+        venear_account_id: AccountId,
         lockup_duration: WrappedDuration,
         lockup_timestamp: Option<WrappedTimestamp>,
         release_duration: Option<WrappedDuration>,
         staking_pool_whitelist_account_id: AccountId,
+        version: Version,
     ) -> Self {
         assert!(
             env::is_valid_account_id(owner_account_id.as_bytes()),
@@ -154,12 +173,15 @@ impl LockupContract {
 
         Self {
             owner_account_id,
+            venear_account_id,
             lockup_information,
             staking_information: None,
             staking_pool_whitelist_account_id,
             venear_locked_balance: 0,
             venear_unlock_imestamp: 0u64,
             venear_pending_balance: 0,
+            lockup_update_nonce: 0,
+            version,
         }
     }
 }
@@ -176,6 +198,9 @@ mod tests {
     use super::*;
 
     mod test_utils;
+
+    const VENEAR_ACCOUNT_ID: &str = "venear";
+    const LOCKUP_VERSION: Version = 1;
 
     fn basic_context() -> VMContext {
         get_context(
@@ -203,10 +228,12 @@ mod tests {
 
         LockupContract::new(
             account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
             lockup_duration.into(),
             Some(U64::from(to_ts(GENESIS_TIME_IN_DAYS))),
             release_duration,
             AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         )
     }
 
@@ -216,10 +243,12 @@ mod tests {
     ) -> LockupContract {
         LockupContract::new(
             account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
             to_nanos(YEAR).into(),
             Some(U64::from(env::block_timestamp())),
             release_duration,
             AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         )
     }
 
@@ -229,10 +258,12 @@ mod tests {
 
         let contract = LockupContract::new(
             account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
             to_nanos(YEAR).into(),
             Some(U64::from(env::block_timestamp())),
             None,
             AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         );
 
         (context, contract)
@@ -693,10 +724,12 @@ mod tests {
 
         let contract = LockupContract::new(
             account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
             0.into(),
             Some(to_ts(GENESIS_TIME_IN_DAYS + YEAR).into()),
             None,
             AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         );
 
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
@@ -794,10 +827,12 @@ mod tests {
         //             },
         let contract = LockupContract::new(
             account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
             to_nanos(YEAR).into(),
             Some(to_ts(GENESIS_TIME_IN_DAYS).into()),
             Some(to_nanos(4 * YEAR).into()),
             AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         );
 
         testing_env!(context.clone());

@@ -1,3 +1,4 @@
+use crate::venear_ext::{ext_venear, LockupUpdate, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use near_sdk::{near, NearToken};
 
 use crate::*;
@@ -24,6 +25,23 @@ impl LockupContract {
 
     fn set_venear_unlock_imestamp(&mut self) {
         self.venear_unlock_imestamp = 86400_000_000_000u64 * UNLOCK_PERIOD;
+    }
+
+    fn venear_lockup_update(&mut self) {
+        self.lockup_update_nonce += 1;
+
+        // Calls veNEAR with new total NEAR balance locked in the lockup
+        ext_venear::ext(self.venear_account_id.clone())
+            .with_static_gas(GAS_FOR_VENEAR_LOCKUP_UPDATE)
+            .on_lockup_update(
+                self.version,
+                self.owner_account_id.clone(),
+                LockupUpdate {
+                    locked_near_balance: NearToken::from_yoctonear(self.venear_locked_balance),
+                    timestamp: env::block_timestamp().into(),
+                    lockup_update_nonce: self.lockup_update_nonce,
+                },
+            );
     }
 }
 
@@ -53,7 +71,7 @@ impl LockupContract {
 
         self.venear_locked_balance += amount;
 
-        // TODO Calls venear with new total NEAR balance locked in the lockup
+        self.venear_lockup_update();
     }
 
     /// you specify the amount of near to unlock, it starts the process of unlocking it
@@ -71,7 +89,7 @@ impl LockupContract {
         self.venear_pending_balance += amount;
         self.set_venear_unlock_imestamp();
 
-        // TODO Calls venear with new total NEAR balance locked in the lockup
+        self.venear_lockup_update();
     }
 
     /// end the unlocking
@@ -91,7 +109,7 @@ impl LockupContract {
         self.venear_pending_balance -= amount;
         self.set_venear_unlock_imestamp();
 
-        // TODO Calls venear with new total NEAR balance locked in the lockup
+        self.venear_lockup_update();
     }
 
     ///  if there is an unlock pending, it locks the balance.
@@ -107,6 +125,6 @@ impl LockupContract {
         self.venear_pending_balance -= amount;
         self.venear_locked_balance += amount;
 
-        // TODO Calls venear with new total NEAR balance locked in the lockup
+        self.venear_lockup_update();
     }
 }

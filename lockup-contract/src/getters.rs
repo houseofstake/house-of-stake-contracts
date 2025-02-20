@@ -1,6 +1,5 @@
-use near_sdk::{near};
-
 use crate::*;
+use near_sdk::near;
 
 #[near]
 impl LockupContract {
@@ -87,5 +86,10 @@ impl LockupContract {
     /// Transfers have to be enabled.
     pub fn get_liquid_owners_balance(&self) -> WrappedBalance {
         std::cmp::min(self.get_owners_balance().0, self.get_account_balance().0).into()
+    }
+
+    /// Returns the version of the Lockup contract.
+    pub fn get_version(&self) -> Version {
+        self.version.clone()
     }
 }

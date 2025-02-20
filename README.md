@@ -20,9 +20,9 @@ It contains the following contracts:
     termination
     of the contract.
   - [x] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
-  - [ ] Whitelist stNEAR and LINEAR as staking pools.
-    unlock timer.
-  - [ ] Lockup contract should return the version of itself with every venear call.
+  - [x] Whitelist stNEAR and LINEAR as staking pools.
+  - [ ] Unlock timer
+  - [x] Lockup contract should return the version of itself with every venear call.
   - [ ] A user shouldn't be able to add full-access key
   - [ ] A user should be able to nuke the contract and clean the state. This effectively is deleting the lockup contract
     and all the state associated with it. It may be needed for lockup upgrades to a new version.
