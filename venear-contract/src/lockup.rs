@@ -143,23 +143,29 @@ impl Contract {
             _ => env::abort(),
         };
         require!(hash == contract_hash);
-        self.config.lockup_contract_config = LockupContractConfig {
+        self.config.lockup_contract_config = Some(LockupContractConfig {
             contract_size: size,
-            contract_version: self.config.lockup_contract_config.contract_version + 1,
+            contract_version: self
+                .config
+                .lockup_contract_config
+                .as_ref()
+                .map(|c| c.contract_version)
+                .unwrap_or(0)
+                + 1,
             contract_hash,
-        }
+        });
     }
 
     pub fn internal_deploy_lockup(&mut self, owner_account_id: AccountId, deposit: NearToken) {
-        require!(
-            self.config.lockup_contract_config.contract_size > 0,
-            "The lockup contract code is not initialized"
-        );
+        let lockup_contract_config = self
+            .config
+            .lockup_contract_config
+            .as_ref()
+            .expect("The lockup contract code is not initialized");
         let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
         let contract_code_key =
-            StorageKeys::LockupCode(self.config.lockup_contract_config.contract_hash)
-                .into_storage_key();
+            StorageKeys::LockupCode(lockup_contract_config.contract_hash).into_storage_key();
         const CONTRACT_REGISTER: u64 = 0;
         let res = unsafe {
             sys::storage_read(
@@ -179,7 +185,7 @@ impl Contract {
         };
         let method_name = b"new";
         let arguments = LockupInitArgs {
-            version: self.config.lockup_contract_config.contract_version,
+            version: lockup_contract_config.contract_version,
             owner_account_id: owner_account_id.clone(),
             lockup_duration: self.config.lockup_duration_ns.clone(),
             staking_pool_whitelist_account_id: self
@@ -209,7 +215,7 @@ impl Contract {
         let current_account_id = current_account_id.as_str();
         let method_name = b"on_lockup_deployed";
         let arguments = OnLockupDeployedArgs {
-            version: self.config.lockup_contract_config.contract_version,
+            version: lockup_contract_config.contract_version,
             account_id: owner_account_id.clone(),
             lockup_deposit,
             deposit: local_deposit,
