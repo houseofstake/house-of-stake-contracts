@@ -25,7 +25,8 @@ It contains the following contracts:
   - [x] Lockup contract should return the version of itself with every venear call.
   - [ ] A user shouldn't be able to add full-access key
   - [ ] A user should be able to nuke the contract and clean the state. This effectively is deleting the lockup contract
-    and all the state associated with it. It may be needed for lockup upgrades to a new version.
+    and all the state associated with it. It may be needed for lockup upgrades to a new version. 
+  - [ ] Add a delete method both to lockup and veNEAR. Transfer 0 to veNEAR. 
   - [ ] Add unit tests
   - [ ] Add integration tests
   - [ ] Add documentation
