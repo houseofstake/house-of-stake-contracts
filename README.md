@@ -61,7 +61,7 @@ To test all the contracts locally, run the following command (note, it will buil
   - [ ] View methods for current lockup code
   - [ ] Owner's method to update config
   - [ ] Owner's method to update lockup hash
-  - [ ] Onwer's method to update venear growth config
+  - [ ] Owner's method to update venear growth config
   - [ ] Upgradeability
   - [ ] Add unit tests
   - [ ] Add integration tests
