@@ -250,3 +250,57 @@ impl MerkleProof {
         hash == root
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::testing_env;
+
+    #[derive(BorshStorageKey)]
+    #[near]
+    enum StorageKeys {
+        Tree,
+    }
+
+    #[test]
+    fn test_merkle_tree() {
+        let mut context = VMContextBuilder::new().build();
+        testing_env!(context.clone());
+
+        let global_state = "global_state".to_string();
+        let mut tree = MerkleTree::new(StorageKeys::Tree, global_state.clone());
+        assert_eq!(tree.tree_height(), 0);
+        assert_eq!(tree.root, CryptoHash::default());
+        assert_eq!(tree.length, 0);
+
+        context.block_index += 1;
+        testing_env!(context.clone());
+
+        let value = 42u32;
+        let account_id: AccountId = "alice.near".parse().unwrap();
+        let old_value = tree.set(account_id.clone(), value);
+        assert_eq!(old_value, None);
+        assert_eq!(tree.tree_height(), 1);
+        assert_ne!(tree.root, CryptoHash::default());
+        assert_eq!(tree.length, 1);
+
+        context.block_index += 1;
+        testing_env!(context.clone());
+
+        let old_value = tree.set(account_id.clone(), value + 1);
+        assert_eq!(old_value, Some(value));
+        assert_eq!(tree.tree_height(), 1);
+        assert_ne!(tree.root, CryptoHash::default());
+        assert_eq!(tree.length, 1);
+
+        context.block_index += 1;
+        testing_env!(context.clone());
+
+        let (snapshot, gs) = tree.get_snapshot().unwrap();
+        assert_eq!(global_state, gs);
+        let (proof, account) = tree.get_proof(&account_id).unwrap();
+        assert_eq!(account, value + 1);
+        assert!(proof.verify(snapshot.root, snapshot.length, &account));
+    }
+}

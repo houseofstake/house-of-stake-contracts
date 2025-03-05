@@ -13,7 +13,7 @@ use crate::account::VAccountInternal;
 use crate::config::Config;
 use common::account::*;
 use common::global_state::*;
-use common::venear::VenearGrowthConfig;
+use common::venear::{VenearGrowthConfig, VenearGrowthConfigFixedRate};
 use common::Version;
 use near_sdk::store::LookupMap;
 use near_sdk::{
@@ -40,11 +40,11 @@ pub struct Contract {
 #[near]
 impl Contract {
     #[init]
-    pub fn init(config: Config, venear_growth_config: VenearGrowthConfig) -> Self {
+    pub fn init(config: Config, venear_growth_config: VenearGrowthConfigFixedRate) -> Self {
         Self {
             tree: MerkleTree::new(
                 StorageKeys::Tree,
-                GlobalState::new(env::block_timestamp().into(), venear_growth_config).into(),
+                GlobalState::new(env::block_timestamp().into(), venear_growth_config.into()).into(),
             ),
             accounts: LookupMap::new(StorageKeys::Accounts),
             config,

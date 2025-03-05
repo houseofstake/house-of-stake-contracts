@@ -64,7 +64,12 @@ impl Contract {
     pub fn get_registration_cost(&self) -> NearToken {
         let contract_deployment_cost = NearToken::from_yoctonear(
             env::storage_byte_cost().as_yoctonear()
-                * self.config.lockup_contract_config.contract_size as u128,
+                * self
+                    .config
+                    .lockup_contract_config
+                    .as_ref()
+                    .expect("Lockup contract is not set")
+                    .contract_size as u128,
         );
         near_add(
             near_add(contract_deployment_cost, self.config.local_deposit),

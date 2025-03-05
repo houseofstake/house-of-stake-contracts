@@ -4,7 +4,7 @@ use near_sdk::require;
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub enum VenearGrowthConfig {
-    Current(VenearGrowthConfigFixedRate),
+    FixedRate(Box<VenearGrowthConfigFixedRate>),
 }
 
 /// The fixed annual growth rate of veNEAR tokens.
@@ -16,6 +16,12 @@ pub struct VenearGrowthConfigFixedRate {
     /// The growth rate of veNEAR tokens per nanosecond. E.g. 6 / (NUM_SEC_IN_YEAR * 10**9) means
     /// 6% annual growth rate.
     pub annual_growth_rate_ns: Fraction,
+}
+
+impl From<VenearGrowthConfigFixedRate> for VenearGrowthConfig {
+    fn from(config: VenearGrowthConfigFixedRate) -> Self {
+        Self::FixedRate(Box::new(config))
+    }
 }
 
 impl VenearGrowthConfig {
@@ -33,7 +39,7 @@ impl VenearGrowthConfig {
             return NearToken::from_yoctonear(0);
         }
         match self {
-            VenearGrowthConfig::Current(config) => {
+            VenearGrowthConfig::FixedRate(config) => {
                 let growth_period_ns = current_timestamp.0 - previous_timestamp.0;
                 NearToken::from_yoctonear(
                     config

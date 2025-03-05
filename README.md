@@ -13,6 +13,22 @@ It contains the following contracts:
 
 ## Development
 
+### Building
+
+To build all the contracts locally, run the following command:
+
+```bash
+./build_all.sh
+```
+
+### Testing
+
+To test all the contracts locally, run the following command (note, it will build the contracts first):
+
+```bash
+./test_all.sh
+```
+
 ### TODO:
 
 - Lockup contract
@@ -30,6 +46,9 @@ It contains the following contracts:
   - [ ] Add integration tests
   - [ ] Add documentation
 - veNEAR contract
+  - [ ] Ability to register account without deploying lockups.
+    - [ ] Reimplement as `storage_deposit` style integration.
+    - [ ] Lockup deployment should be optional.
   - [X] Lockup contract integration
     - [X] Add ability to deploy lockup contract for the user
     - [X] Add methods that receive locked near balance from the lockup contract.
@@ -42,7 +61,7 @@ It contains the following contracts:
   - [ ] View methods for current lockup code
   - [ ] Owner's method to update config
   - [ ] Owner's method to update lockup hash
-  - [ ] Onwer's method to update venear growth config
+  - [ ] Owner's method to update venear growth config
   - [ ] Upgradeability
   - [ ] Add unit tests
   - [ ] Add integration tests
