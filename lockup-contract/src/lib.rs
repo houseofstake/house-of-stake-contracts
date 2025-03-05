@@ -1,6 +1,5 @@
 //! A smart contract that allows tokens to be locked up.
 
-use near_sdk::json_types::U64;
 use near_sdk::Gas;
 use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
 

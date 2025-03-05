@@ -1,4 +1,5 @@
-use crate::venear_ext::{ext_venear, LockupUpdate, GAS_FOR_VENEAR_LOCKUP_UPDATE};
+use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
+use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::{near, NearToken};
 
 use crate::*;
@@ -36,11 +37,11 @@ impl LockupContract {
             .on_lockup_update(
                 self.version,
                 self.owner_account_id.clone(),
-                LockupUpdate {
+                VLockupUpdate::V1(LockupUpdateV1 {
                     locked_near_balance: NearToken::from_yoctonear(self.venear_locked_balance),
                     timestamp: env::block_timestamp().into(),
                     lockup_update_nonce: self.lockup_update_nonce,
-                },
+                }),
             );
     }
 }
