@@ -4,6 +4,7 @@ mod delegation;
 mod global_state;
 mod lockup;
 mod snapshot;
+mod storage;
 mod token;
 mod upgrade;
 

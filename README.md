@@ -46,9 +46,9 @@ To test all the contracts locally, run the following command (note, it will buil
   - [ ] Add integration tests
   - [ ] Add documentation
 - veNEAR contract
-  - [ ] Ability to register account without deploying lockups.
-    - [ ] Reimplement as `storage_deposit` style integration.
-    - [ ] Lockup deployment should be optional.
+  - [X] Ability to register account without deploying lockups.
+    - [X] Reimplement as `storage_deposit` style integration.
+    - [X] Lockup deployment should be optional.
   - [X] Lockup contract integration
     - [X] Add ability to deploy lockup contract for the user
     - [X] Add methods that receive locked near balance from the lockup contract.
@@ -56,7 +56,7 @@ To test all the contracts locally, run the following command (note, it will buil
   - [X] Delegation
     - [X] Add ability to delegate veNEAR
     - [X] Add ability to undelegate veNEAR
-    - [X] When delegated veNEAR balance changes, it should be reflected in 2 places. The balance can't be redelgated.
+    - [X] When delegated veNEAR balance changes, it should be reflected in 2 places. The balance can't be redelegated.
   - [ ] Configuration changes
   - [ ] View methods for current lockup code
   - [ ] Owner's method to update config
