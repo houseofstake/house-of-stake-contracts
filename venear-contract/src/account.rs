@@ -1,5 +1,6 @@
 use crate::*;
-use common::{near_add, Version};
+use common::{VenearBalance, Version};
+use near_sdk::json_types::U64;
 
 #[derive(Clone)]
 #[near(serializers=[json])]
@@ -14,14 +15,14 @@ pub struct AccountInfo {
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct AccountInternal {
-    /// The version of the lockup contract.
-    pub version: Version,
+    /// The version of the lockup contract deployed. None means the lockup is not deployed.
+    pub version: Option<Version>,
 
     /// The amount of NEAR tokens that are retained for the storage of the account.
     pub deposit: NearToken,
 
     /// The nonce of the last lockup update.
-    pub lockup_update_nonce: u64,
+    pub lockup_update_nonce: U64,
 }
 
 #[derive(Clone)]
@@ -46,37 +47,6 @@ impl From<VAccountInternal> for AccountInternal {
 
 #[near]
 impl Contract {
-    /// Registers a new account and attempts to deploy the lockup.
-    #[payable]
-    pub fn register_account(&mut self, account_id: Option<AccountId>) {
-        let account_id = account_id.unwrap_or_else(env::predecessor_account_id);
-        if self.internal_get_account_internal(&account_id).is_some() {
-            env::panic_str("Account already exists");
-        }
-        require!(
-            env::attached_deposit() >= self.get_registration_cost(),
-            "Attached deposit is less than the registration cost"
-        );
-        self.internal_deploy_lockup(account_id, env::attached_deposit());
-    }
-
-    /// The cost of registering a new account.
-    pub fn get_registration_cost(&self) -> NearToken {
-        let contract_deployment_cost = NearToken::from_yoctonear(
-            env::storage_byte_cost().as_yoctonear()
-                * self
-                    .config
-                    .lockup_contract_config
-                    .as_ref()
-                    .expect("Lockup contract is not set")
-                    .contract_size as u128,
-        );
-        near_add(
-            near_add(contract_deployment_cost, self.config.local_deposit),
-            self.config.min_extra_lockup_deposit,
-        )
-    }
-
     /// Helper method to get the account info.
     pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
         self.internal_get_account_internal(&account_id)
@@ -88,6 +58,32 @@ impl Contract {
 }
 
 impl Contract {
+    pub fn internal_register_account(&mut self, account_id: &AccountId, deposit: NearToken) {
+        require!(
+            self.internal_set_account_internal(
+                account_id.clone(),
+                AccountInternal {
+                    version: None,
+                    deposit,
+                    lockup_update_nonce: 0.into(),
+                },
+            )
+            .is_none(),
+            "Already registered"
+        );
+        let mut global_state: GlobalState = self.internal_global_state_updated();
+        let account = Account {
+            account_id: account_id.clone(),
+            update_timestamp: env::block_timestamp().into(),
+            balance: VenearBalance::from_near(deposit),
+            delegated_balance: Default::default(),
+            delegation: None,
+        };
+        global_state.total_venear_balance += account.balance;
+        self.internal_set_account(account_id.clone(), account);
+        self.internal_set_global_state(global_state);
+    }
+
     pub fn internal_get_account_internal(&self, account_id: &AccountId) -> Option<AccountInternal> {
         self.accounts
             .get(account_id)
@@ -99,8 +95,8 @@ impl Contract {
         &mut self,
         account_id: AccountId,
         account_internal: AccountInternal,
-    ) {
-        self.accounts.insert(account_id, account_internal.into());
+    ) -> Option<VAccountInternal> {
+        self.accounts.insert(account_id, account_internal.into())
     }
 
     pub fn internal_get_account(&self, account_id: &AccountId) -> Option<Account> {
