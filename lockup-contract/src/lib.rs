@@ -186,29 +186,6 @@ mod tests {
         )
     }
 
-    fn new_contract_with_lockup_duration(
-        transfers_enabled: bool,
-        release_duration: Option<WrappedDuration>,
-        lockup_duration: Duration,
-    ) -> LockupContract {
-        let lockup_start_information = if transfers_enabled {
-            TransfersInformation::TransfersEnabled {
-                transfers_timestamp: to_ts(GENESIS_TIME_IN_DAYS).into(),
-            }
-        } else {
-            TransfersInformation::TransfersDisabled {
-                transfer_poll_account_id: AccountId::from_str("transfers").unwrap(),
-            }
-        };
-
-        LockupContract::new(
-            account_owner(),
-            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
-            AccountId::from_str("whitelist").unwrap(),
-            LOCKUP_VERSION,
-        )
-    }
-
     fn new_contract(
         transfers_enabled: bool,
         release_duration: Option<WrappedDuration>,

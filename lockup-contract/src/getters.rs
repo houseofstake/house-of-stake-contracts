@@ -55,6 +55,6 @@ impl LockupContract {
 
     /// Returns the version of the Lockup contract.
     pub fn get_version(&self) -> Version {
-        self.version.clone()
+        self.version
     }
 }

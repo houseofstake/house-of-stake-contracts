@@ -388,6 +388,13 @@ impl LockupContract {
             amount.0,
         );
 
+        assert!(
+            self.venear_liquid_balance() >= amount.0,
+            "The available liquid balance {} is smaller than the requested transfer amount {}",
+            self.venear_liquid_balance(),
+            amount.0
+        );
+
         env::log_str(&format!(
             "Transferring {} to account @{}",
             amount.0, receiver_id
@@ -420,7 +427,7 @@ impl LockupContract {
 
         env::log_str("Adding a full access key");
 
-        let new_public_key: PublicKey = new_public_key.into();
+        let new_public_key: PublicKey = new_public_key;
 
         Promise::new(env::current_account_id()).add_full_access_key(new_public_key)
     }

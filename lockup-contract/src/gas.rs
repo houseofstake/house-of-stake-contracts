@@ -8,7 +8,6 @@ pub mod whitelist {
     /// Gas attached to the promise to check whether the given staking pool Account ID is
     /// whitelisted.
     /// Requires BASE (no external calls).
-
     pub const IS_WHITELISTED: Gas = super::BASE_GAS;
 }
 
