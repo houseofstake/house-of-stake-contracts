@@ -14,7 +14,7 @@ pub struct LockupContractConfig {
 #[near(serializers=[json, borsh])]
 pub struct Config {
     /// The configuration of the current lockup contract code.
-    pub lockup_contract_config: LockupContractConfig,
+    pub lockup_contract_config: Option<LockupContractConfig>,
 
     /// Initialization arguments for the lockup contract.
     pub lockup_duration_ns: U64,

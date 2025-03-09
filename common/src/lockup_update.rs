@@ -1,4 +1,5 @@
 use crate::*;
+use near_sdk::json_types::U64;
 
 /// The lockup update is the information passed from the lockup contract to update veNEAR balances.
 /// It includes the total amount of NEAR that is locked in the lockup contract and the list of
@@ -14,7 +15,7 @@ pub struct LockupUpdateV1 {
 
     /// The nonce of the lockup update. It should be incremented for every new update by the lockup
     /// contract.
-    pub lockup_update_nonce: u64,
+    pub lockup_update_nonce: U64,
 }
 
 #[near(serializers=[borsh, json])]

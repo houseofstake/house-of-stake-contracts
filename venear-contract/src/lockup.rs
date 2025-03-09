@@ -2,9 +2,9 @@ use crate::account::AccountInternal;
 use crate::config::LockupContractConfig;
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
-use common::{near_add, near_sub, VenearBalance};
+use common::near_add;
 use near_sdk::json_types::U64;
-use near_sdk::{env, is_promise_success, Gas, IntoStorageKey};
+use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
 
 const CONTRACT_CODE_EXTRA_STORAGE_BYTES: u64 = 100;
 
@@ -19,6 +19,9 @@ pub struct LockupInitArgs {
     // TODO
     lockup_duration: U64,
     staking_pool_whitelist_account_id: AccountId,
+
+    /// Starting nonce for lockup updates. It should be unique for every lockup contract.
+    lockup_update_nonce: U64,
 }
 
 #[near(serializers=[json])]
@@ -26,14 +29,23 @@ pub struct OnLockupDeployedArgs {
     version: Version,
 
     account_id: AccountId,
-    lockup_deposit: NearToken,
-    deposit: NearToken,
+
+    lockup_update_nonce: U64,
 }
 
 #[near]
 impl Contract {
-    /// Called by one of the lockup contracts to update the amount of
-    /// NEAR and fungible tokens locked in the lockup contract .
+    /// Deploys the lockup contract.
+    /// If the lockup contract is already deployed, the method will fail after the attempt.
+    /// Requires the caller to attach the deposit for the lockup contract of at least
+    /// `get_lockup_deployment_cost()`.
+    #[payable]
+    pub fn deploy_lockup(&mut self) {
+        self.internal_deploy_lockup(env::predecessor_account_id());
+    }
+
+    /// Called by one of the lockup contracts to update the amount of NEAR locked in the lockup
+    /// contract.
     pub fn on_lockup_update(
         &mut self,
         version: Version,
@@ -49,7 +61,7 @@ impl Contract {
             .internal_get_account_internal(&owner_account_id)
             .expect("Account not found");
         require!(
-            account_internal.version == version,
+            account_internal.version == Some(version),
             "Invalid lockup version"
         );
         match update {
@@ -64,30 +76,23 @@ impl Contract {
         &mut self,
         version: Version,
         account_id: AccountId,
+        lockup_update_nonce: U64,
         lockup_deposit: NearToken,
-        deposit: NearToken,
     ) {
         if is_promise_success() {
-            // Successfully deployed lockup. Creating internal account.
-            self.internal_set_account_internal(
-                account_id.clone(),
-                AccountInternal {
-                    version,
-                    deposit,
-                    lockup_update_nonce: 0,
-                },
+            let mut account_internal = self
+                .internal_get_account_internal(&account_id)
+                .expect("Account not found");
+            account_internal.version = Some(version);
+            require!(
+                account_internal.lockup_update_nonce <= lockup_update_nonce,
+                "Invalid nonce"
             );
-            let mut global_state: GlobalState = self.internal_global_state_updated();
-            let account = Account {
-                account_id: account_id.clone(),
-                update_timestamp: env::block_timestamp().into(),
-                balance: VenearBalance::from_near(near_add(lockup_deposit, deposit)),
-                delegated_balance: Default::default(),
-                delegation: None,
-            };
-            global_state.total_venear_balance += account.balance;
-            self.internal_set_account(account_id, account);
-            self.internal_set_global_state(global_state);
+            account_internal.lockup_update_nonce = lockup_update_nonce;
+            self.internal_set_account_internal(account_id, account_internal);
+        } else {
+            // Refunding the deposit if the lockup contract deployment failed.
+            Promise::new(account_id).transfer(lockup_deposit);
         }
     }
 }
@@ -143,23 +148,42 @@ impl Contract {
             _ => env::abort(),
         };
         require!(hash == contract_hash);
-        self.config.lockup_contract_config = LockupContractConfig {
+        self.config.lockup_contract_config = Some(LockupContractConfig {
             contract_size: size,
-            contract_version: self.config.lockup_contract_config.contract_version + 1,
+            contract_version: self
+                .config
+                .lockup_contract_config
+                .as_ref()
+                .map(|c| c.contract_version)
+                .unwrap_or(0)
+                + 1,
             contract_hash,
-        }
+        });
     }
 
-    pub fn internal_deploy_lockup(&mut self, owner_account_id: AccountId, deposit: NearToken) {
-        require!(
-            self.config.lockup_contract_config.contract_size > 0,
-            "The lockup contract code is not initialized"
+    pub fn internal_deploy_lockup(&mut self, owner_account_id: AccountId) {
+        let lockup_deposit = env::attached_deposit();
+        assert!(
+            self.internal_get_account_internal(&owner_account_id)
+                .is_some(),
+            "Account {} is not registered",
+            owner_account_id
         );
+        let required_deposit = self.get_lockup_deployment_cost();
+        assert!(
+            lockup_deposit >= required_deposit,
+            "Not enough deposit. Required: {}",
+            required_deposit
+        );
+        let lockup_contract_config = self
+            .config
+            .lockup_contract_config
+            .as_ref()
+            .expect("The lockup contract code is not initialized");
         let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
         let contract_code_key =
-            StorageKeys::LockupCode(self.config.lockup_contract_config.contract_hash)
-                .into_storage_key();
+            StorageKeys::LockupCode(lockup_contract_config.contract_hash).into_storage_key();
         const CONTRACT_REGISTER: u64 = 0;
         let res = unsafe {
             sys::storage_read(
@@ -178,19 +202,19 @@ impl Contract {
             )
         };
         let method_name = b"new";
+        let lockup_update_nonce = env::block_height() * 1_000_000;
         let arguments = LockupInitArgs {
-            version: self.config.lockup_contract_config.contract_version,
+            version: lockup_contract_config.contract_version,
             owner_account_id: owner_account_id.clone(),
             lockup_duration: self.config.lockup_duration_ns.clone(),
             staking_pool_whitelist_account_id: self
                 .config
                 .staking_pool_whitelist_account_id
                 .clone(),
+            lockup_update_nonce: lockup_update_nonce.into(),
         };
         let arguments =
             serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");
-        let local_deposit = self.config.local_deposit;
-        let lockup_deposit = near_sub(deposit, local_deposit);
         unsafe {
             sys::promise_batch_action_create_account(promise_id);
             sys::promise_batch_action_deploy_contract(promise_id, u64::MAX, CONTRACT_REGISTER);
@@ -209,10 +233,9 @@ impl Contract {
         let current_account_id = current_account_id.as_str();
         let method_name = b"on_lockup_deployed";
         let arguments = OnLockupDeployedArgs {
-            version: self.config.lockup_contract_config.contract_version,
+            version: lockup_contract_config.contract_version,
             account_id: owner_account_id.clone(),
-            lockup_deposit,
-            deposit: local_deposit,
+            lockup_update_nonce: lockup_update_nonce.into(),
         };
         let arguments =
             serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");
