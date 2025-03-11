@@ -116,31 +116,6 @@ impl LockupContract {
         unstake_all_succeeded
     }
 
-    /// Called after the transfer voting contract was checked for the vote result.
-
-    #[private]
-    pub fn on_get_result_from_transfer_poll(
-        &mut self,
-        #[callback] poll_result: PollResult,
-    ) -> bool {
-        self.assert_transfers_disabled();
-
-        if let Some(transfers_timestamp) = poll_result {
-            env::log_str(&format!(
-                "Transfers were successfully enabled at {}",
-                transfers_timestamp.0
-            ));
-            self.lockup_information.transfers_information =
-                TransfersInformation::TransfersEnabled {
-                    transfers_timestamp,
-                };
-            true
-        } else {
-            env::log_str("The transfers are not enabled yet");
-            false
-        }
-    }
-
     /// Called after the request to get the current total balance from the staking pool.
     #[private]
     pub fn on_get_account_total_balance(&mut self, #[callback] total_balance: WrappedBalance) {
@@ -196,7 +171,11 @@ impl LockupContract {
 }
 
 impl LockupContract {
-    pub fn on_staking_pool_deposit_inner(&mut self, amount: WrappedBalance, deposit_succeeded: bool) -> bool {
+    pub fn on_staking_pool_deposit_inner(
+        &mut self,
+        amount: WrappedBalance,
+        deposit_succeeded: bool,
+    ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if deposit_succeeded {
@@ -222,7 +201,11 @@ impl LockupContract {
         deposit_succeeded
     }
 
-    pub fn on_staking_pool_stake_inner(&mut self, amount: WrappedBalance, stake_succeeded: bool) -> bool {
+    pub fn on_staking_pool_stake_inner(
+        &mut self,
+        amount: WrappedBalance,
+        stake_succeeded: bool,
+    ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if stake_succeeded {
@@ -247,7 +230,11 @@ impl LockupContract {
         stake_succeeded
     }
 
-    pub fn on_staking_pool_unstake_inner(&mut self, amount: WrappedBalance, unstake_succeeded: bool) -> bool {
+    pub fn on_staking_pool_unstake_inner(
+        &mut self,
+        amount: WrappedBalance,
+        unstake_succeeded: bool,
+    ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if unstake_succeeded {
@@ -272,7 +259,11 @@ impl LockupContract {
         unstake_succeeded
     }
 
-    pub fn on_staking_pool_withdraw_inner(&mut self, amount: WrappedBalance, withdraw_succeeded: bool) -> bool {
+    pub fn on_staking_pool_withdraw_inner(
+        &mut self,
+        amount: WrappedBalance,
+        withdraw_succeeded: bool,
+    ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if withdraw_succeeded {
@@ -304,5 +295,4 @@ impl LockupContract {
         }
         withdraw_succeeded
     }
-
 }

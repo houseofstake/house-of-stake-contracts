@@ -365,39 +365,6 @@ impl LockupContract {
                     .on_staking_pool_unstake_all(),
             )
     }
-    /// OWNER'S METHOD
-    ///
-    /// Requires 75 TGas (3 * BASE_GAS)
-    /// Not intended to hand over the access to someone else except the owner
-    ///
-    /// Calls voting contract to validate if the transfers were enabled by voting. Once transfers
-    /// are enabled, they can't be disabled anymore.
-    pub fn check_transfers_vote(&mut self) -> Promise {
-        // TODO: Deprecate.
-        self.assert_owner();
-        self.assert_transfers_disabled();
-
-        let transfer_poll_account_id = match &self.lockup_information.transfers_information {
-            TransfersInformation::TransfersDisabled {
-                transfer_poll_account_id,
-            } => transfer_poll_account_id,
-            _ => unreachable!(),
-        };
-
-        env::log_str(&format!(
-            "Checking that transfers are enabled at the transfer poll contract @{}",
-            transfer_poll_account_id,
-        ));
-
-        ext_transfer_poll::ext(transfer_poll_account_id.clone())
-            .with_static_gas(gas::transfer_poll::GET_RESULT)
-            .get_result()
-            .then(
-                ext_self_owner::ext(env::current_account_id())
-                    .with_static_gas(gas::owner_callbacks::ON_VOTING_GET_RESULT)
-                    .on_get_result_from_transfer_poll(),
-            )
-    }
 
     /// OWNER'S METHOD
     ///
@@ -413,13 +380,19 @@ impl LockupContract {
             env::is_valid_account_id(receiver_id.as_bytes()),
             "The receiver account ID is invalid"
         );
-        self.assert_transfers_enabled();
         self.assert_no_staking_or_idle();
         assert!(
             self.get_liquid_owners_balance().0 >= amount.0,
             "The available liquid balance {} is smaller than the requested transfer amount {}",
             self.get_liquid_owners_balance().0,
             amount.0,
+        );
+
+        assert!(
+            self.venear_liquid_balance() >= amount.0,
+            "The available liquid balance {} is smaller than the requested transfer amount {}",
+            self.venear_liquid_balance(),
+            amount.0
         );
 
         env::log_str(&format!(
@@ -445,7 +418,6 @@ impl LockupContract {
     /// the contract.
     pub fn add_full_access_key(&mut self, new_public_key: PublicKey) -> Promise {
         self.assert_owner();
-        self.assert_transfers_enabled();
         self.assert_no_staking_or_idle();
         assert_eq!(
             self.get_locked_amount().0,
@@ -455,7 +427,7 @@ impl LockupContract {
 
         env::log_str("Adding a full access key");
 
-        let new_public_key: PublicKey = new_public_key.into();
+        let new_public_key: PublicKey = new_public_key;
 
         Promise::new(env::current_account_id()).add_full_access_key(new_public_key)
     }

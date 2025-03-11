@@ -17,10 +17,13 @@ pub mod getters;
 pub mod internal;
 pub mod owner;
 pub mod venear;
+pub mod venear_ext;
 
 /// The contract keeps at least 3.5 NEAR in the account to avoid being transferred out to cover
 /// contract code storage and some internal state.
 pub const MIN_BALANCE_FOR_STORAGE: u128 = 3_500_000_000_000_000_000_000_000;
+
+pub type Version = u64;
 
 #[ext_contract(ext_staking_pool)]
 pub trait ExtStakingPool {
@@ -89,8 +92,11 @@ pub struct LockupContract {
     /// The account ID of the owner.
     pub owner_account_id: AccountId,
 
-    /// Information about lockup schedule and the amount.
-    pub lockup_information: LockupInformation,
+    /// Account Id of VeNEAR Contract
+    pub venear_account_id: AccountId,
+
+    /// The amount in yocto-NEAR tokens locked for this account.
+    pub lockup_amount: Balance,
 
     /// Account ID of the staking pool whitelist contract.
     pub staking_pool_whitelist_account_id: AccountId,
@@ -108,6 +114,13 @@ pub struct LockupContract {
 
     /// Pending unlocking amount
     pub venear_pending_balance: Balance,
+
+    /// The nonce of the lockup update. It should be incremented for every new update by the lockup
+    /// contract.
+    pub lockup_update_nonce: u64,
+
+    /// Version of the lockup contract
+    pub version: Version,
 }
 
 #[near]
@@ -117,64 +130,33 @@ impl LockupContract {
     /// Initializes lockup contract.
     /// - `owner_account_id` - the account ID of the owner. Only this account can call owner's
     ///    methods on this contract.
-    /// - `lockup_duration` [deprecated] - the duration in nanoseconds of the lockup period from
-    ///    the moment the transfers are enabled. During this period tokens are locked and
-    ///    the release doesn't start. Instead of this, use `lockup_timestamp` and `release_duration`
-    /// - `lockup_timestamp` - the optional absolute lockup timestamp in nanoseconds which locks
-    ///    the tokens until this timestamp passes. Until this moment the tokens are locked and the
-    ///    release doesn't start.
-    /// - `transfers_information` - the information about the transfers. Either transfers are
-    ///    already enabled, then it contains the timestamp when they were enabled. Or the transfers
-    ///    are currently disabled and it contains the account ID of the transfer poll contract.
-    /// - `release_duration` - is the duration when the full lockup amount will be available.
-    ///    The tokens are linearly released from the moment tokens are unlocked.
-    ///    The unlocking happens at the timestamp defined by:
-    ///    `max(transfers_timestamp + lockup_duration, lockup_timestamp)`.
-    ///    If it's used in addition to the vesting schedule, then the amount of tokens available to
-    ///    transfer is subject to the minimum between vested tokens and released tokens.
+    /// - `venear_account_id` - the account ID of the VeNEAR contract.
     /// - `staking_pool_whitelist_account_id` - the Account ID of the staking pool whitelist contract.
+    ///    The version of the contract. It is a monotonically increasing number.
+    /// - `version` - Version of the lockup contract will be tracked by the veNEAR contract.
     #[init]
     pub fn new(
         owner_account_id: AccountId,
-        lockup_duration: WrappedDuration,
-        lockup_timestamp: Option<WrappedTimestamp>,
-        transfers_information: TransfersInformation,
-        release_duration: Option<WrappedDuration>,
+        venear_account_id: AccountId,
         staking_pool_whitelist_account_id: AccountId,
+        version: Version,
     ) -> Self {
         assert!(
             env::is_valid_account_id(owner_account_id.as_bytes()),
             "The account ID of the owner is invalid"
         );
-        assert!(
-            env::is_valid_account_id(staking_pool_whitelist_account_id.as_bytes()),
-            "The staking pool whitelist account ID is invalid"
-        );
-        if let TransfersInformation::TransfersDisabled {
-            transfer_poll_account_id,
-        } = &transfers_information
-        {
-            assert!(
-                env::is_valid_account_id(transfer_poll_account_id.as_bytes()),
-                "The transfer poll account ID is invalid"
-            );
-        }
-        let lockup_information = LockupInformation {
-            lockup_amount: env::account_balance().as_yoctonear(),
-            lockup_duration: lockup_duration.0,
-            release_duration: release_duration.map(|d| d.0),
-            lockup_timestamp: lockup_timestamp.map(|d| d.0),
-            transfers_information,
-        };
 
         Self {
             owner_account_id,
-            lockup_information,
+            venear_account_id,
+            lockup_amount: env::account_balance().as_yoctonear(),
             staking_information: None,
             staking_pool_whitelist_account_id,
             venear_locked_balance: 0,
             venear_unlock_imestamp: 0u64,
             venear_pending_balance: 0,
+            lockup_update_nonce: 0,
+            version,
         }
     }
 }
@@ -182,46 +164,25 @@ impl LockupContract {
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
+    use near_sdk::json_types::U64;
+    use near_sdk::{testing_env, AccountId, NearToken, VMContext};
     use std::convert::TryInto;
     use std::str::FromStr;
-    use near_sdk::{testing_env, VMContext, AccountId, NearToken};
     use test_utils::*;
 
     use super::*;
 
     mod test_utils;
 
+    const VENEAR_ACCOUNT_ID: &str = "venear";
+    const LOCKUP_VERSION: Version = 1;
+
     fn basic_context() -> VMContext {
         get_context(
             system_account(),
             to_yocto(LOCKUP_NEAR),
             0,
-            to_ts(GENESIS_TIME_IN_DAYS)
-        )
-    }
-
-    fn new_contract_with_lockup_duration(
-        transfers_enabled: bool,
-        release_duration: Option<WrappedDuration>,
-        lockup_duration: Duration,
-    ) -> LockupContract {
-        let lockup_start_information = if transfers_enabled {
-            TransfersInformation::TransfersEnabled {
-                transfers_timestamp: to_ts(GENESIS_TIME_IN_DAYS).into(),
-            }
-        } else {
-            TransfersInformation::TransfersDisabled {
-                transfer_poll_account_id: AccountId::from_str("transfers").unwrap(),
-            }
-        };
-
-        LockupContract::new(
-            account_owner(),
-            lockup_duration.into(),
-            None,
-            lockup_start_information,
-            release_duration,
-            AccountId::from_str("whitelist").unwrap(),
+            to_ts(GENESIS_TIME_IN_DAYS),
         )
     }
 
@@ -229,17 +190,25 @@ mod tests {
         transfers_enabled: bool,
         release_duration: Option<WrappedDuration>,
     ) -> LockupContract {
-        new_contract_with_lockup_duration(
-            transfers_enabled,
-            release_duration,
-            to_nanos(YEAR),
+        LockupContract::new(
+            account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
+            AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
         )
     }
 
     fn lockup_only_setup() -> (VMContext, LockupContract) {
         let context = basic_context();
         testing_env!(context.clone());
-        let contract = new_contract(true, None);
+
+        let contract = LockupContract::new(
+            account_owner(),
+            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
+            AccountId::from_str("whitelist").unwrap(),
+            LOCKUP_VERSION,
+        );
+
         (context, contract)
     }
 
@@ -260,10 +229,11 @@ mod tests {
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
         testing_env!(context.clone());
 
-        assert_almost_eq(contract.get_owners_balance().0, to_yocto(LOCKUP_NEAR));
+        assert_almost_eq(contract.get_owners_balance().0, 0);
     }
 
     #[test]
+    #[should_panic(expected = "Tokens are still locked/unvested")]
     fn test_add_full_access_key() {
         let (mut context, mut contract) = lockup_only_setup();
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
@@ -320,102 +290,25 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Transfers are disabled")]
-    fn test_transfers_not_enabled() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let mut contract = new_contract(false, None);
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.transfer(to_yocto(100).into(), non_owner());
-    }
-
-    #[test]
-    fn test_enable_transfers() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let mut contract = new_contract(false, None);
-        testing_env!(context.clone());
-        assert!(!contract.are_transfers_enabled());
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.check_transfers_vote();
-
-        let poll_result = Some(to_ts(GENESIS_TIME_IN_DAYS + 10).into());
-        context.predecessor_account_id = lockup_account();
-        // NOTE: Unit tests don't need to read the content of the promise result. So here we don't
-        // have to pass serialized result from the transfer poll.
-        assert!(contract.on_get_result_from_transfer_poll(poll_result));
-
-        testing_env!(context.clone());
-        // Not unlocked yet
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert!(contract.are_transfers_enabled());
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 10);
-        testing_env!(context.clone());
-        // Unlocked yet
-        assert_eq!(
-            contract.get_owners_balance().0,
-            to_yocto(LOCKUP_NEAR).into()
-        );
-
-        context.predecessor_account_id = account_owner();
-        testing_env!(context.clone());
-        contract.transfer(to_yocto(100).into(), non_owner());
-    }
-
-    #[test]
-    fn test_check_transfers_vote_false() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let mut contract = new_contract(false, None);
-        testing_env!(context.clone());
-        assert!(!contract.are_transfers_enabled());
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.check_transfers_vote();
-
-        let poll_result = None;
-        // NOTE: Unit tests don't need to read the content of the promise result. So here we don't
-        // have to pass serialized result from the transfer poll.
-        context.predecessor_account_id = lockup_account();
-        assert!(!contract.on_get_result_from_transfer_poll(poll_result));
-
-        testing_env!(context.clone());
-        // Not enabled
-        assert!(!contract.are_transfers_enabled());
-    }
-
-    #[test]
+    #[should_panic(
+        expected = "The available liquid balance 0 is smaller than the requested transfer amount 100000000000000000000000000"
+    )]
     fn test_lockup_only_transfer_call_by_owner() {
         let (mut context, mut contract) = lockup_only_setup();
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
-        testing_env!(context.clone());
-        assert_almost_eq(contract.get_owners_balance().0, to_yocto(LOCKUP_NEAR));
+
+        assert_eq!(contract.get_owners_balance().0, 0);
 
         context.predecessor_account_id = account_owner();
         context.signer_account_id = account_owner();
         context.signer_account_pk = public_key(1).try_into().unwrap();
         testing_env!(context.clone());
 
-        assert_eq!(env::account_balance().as_yoctonear(), to_yocto(LOCKUP_NEAR));
+        assert_eq!(contract.get_owners_balance().0, 0);
         contract.transfer(to_yocto(100).into(), non_owner());
-        assert_almost_eq(env::account_balance().as_yoctonear(), to_yocto(LOCKUP_NEAR - 100));
+        assert_almost_eq(
+            env::account_balance().as_yoctonear(),
+            to_yocto(LOCKUP_NEAR - 100),
+        );
     }
 
     #[test]
@@ -459,7 +352,10 @@ mod tests {
         testing_env!(context.clone());
         contract.deposit_to_staking_pool(amount.into());
         context.account_balance = env::account_balance();
-        assert_eq!(context.account_balance.as_yoctonear(), to_yocto(LOCKUP_NEAR) - amount);
+        assert_eq!(
+            context.account_balance.as_yoctonear(),
+            to_yocto(LOCKUP_NEAR) - amount
+        );
 
         context.predecessor_account_id = lockup_account();
         contract.on_staking_pool_deposit_inner(amount.into(), true);
@@ -488,7 +384,8 @@ mod tests {
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
         contract.withdraw_from_staking_pool(unstake_amount.into());
-        context.account_balance = NearToken::from_yoctonear(context.account_balance.as_yoctonear() + unstake_amount);
+        context.account_balance =
+            NearToken::from_yoctonear(context.account_balance.as_yoctonear() + unstake_amount);
 
         context.predecessor_account_id = lockup_account();
         contract.on_staking_pool_withdraw_inner(unstake_amount.into(), true);
@@ -523,7 +420,10 @@ mod tests {
         testing_env!(context.clone());
         contract.deposit_to_staking_pool(amount.into());
         context.account_balance = env::account_balance();
-        assert_eq!(context.account_balance.as_yoctonear(), to_yocto(LOCKUP_NEAR) - amount);
+        assert_eq!(
+            context.account_balance.as_yoctonear(),
+            to_yocto(LOCKUP_NEAR) - amount
+        );
 
         context.predecessor_account_id = lockup_account();
         contract.on_staking_pool_deposit_inner(amount.into(), true);
@@ -631,7 +531,7 @@ mod tests {
         context.signer_account_pk = public_key(2).try_into().unwrap();
 
         // Selecting staking pool
-        let staking_pool =  AccountId::from_str("staking_pool").unwrap();
+        let staking_pool = AccountId::from_str("staking_pool").unwrap();
         testing_env!(context.clone());
         contract.select_staking_pool(staking_pool.clone());
 
@@ -660,11 +560,10 @@ mod tests {
         context.predecessor_account_id = account_owner();
         context.signer_account_id = account_owner();
         context.signer_account_pk = public_key(2).try_into().unwrap();
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
 
         let lockup_amount = to_yocto(LOCKUP_NEAR);
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, lockup_amount);
+        assert_eq!(contract.get_owners_balance().0, 0);
 
         // Selecting staking pool
         let staking_pool = AccountId::from_str("staking_pool").unwrap();
@@ -673,6 +572,8 @@ mod tests {
 
         context.predecessor_account_id = lockup_account();
         contract.on_whitelist_is_whitelisted(true, staking_pool.clone());
+
+        assert_eq!(contract.get_known_deposited_balance().0, 0);
 
         // Deposit to the staking_pool
         let mut total_amount = 0;
@@ -683,27 +584,28 @@ mod tests {
             testing_env!(context.clone());
             contract.deposit_to_staking_pool(amount.into());
             context.account_balance = env::account_balance();
-            assert_eq!(context.account_balance.as_yoctonear(), lockup_amount - total_amount);
+            assert_eq!(
+                context.account_balance.as_yoctonear(),
+                lockup_amount - total_amount
+            );
 
             context.predecessor_account_id = lockup_account();
             contract.on_staking_pool_deposit_inner(amount.into(), true);
             testing_env!(context.clone());
             assert_eq!(contract.get_known_deposited_balance().0, total_amount);
-            assert_eq!(contract.get_owners_balance().0, lockup_amount);
-            assert_eq!(
-                contract.get_liquid_owners_balance().0,
-                lockup_amount - total_amount - MIN_BALANCE_FOR_STORAGE
-            );
+            assert_eq!(contract.get_owners_balance().0, 0);
+            assert_eq!(contract.get_liquid_owners_balance().0, 0);
         }
 
-        // Withdrawing from the staking_pool. Plus one extra time as a reward
+        // Withdrawing from the staking_pool.
         let mut total_withdrawn_amount = 0;
-        for _ in 1..=6 {
+        for _ in 1..=5 {
             total_withdrawn_amount += amount;
             context.predecessor_account_id = account_owner();
             testing_env!(context.clone());
             contract.withdraw_from_staking_pool(amount.into());
-            context.account_balance = NearToken::from_yoctonear(context.account_balance.as_yoctonear() + amount);
+            context.account_balance =
+                NearToken::from_yoctonear(context.account_balance.as_yoctonear() + amount);
             assert_eq!(
                 context.account_balance.as_yoctonear(),
                 lockup_amount - total_amount + total_withdrawn_amount
@@ -716,202 +618,25 @@ mod tests {
                 contract.get_known_deposited_balance().0,
                 total_amount.saturating_sub(total_withdrawn_amount)
             );
-            assert_eq!(
-                contract.get_owners_balance().0,
-                lockup_amount + total_withdrawn_amount.saturating_sub(total_amount)
-            );
-            assert_eq!(
-                contract.get_liquid_owners_balance().0,
-                lockup_amount - total_amount + total_withdrawn_amount - MIN_BALANCE_FOR_STORAGE
-            );
+            assert_eq!(contract.get_owners_balance().0, 0);
+            assert_eq!(contract.get_liquid_owners_balance().0, 0);
         }
-    }
 
-    #[test]
-    fn test_lock_timestmap() {
-        let mut context = basic_context();
+        // Withdrawing from the staking_pool one extra time as a reward
+        context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        let contract = LockupContract::new(
-            account_owner(),
-            0.into(),
-            Some(to_ts(GENESIS_TIME_IN_DAYS + YEAR).into()),
-            TransfersInformation::TransfersDisabled {
-                transfer_poll_account_id: AccountId::from_str("transfers").unwrap(),
-            },
-            None,
-            AccountId::from_str("whitelist").unwrap()
-        );
+        contract.withdraw_from_staking_pool(amount.into());
+        context.account_balance =
+            NearToken::from_yoctonear(context.account_balance.as_yoctonear() + amount);
 
+        context.predecessor_account_id = lockup_account();
+        contract.on_staking_pool_withdraw_inner(amount.into(), true);
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-        assert!(!contract.are_transfers_enabled());
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-    }
-
-    #[test]
-    fn test_lock_timestmap_transfer_enabled() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let contract = LockupContract::new(
-            account_owner(),
-            0.into(),
-            Some(to_ts(GENESIS_TIME_IN_DAYS + YEAR).into()),
-            TransfersInformation::TransfersEnabled {
-                transfers_timestamp: to_ts(GENESIS_TIME_IN_DAYS + YEAR / 2).into(),
-            },
-            None,
-            AccountId::from_str("whitelist").unwrap(),
-        );
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(1000));
         assert_eq!(
-            contract.get_liquid_owners_balance().0,
-            to_yocto(1000) - MIN_BALANCE_FOR_STORAGE
+            contract.get_known_deposited_balance().0,
+            total_amount.saturating_sub(total_withdrawn_amount)
         );
-        assert_eq!(contract.get_locked_amount().0, to_yocto(0));
-    }
-
-
-    #[test]
-    fn test_release_duration() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let contract = new_contract(true, Some(to_nanos(4 * YEAR).into()));
-
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(0));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(0));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 2 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(750));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 3 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(500));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 4 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(250));
-    }
-
-    #[test]
-    fn test_vesting_and_release_duration() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let contract = new_contract_with_lockup_duration(
-            true,
-            Some(to_nanos(4 * YEAR).into()),
-            0,
-        );
-
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(750));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 2 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(500));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 3 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(250));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 4 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(1000));
-        assert_eq!(
-            contract.get_liquid_owners_balance().0,
-            to_yocto(1000) - MIN_BALANCE_FOR_STORAGE
-        );
-        assert_eq!(contract.get_locked_amount().0, to_yocto(0));
-    }
-
-    // Vesting post transfers is not supported by Hash vesting.
-    #[test]
-    fn test_vesting_post_transfers_and_release_duration() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let contract = LockupContract::new(
-            account_owner(),
-            to_nanos(YEAR).into(),
-            None,
-            TransfersInformation::TransfersEnabled {
-                transfers_timestamp: to_ts(GENESIS_TIME_IN_DAYS).into(),
-            },
-            Some(to_nanos(4 * YEAR).into()),
-            AccountId::from_str("whitelist").unwrap()
-        );
-
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(0));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(0));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(1000));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 2 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(250));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(750));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 3 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(500));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(500));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 4 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(750));
-        assert_eq!(contract.get_locked_amount().0, to_yocto(250));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 5 * YEAR);
-        testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, to_yocto(1000));
-        assert_eq!(
-            contract.get_liquid_owners_balance().0,
-            to_yocto(1000) - MIN_BALANCE_FOR_STORAGE
-        );
-        assert_eq!(contract.get_locked_amount().0, to_yocto(0));
+        assert_eq!(contract.get_owners_balance().0, amount);
+        assert_eq!(contract.get_liquid_owners_balance().0, amount);
     }
 }

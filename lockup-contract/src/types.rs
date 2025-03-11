@@ -22,30 +22,6 @@ pub type WrappedDuration = U64;
 /// Balance wrapped into a struct for JSON serialization as a string.
 pub type WrappedBalance = U128;
 
-/// Contains information about token lockups.
-#[near(serializers=[borsh])]
-pub struct LockupInformation {
-    /// The amount in yocto-NEAR tokens locked for this account.
-    pub lockup_amount: Balance,
-    /// [deprecated] - the duration in nanoseconds of the lockup period from
-    /// the moment the transfers are enabled. During this period tokens are locked and
-    /// the release doesn't start. Instead of this, use `lockup_timestamp` and `release_duration`
-    pub lockup_duration: Duration,
-    /// If present, it is the duration when the full lockup amount will be available. The tokens
-    /// are linearly released from the moment tokens are unlocked, defined by:
-    /// `max(transfers_timestamp + lockup_duration, lockup_timestamp)`.
-    /// If not present, the tokens are not locked (though, vesting logic could be used).
-    pub release_duration: Option<Duration>,
-    /// The optional absolute lockup timestamp in nanoseconds which locks the tokens until this
-    /// timestamp passes. Until this moment the tokens are locked and the release doesn't start.
-    /// If not present, `transfers_timestamp` will be used.
-    pub lockup_timestamp: Option<Timestamp>,
-    /// The information about the transfers. Either transfers are already enabled, then it contains
-    /// the timestamp when they were enabled. Or the transfers are currently disabled and
-    /// it contains the account ID of the transfer poll contract.
-    pub transfers_information: TransfersInformation,
-}
-
 /// Contains information about the transfers. Whether transfers are enabled or disabled.
 #[near(serializers=[borsh, json])]
 pub enum TransfersInformation {
@@ -83,7 +59,6 @@ pub struct StakingInformation {
     /// NOTE: The unstaked amount on the staking pool might be higher due to staking rewards.
     pub deposit_amount: WrappedBalance,
 }
-
 
 /// The result of the transfer poll.
 /// Contains The timestamp when the proposal was voted in.

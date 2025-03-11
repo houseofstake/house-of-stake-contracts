@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use near_sdk::{AccountId, Gas, NearToken, PublicKey, VMContext};
+use std::str::FromStr;
 
 pub const LOCKUP_NEAR: u128 = 1000;
 pub const GENESIS_TIME_IN_DAYS: u64 = 500;
@@ -87,4 +87,3 @@ pub fn public_key(byte_val: u8) -> PublicKey {
     pk[0] = 0;
     PublicKey::try_from(pk).unwrap()
 }
-

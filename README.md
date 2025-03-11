@@ -35,13 +35,14 @@ To test all the contracts locally, run the following command (note, it will buil
   - [x] Remove legacy logic for vesting schedule. There is no need to maintain vesting schedule, since there is no
     termination
     of the contract.
-  - [ ] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
-  - [ ] Whitelist stNEAR and LINEAR as staking pools.
-    unlock timer.
-  - [ ] Lockup contract should return the version of itself with every venear call.
+  - [x] Remove legacy logic about transfer poll. It's already enabled, and doesn't need checks.
+  - [x] Whitelist stNEAR and LINEAR as staking pools.
+  - [ ] Unlock timer
+  - [x] Lockup contract should return the version of itself with every venear call.
   - [ ] A user shouldn't be able to add full-access key
   - [ ] A user should be able to nuke the contract and clean the state. This effectively is deleting the lockup contract
-    and all the state associated with it. It may be needed for lockup upgrades to a new version.
+    and all the state associated with it. It may be needed for lockup upgrades to a new version. 
+  - [ ] Add a delete method both to lockup and veNEAR. Transfer 0 to veNEAR. 
   - [ ] Add unit tests
   - [ ] Add integration tests
   - [ ] Add documentation

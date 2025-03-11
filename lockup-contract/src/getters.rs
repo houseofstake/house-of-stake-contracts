@@ -1,6 +1,5 @@
-use near_sdk::near;
-
 use crate::*;
+use near_sdk::near;
 
 #[near]
 impl LockupContract {
@@ -28,46 +27,9 @@ impl LockupContract {
             .into()
     }
 
-
     /// Returns the amount of tokens that are locked in the account due to lockup or vesting.
     pub fn get_locked_amount(&self) -> WrappedBalance {
-        let lockup_amount = self.lockup_information.lockup_amount;
-        if let TransfersInformation::TransfersEnabled {
-            transfers_timestamp,
-        } = &self.lockup_information.transfers_information
-        {
-            let lockup_timestamp = std::cmp::max(
-                transfers_timestamp
-                    .0
-                    .saturating_add(self.lockup_information.lockup_duration),
-                self.lockup_information.lockup_timestamp.unwrap_or(0),
-            );
-            let block_timestamp = env::block_timestamp();
-            if lockup_timestamp <= block_timestamp {
-                let unreleased_amount =
-                    if let &Some(release_duration) = &self.lockup_information.release_duration {
-                        let end_timestamp = lockup_timestamp.saturating_add(release_duration);
-                        if block_timestamp >= end_timestamp {
-                            // Everything is released
-                            0
-                        } else {
-                            let time_left = U256::from(end_timestamp - block_timestamp);
-                            let unreleased_amount = U256::from(lockup_amount) * time_left
-                                / U256::from(release_duration);
-                            // The unreleased amount can't be larger than lockup_amount because the
-                            // time_left is smaller than total_time.
-                            unreleased_amount.as_u128()
-                        }
-                    } else {
-                        0
-                    };
-
-                return unreleased_amount.into();
-            }
-        }
-
-        // The entire balance is still locked before the lockup timestamp.
-        lockup_amount.into()
+        self.lockup_amount.into()
     }
 
     /// Returns the balance of the account owner. It includes vested and extra tokens that
@@ -91,11 +53,8 @@ impl LockupContract {
         std::cmp::min(self.get_owners_balance().0, self.get_account_balance().0).into()
     }
 
-    /// Returns `true` if transfers are enabled, `false` otherwise.
-    pub fn are_transfers_enabled(&self) -> bool {
-        match &self.lockup_information.transfers_information {
-            TransfersInformation::TransfersEnabled { .. } => true,
-            TransfersInformation::TransfersDisabled { .. } => false,
-        }
+    /// Returns the version of the Lockup contract.
+    pub fn get_version(&self) -> Version {
+        self.version
     }
 }
