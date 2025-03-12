@@ -19,9 +19,9 @@ pub mod owner;
 pub mod venear;
 pub mod venear_ext;
 
-/// The contract keeps at least 3.5 NEAR in the account to avoid being transferred out to cover
+/// The contract keeps at least 1.6 NEAR in the account to avoid being transferred out to cover
 /// contract code storage and some internal state.
-pub const MIN_BALANCE_FOR_STORAGE: u128 = 3_500_000_000_000_000_000_000_000;
+pub const MIN_BALANCE_FOR_STORAGE: u128 = 1_600_000_000_000_000_000_000_000;
 
 pub type Version = u64;
 

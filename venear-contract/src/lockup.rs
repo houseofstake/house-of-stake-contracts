@@ -3,7 +3,7 @@ use crate::config::LockupContractConfig;
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use common::near_add;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{Base58CryptoHash, U64};
 use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
 
 const CONTRACT_CODE_EXTRA_STORAGE_BYTES: u64 = 100;
@@ -61,7 +61,7 @@ impl Contract {
             .internal_get_account_internal(&owner_account_id)
             .expect("Account not found");
         require!(
-            account_internal.version == Some(version),
+            account_internal.lockup_version == Some(version),
             "Invalid lockup version"
         );
         match update {
@@ -83,7 +83,7 @@ impl Contract {
             let mut account_internal = self
                 .internal_get_account_internal(&account_id)
                 .expect("Account not found");
-            account_internal.version = Some(version);
+            account_internal.lockup_version = Some(version);
             require!(
                 account_internal.lockup_update_nonce <= lockup_update_nonce,
                 "Invalid nonce"
@@ -157,7 +157,7 @@ impl Contract {
                 .map(|c| c.contract_version)
                 .unwrap_or(0)
                 + 1,
-            contract_hash,
+            contract_hash: contract_hash.into(),
         });
     }
 
@@ -183,7 +183,7 @@ impl Contract {
         let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
         let contract_code_key =
-            StorageKeys::LockupCode(lockup_contract_config.contract_hash).into_storage_key();
+            StorageKeys::LockupCode(lockup_contract_config.contract_hash.into()).into_storage_key();
         const CONTRACT_REGISTER: u64 = 0;
         let res = unsafe {
             sys::storage_read(
@@ -292,6 +292,10 @@ pub extern "C" fn prepare_lockup_code() {
             CONTRACT_REGISTER,
             1,
         );
+    }
+    let result = serde_json::to_vec(&Base58CryptoHash::from(contract_hash)).unwrap();
+    unsafe {
+        sys::value_return(result.len() as _, result.as_ptr() as _);
     }
 }
 

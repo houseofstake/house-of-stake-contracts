@@ -1,13 +1,13 @@
 use crate::*;
 use common::Version;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{Base58CryptoHash, U64};
 
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct LockupContractConfig {
     pub contract_size: u64,
     pub contract_version: Version,
-    pub contract_hash: CryptoHash,
+    pub contract_hash: Base58CryptoHash,
 }
 
 #[derive(Clone)]
