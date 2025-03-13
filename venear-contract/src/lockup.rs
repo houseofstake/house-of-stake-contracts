@@ -98,6 +98,13 @@ impl Contract {
             Promise::new(account_id).transfer(lockup_deposit);
         }
     }
+
+    pub fn get_lockup_account_id(&self, account_id: &AccountId) -> AccountId {
+        let owner_account_id_hash = hex::encode(&env::sha256(account_id.as_bytes())[0..20]);
+        format!("{}.{}", owner_account_id_hash, env::current_account_id())
+            .try_into()
+            .expect("Failed to create lockup account ID")
+    }
 }
 
 /// Internal methods for the contract and lockup.
@@ -261,13 +268,6 @@ impl Contract {
         unsafe {
             sys::promise_return(promise_id);
         }
-    }
-
-    pub fn get_lockup_account_id(&self, owner_account_id: &AccountId) -> AccountId {
-        let owner_account_id_hash = hex::encode(&env::sha256(owner_account_id.as_bytes())[0..20]);
-        format!("{}.{}", owner_account_id_hash, env::current_account_id())
-            .try_into()
-            .expect("Failed to create lockup account ID")
     }
 }
 
