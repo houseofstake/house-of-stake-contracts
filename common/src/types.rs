@@ -93,7 +93,7 @@ impl SubAssign<Self> for VenearBalance {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 #[near(serializers=[borsh, json])]
 pub struct Fraction {
     pub numerator: U128,
