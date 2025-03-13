@@ -1,13 +1,13 @@
 //! A smart contract that allows tokens to be locked up.
 
-use near_sdk::Gas;
-use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
-
 pub use crate::getters::*;
 pub use crate::owner::*;
 pub use crate::owner_callbacks::*;
 pub use crate::types::*;
 pub use crate::venear::*;
+use near_sdk::json_types::U64;
+use near_sdk::Gas;
+use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
 
 pub mod gas;
 pub mod owner_callbacks;
@@ -106,6 +106,9 @@ pub struct LockupContract {
     /// `None` means there is no staking pool selected.
     pub staking_information: Option<StakingInformation>,
 
+    /// The time in nanoseconds for unlocking the lockup amount.
+    pub unlock_duration_ns: u64,
+
     /// Locked amount
     pub venear_locked_balance: Balance,
 
@@ -134,28 +137,27 @@ impl LockupContract {
     /// - `staking_pool_whitelist_account_id` - the Account ID of the staking pool whitelist contract.
     ///    The version of the contract. It is a monotonically increasing number.
     /// - `version` - Version of the lockup contract will be tracked by the veNEAR contract.
+    #[payable]
     #[init]
     pub fn new(
         owner_account_id: AccountId,
         venear_account_id: AccountId,
+        unlock_duration_ns: U64,
         staking_pool_whitelist_account_id: AccountId,
         version: Version,
+        lockup_update_nonce: U64,
     ) -> Self {
-        assert!(
-            env::is_valid_account_id(owner_account_id.as_bytes()),
-            "The account ID of the owner is invalid"
-        );
-
         Self {
             owner_account_id,
             venear_account_id,
             lockup_amount: env::account_balance().as_yoctonear(),
             staking_information: None,
             staking_pool_whitelist_account_id,
+            unlock_duration_ns: unlock_duration_ns.into(),
             venear_locked_balance: 0,
             venear_unlock_imestamp: 0u64,
             venear_pending_balance: 0,
-            lockup_update_nonce: 0,
+            lockup_update_nonce: lockup_update_nonce.into(),
             version,
         }
     }
@@ -176,6 +178,7 @@ mod tests {
 
     const VENEAR_ACCOUNT_ID: &str = "venear";
     const LOCKUP_VERSION: Version = 1;
+    const UNLOCK_DURATION_NS: u64 = 90u64 * 24 * 60 * 60 * 10u64.pow(9);
 
     fn basic_context() -> VMContext {
         get_context(
@@ -193,8 +196,10 @@ mod tests {
         LockupContract::new(
             account_owner(),
             AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
+            UNLOCK_DURATION_NS.into(),
             AccountId::from_str("whitelist").unwrap(),
             LOCKUP_VERSION,
+            0.into(),
         )
     }
 
@@ -205,8 +210,10 @@ mod tests {
         let contract = LockupContract::new(
             account_owner(),
             AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
+            UNLOCK_DURATION_NS.into(),
             AccountId::from_str("whitelist").unwrap(),
             LOCKUP_VERSION,
+            0.into(),
         );
 
         (context, contract)

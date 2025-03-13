@@ -1,7 +1,8 @@
 use near_sdk::json_types::Base58CryptoHash;
 use near_sdk::{CryptoHash, Gas, NearToken};
+use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
-use near_workspaces::AccountId;
+use near_workspaces::{AccountId, Worker};
 use serde_json::json;
 use sha2::Digest;
 use std::str::FromStr;
@@ -9,10 +10,27 @@ use std::str::FromStr;
 const LOCKUP_WASM_FILEPATH: &str = "../res/local/lockup_contract.wasm";
 const VENEAR_WASM_FILEPATH: &str = "../res/local/venear_contract.wasm";
 
+const STORAGE_COST_PER_BYTE: u128 = 10u128.pow(19);
+
+async fn account_info(
+    sandbox: &Worker<Sandbox>,
+    venear: &AccountId,
+    account_id: &AccountId,
+) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    Ok(sandbox
+        .view(venear, "get_account_info")
+        .args_json(json!({
+            "account_id": account_id,
+        }))
+        .await?
+        .json()?)
+}
+
 #[tokio::test]
 async fn test_contract_is_operational() -> Result<(), Box<dyn std::error::Error>> {
     let lockup_wasm = std::fs::read(LOCKUP_WASM_FILEPATH)?;
     let lockup_hash: CryptoHash = sha2::Sha256::digest(&lockup_wasm).into();
+    let lockup_size = lockup_wasm.len();
     let lockup_hash = Base58CryptoHash::from(lockup_hash);
 
     let venear_wasm = std::fs::read(VENEAR_WASM_FILEPATH)?;
@@ -41,7 +59,7 @@ async fn test_contract_is_operational() -> Result<(), Box<dyn std::error::Error>
     let args = json!({
         "config": {
             "lockup_contract_config": None::<String>,
-            "lockup_duration_ns": (90u64 * 24 * 60 * 60 * 10u64.pow(9)).to_string(),
+            "unlock_duration_ns": (90u64 * 24 * 60 * 60 * 10u64.pow(9)).to_string(),
             "staking_pool_whitelist_account_id": staking_pool_whitelist_account_id.id(),
             "lockup_code_deployers": &[lockup_deployer.id()],
             "local_deposit": local_deposit,
@@ -109,15 +127,7 @@ async fn test_contract_is_operational() -> Result<(), Box<dyn std::error::Error>
 
     let user_account = sandbox.dev_create_account().await?;
 
-    let account_info: serde_json::Value = sandbox
-        .view(venear.id(), "get_account_info")
-        .args_json(json!({
-            "account_id": user_account.id(),
-        }))
-        .await
-        .unwrap()
-        .json()
-        .unwrap();
+    let account_info = account_info(&sandbox, venear.id(), user_account.id()).await?;
     assert!(account_info.is_null(), "Account should not be registered");
 
     let storage_balance_bounds: serde_json::Value = sandbox
@@ -151,15 +161,7 @@ async fn test_contract_is_operational() -> Result<(), Box<dyn std::error::Error>
         outcome.outcomes()
     );
 
-    let account_info: serde_json::Value = sandbox
-        .view(venear.id(), "get_account_info")
-        .args_json(json!({
-            "account_id": user_account.id(),
-        }))
-        .await
-        .unwrap()
-        .json()
-        .unwrap();
+    let account_info = crate::account_info(&sandbox, venear.id(), user_account.id()).await?;
     assert!(account_info.is_null(), "Account should not be registered");
 
     let outcome = user_account
@@ -174,16 +176,51 @@ async fn test_contract_is_operational() -> Result<(), Box<dyn std::error::Error>
         outcome.outcomes()
     );
 
-    let account_info: serde_json::Value = sandbox
-        .view(venear.id(), "get_account_info")
-        .args_json(json!({
-            "account_id": user_account.id(),
-        }))
+    let account_info = crate::account_info(&sandbox, venear.id(), user_account.id()).await?;
+    assert!(!account_info.is_null(), "Account should be registered");
+    assert_eq!(
+        account_info["account"]["account_id"].as_str().unwrap(),
+        user_account.id(),
+        "Invalid account id"
+    );
+    assert!(
+        account_info["internal"]["lockup_version"].is_null(),
+        "The lockup version should be null"
+    );
+
+    let lockup_cost: NearToken = sandbox
+        .view(venear.id(), "get_lockup_deployment_cost")
         .await
         .unwrap()
         .json()
         .unwrap();
-    println!("{:#?}", account_info);
+
+    assert_eq!(
+        lockup_cost.as_yoctonear(),
+        min_extra_lockup_deposit.as_yoctonear() + (lockup_size as u128 * STORAGE_COST_PER_BYTE),
+        "Invalid lockup cost"
+    );
+
+    let outcome = user_account
+        .call(venear.id(), "deploy_lockup")
+        .deposit(lockup_cost)
+        .args_json(json!({}))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(
+        outcome.is_success(),
+        "Failed to deploy lockup: {:#?}",
+        outcome.outcomes()
+    );
+
+    let account_info = crate::account_info(&sandbox, venear.id(), user_account.id()).await?;
+    assert_eq!(
+        account_info["internal"]["lockup_version"].as_u64().unwrap(),
+        1,
+        "Invalid lockup version"
+    );
 
     Ok(())
 }

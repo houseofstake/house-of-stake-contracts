@@ -17,7 +17,7 @@ pub struct Config {
     pub lockup_contract_config: Option<LockupContractConfig>,
 
     /// Initialization arguments for the lockup contract.
-    pub lockup_duration_ns: U64,
+    pub unlock_duration_ns: U64,
     /// The account ID of the staking pool whitelist for lockup contract.
     pub staking_pool_whitelist_account_id: AccountId,
 
