@@ -2,18 +2,20 @@ use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::json_types::U64;
-use near_sdk::{near, NearToken};
+use near_sdk::{assert_one_yocto, near, NearToken};
 
 impl LockupContract {
     fn storage_usage(&self) -> NearToken {
-        env::storage_byte_cost()
-            .checked_mul(env::storage_usage() as u128)
-            .unwrap()
+        NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE)
+        // env::storage_byte_cost()
+        //     .checked_mul(env::storage_usage() as u128)
+        //     .unwrap()
     }
+
     pub(crate) fn venear_liquid_balance(&self) -> Balance {
-        let remaining_balance = env::account_balance()
-            .checked_sub(self.storage_usage())
-            .unwrap();
+        let remaining_balance = env::account_balance();
+        //            .checked_sub(self.storage_usage())
+        //            .unwrap();
 
         remaining_balance
             .checked_sub(NearToken::from_yoctonear(self.venear_locked_balance))
@@ -60,14 +62,16 @@ impl LockupContract {
     }
 
     /// specify the amount of near you want to lock, it remembers how much near is now locked
+    #[payable]
     pub fn lock_near(&mut self, amount: Option<WrappedBalance>) {
+        assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.into()
         } else {
             self.venear_liquid_balance()
         };
 
-        assert!(amount >= self.venear_liquid_balance(), "Invalid amount");
+        assert!(amount <= self.venear_liquid_balance(), "Invalid amount");
 
         self.venear_locked_balance += amount;
 
@@ -76,7 +80,9 @@ impl LockupContract {
 
     /// you specify the amount of near to unlock, it starts the process of unlocking it
     /// (works similarly to unstaking from a staking pool).
+    #[payable]
     pub fn begin_unlock_near(&mut self, amount: Option<WrappedBalance>) {
+        assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.into()
         } else {
@@ -93,7 +99,9 @@ impl LockupContract {
     }
 
     /// end the unlocking
+    #[payable]
     pub fn end_unlock_near(&mut self, amount: Option<WrappedBalance>) {
+        assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.into()
         } else {
@@ -113,7 +121,9 @@ impl LockupContract {
     }
 
     ///  if there is an unlock pending, it locks the balance.
+    #[payable]
     pub fn lock_pending_near(&mut self, amount: Option<WrappedBalance>) {
+        assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.into()
         } else {

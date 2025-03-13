@@ -272,4 +272,16 @@ impl VenearTestWorkspace {
 
         Ok(user_account)
     }
+
+    pub async fn get_lockup_account_id(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<AccountId, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(self.venear.id(), "get_lockup_account_id")
+            .args_json(json!({ "account_id": account_id }))
+            .await?
+            .json()?)
+    }
 }
