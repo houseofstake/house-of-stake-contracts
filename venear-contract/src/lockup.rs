@@ -3,12 +3,12 @@ use crate::config::LockupContractConfig;
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use common::near_add;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{Base58CryptoHash, U64};
 use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
 
 const CONTRACT_CODE_EXTRA_STORAGE_BYTES: u64 = 100;
 
-const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(100);
+const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(20);
 const ON_LOCKUP_DEPLOYED: Gas = Gas::from_tgas(15);
 
 #[near(serializers=[json])]
@@ -16,8 +16,9 @@ pub struct LockupInitArgs {
     version: Version,
 
     owner_account_id: AccountId,
-    // TODO
-    lockup_duration: U64,
+    venear_account_id: AccountId,
+
+    unlock_duration_ns: U64,
     staking_pool_whitelist_account_id: AccountId,
 
     /// Starting nonce for lockup updates. It should be unique for every lockup contract.
@@ -31,6 +32,8 @@ pub struct OnLockupDeployedArgs {
     account_id: AccountId,
 
     lockup_update_nonce: U64,
+
+    lockup_deposit: NearToken,
 }
 
 #[near]
@@ -52,7 +55,7 @@ impl Contract {
         owner_account_id: AccountId,
         update: VLockupUpdate,
     ) {
-        let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
+        let lockup_account_id = self.get_lockup_account_id(&owner_account_id);
         require!(
             env::predecessor_account_id() == lockup_account_id,
             "Permission denied"
@@ -61,7 +64,7 @@ impl Contract {
             .internal_get_account_internal(&owner_account_id)
             .expect("Account not found");
         require!(
-            account_internal.version == Some(version),
+            account_internal.lockup_version == Some(version),
             "Invalid lockup version"
         );
         match update {
@@ -83,7 +86,7 @@ impl Contract {
             let mut account_internal = self
                 .internal_get_account_internal(&account_id)
                 .expect("Account not found");
-            account_internal.version = Some(version);
+            account_internal.lockup_version = Some(version);
             require!(
                 account_internal.lockup_update_nonce <= lockup_update_nonce,
                 "Invalid nonce"
@@ -157,7 +160,7 @@ impl Contract {
                 .map(|c| c.contract_version)
                 .unwrap_or(0)
                 + 1,
-            contract_hash,
+            contract_hash: contract_hash.into(),
         });
     }
 
@@ -180,10 +183,10 @@ impl Contract {
             .lockup_contract_config
             .as_ref()
             .expect("The lockup contract code is not initialized");
-        let lockup_account_id = internal_map_owner_account_id(&owner_account_id);
+        let lockup_account_id = self.get_lockup_account_id(&owner_account_id);
         let lockup_account_id = lockup_account_id.as_str();
         let contract_code_key =
-            StorageKeys::LockupCode(lockup_contract_config.contract_hash).into_storage_key();
+            StorageKeys::LockupCode(lockup_contract_config.contract_hash.into()).into_storage_key();
         const CONTRACT_REGISTER: u64 = 0;
         let res = unsafe {
             sys::storage_read(
@@ -206,7 +209,8 @@ impl Contract {
         let arguments = LockupInitArgs {
             version: lockup_contract_config.contract_version,
             owner_account_id: owner_account_id.clone(),
-            lockup_duration: self.config.lockup_duration_ns.clone(),
+            venear_account_id: env::current_account_id(),
+            unlock_duration_ns: self.config.unlock_duration_ns.clone(),
             staking_pool_whitelist_account_id: self
                 .config
                 .staking_pool_whitelist_account_id
@@ -236,6 +240,7 @@ impl Contract {
             version: lockup_contract_config.contract_version,
             account_id: owner_account_id.clone(),
             lockup_update_nonce: lockup_update_nonce.into(),
+            lockup_deposit,
         };
         let arguments =
             serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");
@@ -256,6 +261,13 @@ impl Contract {
         unsafe {
             sys::promise_return(promise_id);
         }
+    }
+
+    pub fn get_lockup_account_id(&self, owner_account_id: &AccountId) -> AccountId {
+        let owner_account_id_hash = hex::encode(&env::sha256(owner_account_id.as_bytes())[0..20]);
+        format!("{}.{}", owner_account_id_hash, env::current_account_id())
+            .try_into()
+            .expect("Failed to create lockup account ID")
     }
 }
 
@@ -293,13 +305,10 @@ pub extern "C" fn prepare_lockup_code() {
             1,
         );
     }
-}
-
-fn internal_map_owner_account_id(owner_account_id: &AccountId) -> AccountId {
-    let owner_account_id_hash = hex::encode(&env::sha256(owner_account_id.as_bytes())[0..20]);
-    format!("{}.{}", owner_account_id_hash, env::current_account_id())
-        .try_into()
-        .expect("Failed to create lockup account ID")
+    let result = serde_json::to_vec(&Base58CryptoHash::from(contract_hash)).unwrap();
+    unsafe {
+        sys::value_return(result.len() as _, result.as_ptr() as _);
+    }
 }
 
 fn internal_get_hash_and_size(register_id: u64) -> (u64, CryptoHash) {

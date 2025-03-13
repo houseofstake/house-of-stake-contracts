@@ -4,8 +4,6 @@ use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::json_types::U64;
 use near_sdk::{near, NearToken};
 
-const UNLOCK_PERIOD: u64 = 90;
-
 impl LockupContract {
     fn storage_usage(&self) -> NearToken {
         env::storage_byte_cost()
@@ -26,7 +24,7 @@ impl LockupContract {
     }
 
     fn set_venear_unlock_imestamp(&mut self) {
-        self.venear_unlock_imestamp = 864_000_000_000_000_u64 * UNLOCK_PERIOD;
+        self.venear_unlock_imestamp = env::block_timestamp() + self.unlock_duration_ns;
     }
 
     fn venear_lockup_update(&mut self) {

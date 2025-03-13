@@ -16,7 +16,7 @@ pub struct AccountInfo {
 #[near(serializers=[borsh, json])]
 pub struct AccountInternal {
     /// The version of the lockup contract deployed. None means the lockup is not deployed.
-    pub version: Option<Version>,
+    pub lockup_version: Option<Version>,
 
     /// The amount of NEAR tokens that are retained for the storage of the account.
     pub deposit: NearToken,
@@ -63,7 +63,7 @@ impl Contract {
             self.internal_set_account_internal(
                 account_id.clone(),
                 AccountInternal {
-                    version: None,
+                    lockup_version: None,
                     deposit,
                     lockup_update_nonce: 0.into(),
                 },

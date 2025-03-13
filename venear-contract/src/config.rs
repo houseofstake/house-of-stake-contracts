@@ -1,13 +1,13 @@
 use crate::*;
 use common::Version;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{Base58CryptoHash, U64};
 
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct LockupContractConfig {
     pub contract_size: u64,
     pub contract_version: Version,
-    pub contract_hash: CryptoHash,
+    pub contract_hash: Base58CryptoHash,
 }
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct Config {
     pub lockup_contract_config: Option<LockupContractConfig>,
 
     /// Initialization arguments for the lockup contract.
-    pub lockup_duration_ns: U64,
+    pub unlock_duration_ns: U64,
     /// The account ID of the staking pool whitelist for lockup contract.
     pub staking_pool_whitelist_account_id: AccountId,
 

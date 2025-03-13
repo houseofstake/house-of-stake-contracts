@@ -2,6 +2,7 @@ mod account;
 mod config;
 mod delegation;
 mod global_state;
+mod governance;
 mod lockup;
 mod snapshot;
 mod storage;

@@ -1,4 +1,5 @@
 use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
+use near_sdk::json_types::Base58CryptoHash;
 use near_sdk::store::LookupMap;
 use near_sdk::{borsh, BlockHeight, CryptoHash, IntoStorageKey};
 use near_sdk::{near, AccountId, BorshStorageKey};
@@ -91,7 +92,7 @@ where
         if self.last_block_height != block_height {
             self.previous_snapshot = Some((
                 MerkleTreeSnapshot {
-                    root: self.root,
+                    root: self.root.into(),
                     length: self.length,
                     block_height: self.last_block_height,
                 },
@@ -149,7 +150,7 @@ where
         if self.last_block_height != block_height {
             Some((
                 MerkleTreeSnapshot {
-                    root: self.root,
+                    root: self.root.into(),
                     length: self.length,
                     block_height: self.last_block_height,
                 },
@@ -197,7 +198,7 @@ where
             let height_index = index >> height;
             let sibling_index = height_index ^ 1;
             let sibling_hash = self.internal_get_hash(height, sibling_index);
-            path.push(sibling_hash);
+            path.push(sibling_hash.into());
         }
         Some((
             MerkleProof { index, path },
@@ -210,13 +211,13 @@ where
 #[near(serializers=[borsh, json])]
 pub struct MerkleProof {
     pub index: u32,
-    pub path: Vec<CryptoHash>,
+    pub path: Vec<Base58CryptoHash>,
 }
 
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct MerkleTreeSnapshot {
-    pub root: CryptoHash,
+    pub root: Base58CryptoHash,
     pub length: u32,
     pub block_height: BlockHeight,
 }
@@ -239,6 +240,7 @@ impl MerkleProof {
         let mut hash: CryptoHash = near_sdk::env::sha256(&data).try_into().unwrap();
 
         for (height, sibling_hash) in self.path.iter().enumerate() {
+            let sibling_hash: CryptoHash = sibling_hash.clone().into();
             let height_index = self.index >> height;
             let concat = if height_index & 1 == 0 {
                 [&hash[..], &sibling_hash[..]].concat()
@@ -301,6 +303,6 @@ mod tests {
         assert_eq!(global_state, gs);
         let (proof, account) = tree.get_proof(&account_id).unwrap();
         assert_eq!(account, value + 1);
-        assert!(proof.verify(snapshot.root, snapshot.length, &account));
+        assert!(proof.verify(snapshot.root.into(), snapshot.length, &account));
     }
 }
