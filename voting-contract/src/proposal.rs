@@ -245,15 +245,15 @@ impl Contract {
             }
         }
 
-        let account: Account = v_account.clone().into();
-        let account_id = &account.account_id;
-        // Validate proof
+        // Validate merkle proof
         {
             let SnapshotAndState { snapshot, .. } = proposal.snapshot_and_state.as_ref().unwrap();
             merkle_proof.verify(snapshot.root.into(), snapshot.length, &v_account);
         }
 
         let timestamp_ns: TimestampNs = env::block_timestamp().into();
+        let account: Account = v_account.into();
+        let account_id = &account.account_id;
         let account_balance = account.venear_balance(
             timestamp_ns,
             proposal.internal_get_venear_growth_config().unwrap(),
@@ -269,11 +269,15 @@ impl Contract {
             proposal.votes[previous_vote as usize].total_venear -= account_balance;
             proposal.total_votes.total_votes -= 1;
             proposal.total_votes.total_venear -= account_balance;
+            // TODO: Refund voting fee
         }
         proposal.votes[vote as usize].total_votes += 1;
         proposal.votes[vote as usize].total_venear += account_balance;
         proposal.total_votes.total_votes += 1;
         proposal.total_votes.total_venear += account_balance;
+        // TODO: Charge voting fee
+        self.votes.insert((account_id.clone(), proposal_id), vote);
+        self.internal_set_proposal(proposal);
     }
 
     pub fn get_proposal(&self, proposal_id: ProposalId) -> Option<Proposal> {
@@ -282,6 +286,11 @@ impl Contract {
 }
 
 impl Contract {
+    pub fn internal_set_proposal(&mut self, proposal: Proposal) {
+        let proposal_id = proposal.id;
+        self.proposals[proposal_id] = proposal.into();
+    }
+
     pub fn internal_get_proposal(&self, proposal_id: ProposalId) -> Option<Proposal> {
         self.proposals
             .get(proposal_id)
