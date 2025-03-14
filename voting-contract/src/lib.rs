@@ -6,7 +6,6 @@ use merkle_tree::{MerkleProof, MerkleTreeSnapshot};
 use crate::config::Config;
 use crate::proposal::{ProposalId, VProposal};
 use common::account::*;
-use common::global_state::*;
 use common::venear::VenearGrowthConfig;
 use near_sdk::store::{LookupMap, Vector};
 use near_sdk::{env, near, require, AccountId, BorshStorageKey, NearToken, PanicOnDefault};

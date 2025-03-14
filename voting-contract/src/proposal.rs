@@ -1,5 +1,5 @@
 use crate::*;
-use common::{TimestampNs, VenearBalance};
+use common::{near_add, near_sub, TimestampNs};
 use near_sdk::json_types::U64;
 
 pub type ProposalId = u32;
@@ -71,8 +71,12 @@ pub enum ProposalStatus {
 pub struct SnapshotAndState {
     /// The snapshot of the Merkle tree at the moment when the proposal was approved.
     pub snapshot: MerkleTreeSnapshot,
-    /// The global state at the moment when the proposal was approved.
-    pub global_state: VGlobalState,
+    /// The timestamp in nanoseconds when the global state was last updated.
+    pub timestamp_ns: TimestampNs,
+    /// The total amount of veNEAR tokens at the moment when the proposal was approved.
+    pub total_venear: NearToken,
+    /// The growth configuration of the veNEAR tokens from the global state.
+    pub venear_growth_config: VenearGrowthConfig,
 }
 
 #[derive(Clone)]
@@ -91,87 +95,41 @@ pub struct ProposalMetadata {
     pub voting_options: Vec<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 #[near(serializers=[borsh, json])]
 pub struct VoteStats {
-    /// The timestamp in nanoseconds when the stats were updated.
-    pub update_timestamp: TimestampNs,
-
     /// The total venear balance at the updated timestamp.
-    pub total_venear: VenearBalance,
+    pub total_venear: NearToken,
 
     /// The total number of votes.
     pub total_votes: u32,
 }
 
-impl Default for VoteStats {
-    fn default() -> Self {
-        Self {
-            update_timestamp: env::block_timestamp().into(),
-            total_venear: VenearBalance::default(),
-            total_votes: 0,
-        }
-    }
-}
-
 impl VoteStats {
-    pub fn update(
-        &mut self,
-        current_timestamp: TimestampNs,
-        venear_growth_config: &VenearGrowthConfig,
-    ) {
-        self.total_venear.update(
-            self.update_timestamp,
-            current_timestamp,
-            venear_growth_config,
-        );
-        self.update_timestamp = current_timestamp;
+    pub fn add_vote(&mut self, venear: NearToken) {
+        self.total_votes += 1;
+        self.total_venear = near_add(self.total_venear, venear);
+    }
+
+    pub fn remove_vote(&mut self, venear: NearToken) {
+        self.total_votes -= 1;
+        self.total_venear = near_sub(self.total_venear, venear);
     }
 }
 
 impl Proposal {
-    pub fn internal_get_venear_growth_config(&self) -> Option<&VenearGrowthConfig> {
-        Some(
-            self.snapshot_and_state
-                .as_ref()?
-                .global_state
-                .get_venear_growth_config(),
-        )
-    }
-
-    pub fn update(&mut self, mut timestamp: TimestampNs) {
+    pub fn update(&mut self, timestamp: TimestampNs) {
         match self.status {
             ProposalStatus::Created | ProposalStatus::Rejected | ProposalStatus::Finished => {
                 return;
             }
-            ProposalStatus::Approved => {
-                if timestamp >= self.voting_start_time_ns.unwrap() {
+            ProposalStatus::Approved | ProposalStatus::Voting => {
+                if timestamp.0 >= self.voting_start_time_ns.unwrap().0 + self.voting_duration_ns.0 {
+                    self.status = ProposalStatus::Finished;
+                } else if timestamp >= self.voting_start_time_ns.unwrap() {
                     self.status = ProposalStatus::Voting;
                 }
             }
-            _ => {}
-        }
-        // Note, handling it outside the match in case it was approved before.
-        if self.status == ProposalStatus::Voting {
-            if timestamp.0 >= self.voting_start_time_ns.unwrap().0 + self.voting_duration_ns.0 {
-                self.status = ProposalStatus::Finished;
-                // We don't want to update the proposal after the voting is finished.
-                timestamp =
-                    (self.voting_start_time_ns.unwrap().0 + self.voting_duration_ns.0).into();
-            }
-        }
-
-        self.snapshot_and_state
-            .as_mut()
-            .unwrap()
-            .global_state
-            .update(timestamp);
-
-        let venear_growth_config = self.internal_get_venear_growth_config().unwrap().clone();
-
-        self.total_votes.update(timestamp, &venear_growth_config);
-        for vote in self.votes.iter_mut() {
-            vote.update(timestamp, &venear_growth_config);
         }
     }
 }
@@ -251,13 +209,20 @@ impl Contract {
             merkle_proof.verify(snapshot.root.into(), snapshot.length, &v_account);
         }
 
-        let timestamp_ns: TimestampNs = env::block_timestamp().into();
+        let timestamp_ns = proposal.snapshot_and_state.as_ref().unwrap().timestamp_ns;
         let account: Account = v_account.into();
         let account_id = &account.account_id;
-        let account_balance = account.venear_balance(
-            timestamp_ns,
-            proposal.internal_get_venear_growth_config().unwrap(),
-        );
+        let account_balance = account
+            .venear_balance(
+                timestamp_ns,
+                &proposal
+                    .snapshot_and_state
+                    .as_ref()
+                    .unwrap()
+                    .venear_growth_config,
+            )
+            .total();
+        require!(!account_balance.is_zero(), "Account has no veNEAR balance");
 
         let previous_vote = self.votes.get(&(account_id.clone(), proposal_id)).cloned();
         require!(
@@ -265,16 +230,12 @@ impl Contract {
             "Already voted for the same option"
         );
         if let Some(previous_vote) = previous_vote {
-            proposal.votes[previous_vote as usize].total_votes -= 1;
-            proposal.votes[previous_vote as usize].total_venear -= account_balance;
-            proposal.total_votes.total_votes -= 1;
-            proposal.total_votes.total_venear -= account_balance;
+            proposal.votes[previous_vote as usize].remove_vote(account_balance);
+            proposal.total_votes.remove_vote(account_balance);
             // TODO: Refund voting fee
         }
-        proposal.votes[vote as usize].total_votes += 1;
-        proposal.votes[vote as usize].total_venear += account_balance;
-        proposal.total_votes.total_votes += 1;
-        proposal.total_votes.total_venear += account_balance;
+        proposal.votes[vote as usize].add_vote(account_balance);
+        proposal.total_votes.add_vote(account_balance);
         // TODO: Charge voting fee
         self.votes.insert((account_id.clone(), proposal_id), vote);
         self.internal_set_proposal(proposal);

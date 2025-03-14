@@ -56,10 +56,4 @@ impl VGlobalState {
             VGlobalState::Current(global_state) => &global_state.venear_growth_config,
         }
     }
-
-    pub fn update(&mut self, current_timestamp: TimestampNs) {
-        match self {
-            VGlobalState::Current(global_state) => global_state.update(current_timestamp),
-        }
-    }
 }
