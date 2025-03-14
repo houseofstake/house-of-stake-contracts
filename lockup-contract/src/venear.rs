@@ -2,7 +2,7 @@ use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use crate::*;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::json_types::U64;
-use near_sdk::{assert_one_yocto, near, NearToken};
+use near_sdk::{assert_one_yocto, log, near, NearToken};
 
 impl LockupContract {
     fn storage_usage(&self) -> NearToken {
@@ -26,7 +26,7 @@ impl LockupContract {
     }
 
     fn set_venear_unlock_imestamp(&mut self) {
-        self.venear_unlock_imestamp = env::block_timestamp() + self.unlock_duration_ns;
+        self.venear_unlock_timestamp = env::block_timestamp() + self.unlock_duration_ns;
     }
 
     fn venear_lockup_update(&mut self) {
@@ -51,6 +51,14 @@ impl LockupContract {
 impl LockupContract {
     pub fn get_venear_locked_balance(&self) -> WrappedBalance {
         self.venear_locked_balance.into()
+    }
+
+    pub fn get_venear_unlock_timestamp(&self) -> Timestamp {
+        self.venear_unlock_timestamp
+    }
+
+    pub fn get_lockup_update_nonce(&self) -> u64 {
+        self.lockup_update_nonce
     }
 
     pub fn get_venear_pending_balance(&self) -> WrappedBalance {
@@ -89,7 +97,10 @@ impl LockupContract {
             self.venear_locked_balance
         };
 
-        assert!(amount >= self.venear_locked_balance, "Invalid amount");
+        assert!(
+            amount <= self.venear_locked_balance,
+            "Invalid amount"
+        );
 
         self.venear_locked_balance -= amount;
         self.venear_pending_balance += amount;
@@ -108,14 +119,13 @@ impl LockupContract {
             self.venear_pending_balance
         };
 
-        assert!(amount >= self.venear_pending_balance, "Invalid amount");
+        assert!(amount <= self.venear_pending_balance, "Invalid amount");
         assert!(
-            env::block_timestamp() >= self.venear_unlock_imestamp,
+            env::block_timestamp() >= self.venear_unlock_timestamp,
             "Invalid unlock time"
         );
 
         self.venear_pending_balance -= amount;
-        self.set_venear_unlock_imestamp();
 
         self.venear_lockup_update();
     }
@@ -130,7 +140,7 @@ impl LockupContract {
             self.venear_pending_balance
         };
 
-        assert!(amount >= self.venear_pending_balance, "Invalid amount");
+        assert!(amount <= self.venear_pending_balance, "Invalid amount");
 
         self.venear_pending_balance -= amount;
         self.venear_locked_balance += amount;

@@ -1,13 +1,17 @@
 #[allow(dead_code)]
 use common::Fraction;
-use near_sdk::json_types::Base58CryptoHash;
-use near_sdk::{CryptoHash, Gas, NearToken};
+use near_sdk::json_types::{Base58CryptoHash, U128};
+use near_sdk::{CryptoHash, Gas, NearToken, Timestamp};
 use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
 use near_workspaces::{Account, AccountId, Worker};
 use serde_json::json;
 use sha2::Digest;
 use std::str::FromStr;
+
+pub type WrappedBalance = U128;
+pub const UNLOCK_DURATION_SECONDS: u64 = 60;
+pub const UNLOCK_DURATION_SECONDS_PROD: u64 = 90u64 * 24 * 60 * 60;
 
 pub const LOCKUP_WASM_FILEPATH: &str = "../res/local/lockup_contract.wasm";
 pub const VENEAR_WASM_FILEPATH: &str = "../res/local/venear_contract.wasm";
@@ -35,7 +39,7 @@ pub struct VenearTestWorkspaceBuilder {
 impl Default for VenearTestWorkspaceBuilder {
     fn default() -> Self {
         Self {
-            unlock_duration_ns: 90u64 * 24 * 60 * 60 * 10u64.pow(9),
+            unlock_duration_ns: UNLOCK_DURATION_SECONDS * 1_000_000_000,
             local_deposit: NearToken::from_millinear(100),
             min_extra_lockup_deposit: NearToken::from_millinear(200),
             annual_growth_rate_ns: Fraction {
@@ -284,4 +288,63 @@ impl VenearTestWorkspace {
             .await?
             .json()?)
     }
+
+    pub async fn get_venear_unlock_timestamp(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<Timestamp, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_venear_unlock_timestamp")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+
+    pub async fn get_venear_locked(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<WrappedBalance, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_venear_locked_balance")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+
+    pub async fn get_venear_pending(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<WrappedBalance, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_venear_pending_balance")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+
+    pub async fn get_lockup_update_nonce(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_lockup_update_nonce")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+}
+
+pub fn into_wrapped(amount: NearToken) -> WrappedBalance {
+    WrappedBalance::from(amount.as_yoctonear())
+}
+
+pub fn outcome_check(outcome: &near_workspaces::result::ExecutionFinalResult) {
+    if outcome.failures().len() > 0 || outcome.is_failure() {
+        println!("Failure outcome: {:?}", &outcome);
+    }
+    assert!(outcome.failures().len() == 0 && outcome.is_success());
 }

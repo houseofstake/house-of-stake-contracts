@@ -113,7 +113,7 @@ pub struct LockupContract {
     pub venear_locked_balance: Balance,
 
     /// Timestamp to unlock
-    pub venear_unlock_imestamp: Timestamp,
+    pub venear_unlock_timestamp: Timestamp,
 
     /// Pending unlocking amount
     pub venear_pending_balance: Balance,
@@ -155,7 +155,7 @@ impl LockupContract {
             staking_pool_whitelist_account_id,
             unlock_duration_ns: unlock_duration_ns.into(),
             venear_locked_balance: 0,
-            venear_unlock_imestamp: 0u64,
+            venear_unlock_timestamp: 0u64,
             venear_pending_balance: 0,
             lockup_update_nonce: lockup_update_nonce.into(),
             version,
