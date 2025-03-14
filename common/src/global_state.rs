@@ -19,6 +19,15 @@ impl GlobalState {
             venear_growth_config,
         }
     }
+
+    pub fn update(&mut self, current_timestamp: TimestampNs) {
+        self.total_venear_balance.update(
+            self.update_timestamp,
+            current_timestamp,
+            &self.venear_growth_config,
+        );
+        self.update_timestamp = current_timestamp;
+    }
 }
 
 #[derive(Clone)]
@@ -45,6 +54,12 @@ impl VGlobalState {
     pub fn get_venear_growth_config(&self) -> &VenearGrowthConfig {
         match self {
             VGlobalState::Current(global_state) => &global_state.venear_growth_config,
+        }
+    }
+
+    pub fn update(&mut self, current_timestamp: TimestampNs) {
+        match self {
+            VGlobalState::Current(global_state) => global_state.update(current_timestamp),
         }
     }
 }

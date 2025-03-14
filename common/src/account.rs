@@ -54,7 +54,7 @@ impl Account {
         &self,
         current_timestamp: TimestampNs,
         venear_growth_config: &VenearGrowthConfig,
-    ) -> NearToken {
+    ) -> VenearBalance {
         require!(
             current_timestamp >= self.update_timestamp,
             "Timestamp must be increasing"
@@ -68,7 +68,7 @@ impl Account {
             current_timestamp,
             venear_growth_config,
         );
-        total.total()
+        total
     }
 
     pub fn update(

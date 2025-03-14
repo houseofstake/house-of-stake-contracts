@@ -28,7 +28,6 @@ enum StorageKeys {
     Tree,
     LockupCode(CryptoHash),
     Accounts,
-    Lsts,
 }
 
 #[derive(PanicOnDefault)]

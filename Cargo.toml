@@ -11,6 +11,7 @@ resolver = "2"
 members = [
     "lockup-contract",
     "venear-contract",
+    "voting-contract",
     "merkle-tree",
     "common",
     "integration-tests"
