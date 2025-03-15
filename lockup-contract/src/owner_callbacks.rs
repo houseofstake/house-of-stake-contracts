@@ -18,7 +18,7 @@ impl LockupContract {
         self.staking_information = Some(StakingInformation {
             staking_pool_account_id,
             status: TransactionStatus::Idle,
-            deposit_amount: 0.into(),
+            deposit_amount: NearToken::from_yoctonear(0),
         });
         true
     }
@@ -26,7 +26,7 @@ impl LockupContract {
     /// Called after a deposit amount was transferred out of this account to the staking pool.
     /// This method needs to update staking pool status.
     #[private]
-    pub fn on_staking_pool_deposit(&mut self, amount: WrappedBalance) -> bool {
+    pub fn on_staking_pool_deposit(&mut self, amount: NearToken) -> bool {
         let deposit_succeeded = is_promise_success();
         self.on_staking_pool_deposit_inner(amount, deposit_succeeded)
     }
@@ -35,15 +35,23 @@ impl LockupContract {
     /// was staked on the staking pool.
     /// This method needs to update staking pool status.
     #[private]
-    pub fn on_staking_pool_deposit_and_stake(&mut self, amount: WrappedBalance) -> bool {
+    pub fn on_staking_pool_deposit_and_stake(&mut self, amount: NearToken) -> bool {
         let deposit_and_stake_succeeded = is_promise_success();
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if deposit_and_stake_succeeded {
-            self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
+            self.staking_information.as_mut().unwrap().deposit_amount = NearToken::from_yoctonear(
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .deposit_amount
+                    .as_yoctonear()
+                    + amount.as_yoctonear(),
+            );
+
             env::log_str(&format!(
                 "The deposit and stake of {} to @{} succeeded",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -52,7 +60,7 @@ impl LockupContract {
         } else {
             env::log_str(&format!(
                 "The deposit and stake of {} to @{} has failed",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -66,7 +74,7 @@ impl LockupContract {
     /// account.
     /// This method needs to update staking pool status.
     #[private]
-    pub fn on_staking_pool_withdraw(&mut self, amount: WrappedBalance) -> bool {
+    pub fn on_staking_pool_withdraw(&mut self, amount: NearToken) -> bool {
         let withdraw_succeeded = is_promise_success();
         self.on_staking_pool_withdraw_inner(amount, withdraw_succeeded)
     }
@@ -74,7 +82,7 @@ impl LockupContract {
     /// Called after the extra amount stake was staked in the staking pool contract.
     /// This method needs to update staking pool status.
     #[private]
-    pub fn on_staking_pool_stake(&mut self, amount: WrappedBalance) -> bool {
+    pub fn on_staking_pool_stake(&mut self, amount: NearToken) -> bool {
         let stake_succeeded = is_promise_success();
         self.on_staking_pool_stake_inner(amount, stake_succeeded)
     }
@@ -83,7 +91,7 @@ impl LockupContract {
     /// This method needs to update staking pool status.
 
     #[private]
-    pub fn on_staking_pool_unstake(&mut self, amount: WrappedBalance) -> bool {
+    pub fn on_staking_pool_unstake(&mut self, amount: NearToken) -> bool {
         let unstake_succeeded = is_promise_success();
         self.on_staking_pool_unstake_inner(amount, unstake_succeeded)
     }
@@ -118,12 +126,12 @@ impl LockupContract {
 
     /// Called after the request to get the current total balance from the staking pool.
     #[private]
-    pub fn on_get_account_total_balance(&mut self, #[callback] total_balance: WrappedBalance) {
+    pub fn on_get_account_total_balance(&mut self, #[callback] total_balance: NearToken) {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         env::log_str(&format!(
             "The current total balance on the staking pool is {}",
-            total_balance.0
+            total_balance
         ));
 
         self.staking_information.as_mut().unwrap().deposit_amount = total_balance;
@@ -134,13 +142,13 @@ impl LockupContract {
     #[private]
     pub fn on_get_account_unstaked_balance_to_withdraw_by_owner(
         &mut self,
-        #[callback] unstaked_balance: WrappedBalance,
+        #[callback] unstaked_balance: NearToken,
     ) -> PromiseOrValue<bool> {
-        if unstaked_balance.0 > 0 {
+        if unstaked_balance.as_yoctonear() > 0 {
             // Need to withdraw
             env::log_str(&format!(
                 "Withdrawing {} from the staking pool @{}",
-                unstaked_balance.0,
+                unstaked_balance,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -173,16 +181,23 @@ impl LockupContract {
 impl LockupContract {
     pub fn on_staking_pool_deposit_inner(
         &mut self,
-        amount: WrappedBalance,
+        amount: NearToken,
         deposit_succeeded: bool,
     ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
 
         if deposit_succeeded {
-            self.staking_information.as_mut().unwrap().deposit_amount.0 += amount.0;
+            self.staking_information.as_mut().unwrap().deposit_amount = NearToken::from_yoctonear(
+                self.staking_information
+                    .as_ref()
+                    .unwrap()
+                    .deposit_amount
+                    .as_yoctonear()
+                    + amount.as_yoctonear(),
+            );
             env::log_str(&format!(
                 "The deposit of {} to @{} succeeded",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -191,7 +206,7 @@ impl LockupContract {
         } else {
             env::log_str(&format!(
                 "The deposit of {} to @{} has failed",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -203,7 +218,7 @@ impl LockupContract {
 
     pub fn on_staking_pool_stake_inner(
         &mut self,
-        amount: WrappedBalance,
+        amount: NearToken,
         stake_succeeded: bool,
     ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
@@ -211,7 +226,7 @@ impl LockupContract {
         if stake_succeeded {
             env::log_str(&format!(
                 "Staking of {} at @{} succeeded",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -220,7 +235,7 @@ impl LockupContract {
         } else {
             env::log_str(&format!(
                 "Staking {} at @{} has failed",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -232,7 +247,7 @@ impl LockupContract {
 
     pub fn on_staking_pool_unstake_inner(
         &mut self,
-        amount: WrappedBalance,
+        amount: NearToken,
         unstake_succeeded: bool,
     ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
@@ -240,7 +255,7 @@ impl LockupContract {
         if unstake_succeeded {
             env::log_str(&format!(
                 "Unstaking of {} at @{} succeeded",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -249,7 +264,7 @@ impl LockupContract {
         } else {
             env::log_str(&format!(
                 "Unstaking {} at @{} has failed",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -261,7 +276,7 @@ impl LockupContract {
 
     pub fn on_staking_pool_withdraw_inner(
         &mut self,
-        amount: WrappedBalance,
+        amount: NearToken,
         withdraw_succeeded: bool,
     ) -> bool {
         self.set_staking_pool_status(TransactionStatus::Idle);
@@ -270,14 +285,16 @@ impl LockupContract {
             {
                 let staking_information = self.staking_information.as_mut().unwrap();
                 // Due to staking rewards the deposit amount can become negative.
-                staking_information.deposit_amount.0 = staking_information
-                    .deposit_amount
-                    .0
-                    .saturating_sub(amount.0);
+                staking_information.deposit_amount = NearToken::from_yoctonear(
+                    staking_information
+                        .deposit_amount
+                        .as_yoctonear()
+                        .saturating_sub(amount.as_yoctonear()),
+                );
             }
             env::log_str(&format!(
                 "The withdrawal of {} from @{} succeeded",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
@@ -286,7 +303,7 @@ impl LockupContract {
         } else {
             env::log_str(&format!(
                 "The withdrawal of {} from @{} failed",
-                amount.0,
+                amount,
                 self.staking_information
                     .as_ref()
                     .unwrap()
