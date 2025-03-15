@@ -8,8 +8,6 @@ use near_workspaces::{Account, AccountId, Worker};
 use serde_json::json;
 use sha2::Digest;
 use std::str::FromStr;
-
-pub type WrappedBalance = U128;
 pub const UNLOCK_DURATION_SECONDS: u64 = 60;
 pub const UNLOCK_DURATION_SECONDS_PROD: u64 = 90u64 * 24 * 60 * 60;
 
@@ -304,7 +302,7 @@ impl VenearTestWorkspace {
     pub async fn get_venear_locked(
         &self,
         account_id: &AccountId,
-    ) -> Result<WrappedBalance, Box<dyn std::error::Error>> {
+    ) -> Result<NearToken, Box<dyn std::error::Error>> {
         Ok(self
             .sandbox
             .view(account_id, "get_venear_locked_balance")
@@ -316,7 +314,7 @@ impl VenearTestWorkspace {
     pub async fn get_venear_pending(
         &self,
         account_id: &AccountId,
-    ) -> Result<WrappedBalance, Box<dyn std::error::Error>> {
+    ) -> Result<NearToken, Box<dyn std::error::Error>> {
         Ok(self
             .sandbox
             .view(account_id, "get_venear_pending_balance")
@@ -336,10 +334,6 @@ impl VenearTestWorkspace {
             .await?
             .json()?)
     }
-}
-
-pub fn into_wrapped(amount: NearToken) -> WrappedBalance {
-    WrappedBalance::from(amount.as_yoctonear())
 }
 
 pub fn outcome_check(outcome: &near_workspaces::result::ExecutionFinalResult) {

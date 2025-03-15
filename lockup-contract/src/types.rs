@@ -1,5 +1,5 @@
 use crate::*;
-use near_sdk::json_types::{U128, U64};
+use near_sdk::json_types::U64;
 use uint::construct_uint;
 
 construct_uint! {
@@ -19,8 +19,6 @@ pub type Timestamp = u64;
 pub type WrappedTimestamp = U64;
 /// Duration in nanosecond wrapped into a struct for JSON serialization as a string.
 pub type WrappedDuration = U64;
-/// Balance wrapped into a struct for JSON serialization as a string.
-pub type WrappedBalance = U128;
 
 /// Contains information about the transfers. Whether transfers are enabled or disabled.
 #[near(serializers=[borsh, json])]
@@ -57,7 +55,7 @@ pub struct StakingInformation {
 
     /// The amount of tokens that were deposited from this account to the staking pool.
     /// NOTE: The unstaked amount on the staking pool might be higher due to staking rewards.
-    pub deposit_amount: WrappedBalance,
+    pub deposit_amount: NearToken,
 }
 
 /// The result of the transfer poll.

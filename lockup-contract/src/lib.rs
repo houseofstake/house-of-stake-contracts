@@ -6,8 +6,8 @@ pub use crate::owner_callbacks::*;
 pub use crate::types::*;
 pub use crate::venear::*;
 use near_sdk::json_types::U64;
-use near_sdk::Gas;
 use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
+use near_sdk::{Gas, NearToken};
 
 pub mod gas;
 pub mod owner_callbacks;
@@ -27,21 +27,21 @@ pub type Version = u64;
 
 #[ext_contract(ext_staking_pool)]
 pub trait ExtStakingPool {
-    fn get_account_staked_balance(&self, account_id: AccountId) -> WrappedBalance;
+    fn get_account_staked_balance(&self, account_id: AccountId) -> NearToken;
 
-    fn get_account_unstaked_balance(&self, account_id: AccountId) -> WrappedBalance;
+    fn get_account_unstaked_balance(&self, account_id: AccountId) -> NearToken;
 
-    fn get_account_total_balance(&self, account_id: AccountId) -> WrappedBalance;
+    fn get_account_total_balance(&self, account_id: AccountId) -> NearToken;
 
     fn deposit(&mut self);
 
     fn deposit_and_stake(&mut self);
 
-    fn withdraw(&mut self, amount: WrappedBalance);
+    fn withdraw(&mut self, amount: NearToken);
 
-    fn stake(&mut self, amount: WrappedBalance);
+    fn stake(&mut self, amount: NearToken);
 
-    fn unstake(&mut self, amount: WrappedBalance);
+    fn unstake(&mut self, amount: NearToken);
 
     fn unstake_all(&mut self);
 }
@@ -64,25 +64,25 @@ pub trait ExtLockupContractOwner {
         staking_pool_account_id: AccountId,
     ) -> bool;
 
-    fn on_staking_pool_deposit(&mut self, amount: WrappedBalance) -> bool;
+    fn on_staking_pool_deposit(&mut self, amount: NearToken) -> bool;
 
-    fn on_staking_pool_deposit_and_stake(&mut self, amount: WrappedBalance) -> bool;
+    fn on_staking_pool_deposit_and_stake(&mut self, amount: NearToken) -> bool;
 
-    fn on_staking_pool_withdraw(&mut self, amount: WrappedBalance) -> bool;
+    fn on_staking_pool_withdraw(&mut self, amount: NearToken) -> bool;
 
-    fn on_staking_pool_stake(&mut self, amount: WrappedBalance) -> bool;
+    fn on_staking_pool_stake(&mut self, amount: NearToken) -> bool;
 
-    fn on_staking_pool_unstake(&mut self, amount: WrappedBalance) -> bool;
+    fn on_staking_pool_unstake(&mut self, amount: NearToken) -> bool;
 
     fn on_staking_pool_unstake_all(&mut self) -> bool;
 
     fn on_get_result_from_transfer_poll(&mut self, #[callback] poll_result: PollResult) -> bool;
 
-    fn on_get_account_total_balance(&mut self, #[callback] total_balance: WrappedBalance);
+    fn on_get_account_total_balance(&mut self, #[callback] total_balance: NearToken);
 
     fn on_get_account_unstaked_balance_to_withdraw_by_owner(
         &mut self,
-        #[callback] unstaked_balance: WrappedBalance,
+        #[callback] unstaked_balance: NearToken,
     );
 }
 
@@ -225,18 +225,18 @@ mod tests {
         // Checking initial values at genesis time
         testing_env!(context.clone());
 
-        assert_eq!(contract.get_owners_balance().0, 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
 
         // Checking values in 1 day after genesis time
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 1);
 
-        assert_eq!(contract.get_owners_balance().0, 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
 
         // Checking values next day after lockup timestamp
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
         testing_env!(context.clone());
 
-        assert_almost_eq(contract.get_owners_balance().0, 0);
+        assert_almost_eq(contract.get_owners_balance().as_yoctonear(), 0);
     }
 
     #[test]
@@ -303,15 +303,15 @@ mod tests {
     fn test_lockup_only_transfer_call_by_owner() {
         let (mut context, mut contract) = lockup_only_setup();
 
-        assert_eq!(contract.get_owners_balance().0, 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
 
         context.predecessor_account_id = account_owner();
         context.signer_account_id = account_owner();
         context.signer_account_pk = public_key(1).try_into().unwrap();
         testing_env!(context.clone());
 
-        assert_eq!(contract.get_owners_balance().0, 0);
-        contract.transfer(to_yocto(100).into(), non_owner());
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        contract.transfer(NearToken::from_near(100), non_owner());
         assert_almost_eq(
             env::account_balance().as_yoctonear(),
             to_yocto(LOCKUP_NEAR - 100),
@@ -328,7 +328,7 @@ mod tests {
 
         let amount = to_yocto(LOCKUP_NEAR - 100);
         testing_env!(context.clone());
-        contract.deposit_to_staking_pool(amount.into());
+        contract.deposit_to_staking_pool(NearToken::from_yoctonear(amount));
     }
 
     #[test]
@@ -349,7 +349,7 @@ mod tests {
         // context = clone_context(context.clone(), true);
         testing_env!(context.clone());
         assert_eq!(contract.get_staking_pool_account_id(), Some(staking_pool));
-        assert_eq!(contract.get_known_deposited_balance().0, 0);
+        assert_eq!(contract.get_known_deposited_balance().as_yoctonear(), 0);
         // context = clone_context(context.clone(), false);
 
         // Deposit to the staking_pool
@@ -357,7 +357,7 @@ mod tests {
         context.account_balance = env::account_balance();
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.deposit_to_staking_pool(amount.into());
+        contract.deposit_to_staking_pool(NearToken::from_yoctonear(amount));
         context.account_balance = env::account_balance();
         assert_eq!(
             context.account_balance.as_yoctonear(),
@@ -365,39 +365,42 @@ mod tests {
         );
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_deposit_inner(amount.into(), true);
+        contract.on_staking_pool_deposit_inner(NearToken::from_yoctonear(amount), true);
         // context = clone_context(context.clone(), true);
         testing_env!(context.clone());
-        assert_eq!(contract.get_known_deposited_balance().0, amount);
+        assert_eq!(
+            contract.get_known_deposited_balance().as_yoctonear(),
+            amount
+        );
 
         // Staking on the staking pool
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.stake(amount.into());
+        contract.stake(NearToken::from_yoctonear(amount));
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_stake_inner(amount.into(), true);
+        contract.on_staking_pool_stake_inner(NearToken::from_yoctonear(amount), true);
 
         // Assuming there are 20 NEAR tokens in rewards. Unstaking.
         let unstake_amount = amount + to_yocto(20);
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.unstake(unstake_amount.into());
+        contract.unstake(NearToken::from_yoctonear(unstake_amount));
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_unstake_inner(unstake_amount.into(), true);
+        contract.on_staking_pool_unstake_inner(NearToken::from_yoctonear(unstake_amount), true);
 
         // Withdrawing
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.withdraw_from_staking_pool(unstake_amount.into());
+        contract.withdraw_from_staking_pool(NearToken::from_yoctonear(unstake_amount));
         context.account_balance =
             NearToken::from_yoctonear(context.account_balance.as_yoctonear() + unstake_amount);
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_withdraw_inner(unstake_amount.into(), true);
+        contract.on_staking_pool_withdraw_inner(NearToken::from_yoctonear(unstake_amount), true);
         testing_env!(context.clone());
-        assert_eq!(contract.get_known_deposited_balance().0, 0);
+        assert_eq!(contract.get_known_deposited_balance().as_yoctonear(), 0);
 
         // Unselecting staking pool
         context.predecessor_account_id = account_owner();
@@ -425,7 +428,7 @@ mod tests {
         let amount = to_yocto(LOCKUP_NEAR - 100);
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.deposit_to_staking_pool(amount.into());
+        contract.deposit_to_staking_pool(NearToken::from_yoctonear(amount));
         context.account_balance = env::account_balance();
         assert_eq!(
             context.account_balance.as_yoctonear(),
@@ -433,20 +436,23 @@ mod tests {
         );
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_deposit_inner(amount.into(), true);
+        contract.on_staking_pool_deposit_inner(NearToken::from_yoctonear(amount), true);
 
         // Staking on the staking pool
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.stake(amount.into());
+        contract.stake(NearToken::from_yoctonear(amount));
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_stake_inner(amount.into(), true);
+        contract.on_staking_pool_stake_inner(NearToken::from_yoctonear(amount), true);
 
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
-        assert_eq!(contract.get_liquid_owners_balance().0, 0);
-        assert_eq!(contract.get_known_deposited_balance().0, amount);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
+        assert_eq!(
+            contract.get_known_deposited_balance().as_yoctonear(),
+            amount
+        );
 
         // Assuming there are 20 NEAR tokens in rewards. Refreshing balance.
         let total_balance = amount + to_yocto(20);
@@ -456,24 +462,36 @@ mod tests {
 
         // In unit tests, the following call ignores the promise value, because it's passed directly.
         context.predecessor_account_id = lockup_account();
-        contract.on_get_account_total_balance(total_balance.into());
+        contract.on_get_account_total_balance(NearToken::from_yoctonear(total_balance));
 
         testing_env!(context.clone());
-        assert_eq!(contract.get_known_deposited_balance().0, total_balance);
-        assert_eq!(contract.get_owners_balance().0, to_yocto(20));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(20));
+        assert_eq!(
+            contract.get_known_deposited_balance().as_yoctonear(),
+            total_balance
+        );
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(20));
+        assert_eq!(
+            contract.get_liquid_owners_balance().as_yoctonear(),
+            to_yocto(20)
+        );
 
         // Withdrawing these tokens
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
         let transfer_amount = to_yocto(15);
-        contract.transfer(transfer_amount.into(), non_owner());
+        contract.transfer(NearToken::from_yoctonear(transfer_amount), non_owner());
         context.account_balance = env::account_balance();
 
         testing_env!(context.clone());
-        assert_eq!(contract.get_known_deposited_balance().0, total_balance);
-        assert_eq!(contract.get_owners_balance().0, to_yocto(5));
-        assert_eq!(contract.get_liquid_owners_balance().0, to_yocto(5));
+        assert_eq!(
+            contract.get_known_deposited_balance().as_yoctonear(),
+            total_balance
+        );
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(5));
+        assert_eq!(
+            contract.get_liquid_owners_balance().as_yoctonear(),
+            to_yocto(5)
+        );
     }
 
     #[test]
@@ -549,11 +567,11 @@ mod tests {
         let amount = to_yocto(LOCKUP_NEAR - 100);
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.deposit_to_staking_pool(amount.into());
+        contract.deposit_to_staking_pool(NearToken::from_yoctonear(amount));
         context.account_balance = env::account_balance();
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_deposit_inner(amount.into(), true);
+        contract.on_staking_pool_deposit_inner(NearToken::from_yoctonear(amount), true);
 
         // Unselecting staking pool
         context.predecessor_account_id = account_owner();
@@ -570,7 +588,7 @@ mod tests {
 
         let lockup_amount = to_yocto(LOCKUP_NEAR);
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().0, 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
 
         // Selecting staking pool
         let staking_pool = AccountId::from_str("staking_pool").unwrap();
@@ -580,7 +598,7 @@ mod tests {
         context.predecessor_account_id = lockup_account();
         contract.on_whitelist_is_whitelisted(true, staking_pool.clone());
 
-        assert_eq!(contract.get_known_deposited_balance().0, 0);
+        assert_eq!(contract.get_known_deposited_balance().as_yoctonear(), 0);
 
         // Deposit to the staking_pool
         let mut total_amount = 0;
@@ -589,7 +607,7 @@ mod tests {
             total_amount += amount;
             context.predecessor_account_id = account_owner();
             testing_env!(context.clone());
-            contract.deposit_to_staking_pool(amount.into());
+            contract.deposit_to_staking_pool(NearToken::from_yoctonear(amount));
             context.account_balance = env::account_balance();
             assert_eq!(
                 context.account_balance.as_yoctonear(),
@@ -597,11 +615,14 @@ mod tests {
             );
 
             context.predecessor_account_id = lockup_account();
-            contract.on_staking_pool_deposit_inner(amount.into(), true);
+            contract.on_staking_pool_deposit_inner(NearToken::from_yoctonear(amount), true);
             testing_env!(context.clone());
-            assert_eq!(contract.get_known_deposited_balance().0, total_amount);
-            assert_eq!(contract.get_owners_balance().0, 0);
-            assert_eq!(contract.get_liquid_owners_balance().0, 0);
+            assert_eq!(
+                contract.get_known_deposited_balance().as_yoctonear(),
+                total_amount
+            );
+            assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+            assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
         }
 
         // Withdrawing from the staking_pool.
@@ -610,7 +631,7 @@ mod tests {
             total_withdrawn_amount += amount;
             context.predecessor_account_id = account_owner();
             testing_env!(context.clone());
-            contract.withdraw_from_staking_pool(amount.into());
+            contract.withdraw_from_staking_pool(NearToken::from_yoctonear(amount));
             context.account_balance =
                 NearToken::from_yoctonear(context.account_balance.as_yoctonear() + amount);
             assert_eq!(
@@ -619,31 +640,31 @@ mod tests {
             );
 
             context.predecessor_account_id = lockup_account();
-            contract.on_staking_pool_withdraw_inner(amount.into(), true);
+            contract.on_staking_pool_withdraw_inner(NearToken::from_yoctonear(amount), true);
             testing_env!(context.clone());
             assert_eq!(
-                contract.get_known_deposited_balance().0,
+                contract.get_known_deposited_balance().as_yoctonear(),
                 total_amount.saturating_sub(total_withdrawn_amount)
             );
-            assert_eq!(contract.get_owners_balance().0, 0);
-            assert_eq!(contract.get_liquid_owners_balance().0, 0);
+            assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+            assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
         }
 
         // Withdrawing from the staking_pool one extra time as a reward
         context.predecessor_account_id = account_owner();
         testing_env!(context.clone());
-        contract.withdraw_from_staking_pool(amount.into());
+        contract.withdraw_from_staking_pool(NearToken::from_yoctonear(amount));
         context.account_balance =
             NearToken::from_yoctonear(context.account_balance.as_yoctonear() + amount);
 
         context.predecessor_account_id = lockup_account();
-        contract.on_staking_pool_withdraw_inner(amount.into(), true);
+        contract.on_staking_pool_withdraw_inner(NearToken::from_yoctonear(amount), true);
         testing_env!(context.clone());
         assert_eq!(
-            contract.get_known_deposited_balance().0,
+            contract.get_known_deposited_balance().as_yoctonear(),
             total_amount.saturating_sub(total_withdrawn_amount)
         );
-        assert_eq!(contract.get_owners_balance().0, amount);
-        assert_eq!(contract.get_liquid_owners_balance().0, amount);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), amount);
+        assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), amount);
     }
 }

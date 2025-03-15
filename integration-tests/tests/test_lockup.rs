@@ -1,8 +1,7 @@
 mod setup;
 
 use crate::setup::{
-    into_wrapped, outcome_check, VenearTestWorkspace, VenearTestWorkspaceBuilder, WrappedBalance,
-    UNLOCK_DURATION_SECONDS,
+    outcome_check, VenearTestWorkspace, VenearTestWorkspaceBuilder, UNLOCK_DURATION_SECONDS,
 };
 use common::near_add;
 use near_sdk::{Gas, Timestamp};
@@ -26,7 +25,7 @@ pub async fn transfer_and_lock(
     outcome_check(&outcome);
 
     user.call(&lockup_id, "lock_near")
-        .args_json(json!({ "amount": into_wrapped(amount) }))
+        .args_json(json!({ "amount": amount }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(200))
         .transact()
@@ -57,7 +56,7 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
     // Lock 50 NEAR
     let outcome = user
         .call(&lockup_account_id, "lock_near")
-        .args_json(json!({ "amount": into_wrapped(NearToken::from_near(50)) }))
+        .args_json(json!({ "amount": NearToken::from_near(50) }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(200))
         .transact()
@@ -68,15 +67,12 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
     assert_eq!(nonce_after, nonce_before + 1, "Nonce should increment");
 
     let locked = v.get_venear_locked(&lockup_account_id).await?;
-    assert_eq!(
-        NearToken::from_yoctonear(locked.0),
-        NearToken::from_near(50)
-    );
+    assert_eq!(locked, NearToken::from_near(50));
 
     // Begin unlock 30 NEAR
     let outcome = user
         .call(&lockup_account_id, "begin_unlock_near")
-        .args_json(json!({ "amount": into_wrapped(NearToken::from_near(30)) }))
+        .args_json(json!({ "amount": NearToken::from_near(30) }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
@@ -87,18 +83,12 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
     assert!(unlock_timestamp > 0, "venear_unlock_timestamp was not set");
 
     let pending = v.get_venear_pending(&lockup_account_id).await?;
-    assert_eq!(
-        NearToken::from_yoctonear(pending.0),
-        NearToken::from_near(30)
-    );
+    assert_eq!(pending, NearToken::from_near(30));
     let locked_after_begin_unlock = v.get_venear_locked(&lockup_account_id).await?;
-    assert_eq!(
-        NearToken::from_yoctonear(locked_after_begin_unlock.0),
-        NearToken::from_near(20)
-    );
+    assert_eq!(locked_after_begin_unlock, NearToken::from_near(20));
 
     let mut i = 0_u16;
-    while i < 10 {
+    while i <= 10 {
         // Fast forward time, number of seconds
         v.sandbox.fast_forward(UNLOCK_DURATION_SECONDS).await?;
         let block = v.sandbox.view_block().await?;
@@ -109,11 +99,12 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
         }
         i += 1;
     }
+    assert_ne!(i, 10, "Unlock timestamp was not reached");
 
     // Complete unlock
     let outcome = user
         .call(&lockup_account_id, "end_unlock_near")
-        .args_json(json!({ "amount": into_wrapped(NearToken::from_near(30)) }))
+        .args_json(json!({ "amount": NearToken::from_near(30) }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
@@ -121,10 +112,7 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
     outcome_check(&outcome);
 
     let locked_after_end_unlock = v.get_venear_locked(&lockup_account_id).await?;
-    assert_eq!(
-        NearToken::from_yoctonear(locked_after_end_unlock.0),
-        NearToken::from_near(20)
-    );
+    assert_eq!(locked_after_end_unlock, NearToken::from_near(20));
     Ok(())
 }
 
@@ -140,7 +128,7 @@ async fn test_over_unlock_should_fail() -> Result<(), Box<dyn std::error::Error>
     // Try to unlock 150 NEAR
     let outcome = user
         .call(&lockup_account_id, "begin_unlock_near")
-        .args_json(json!({ "amount": into_wrapped(NearToken::from_near(150)) }))
+        .args_json(json!({ "amount": NearToken::from_near(150) }))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
@@ -162,7 +150,7 @@ async fn test_early_unlock_attempt() -> Result<(), Box<dyn std::error::Error>> {
     transfer_and_lock(&v, &user, NearToken::from_near(100)).await?;
 
     user.call(&lockup_id, "begin_unlock_near")
-        .args_json(json!({ "amount": into_wrapped(NearToken::from_near(100)) }))
+        .args_json(json!({ "amount": NearToken::from_near(100) }))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
