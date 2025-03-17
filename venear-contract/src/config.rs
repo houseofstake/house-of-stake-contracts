@@ -30,7 +30,7 @@ pub struct Config {
     /// The minimum additional amount in NEAR required for lockup deployment.
     pub min_extra_lockup_deposit: NearToken,
 
-    /// The account ID that can upgrade the current contract.
+    /// The account ID that can upgrade the current contract and modify the config.
     pub owner_account_id: AccountId,
 }
 

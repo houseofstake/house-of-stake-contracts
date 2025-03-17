@@ -1,0 +1,17 @@
+[package]
+name = "voting-contract"
+description = "This crate provides the voting contract for the House of Stake"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+merkle-tree = { path = "../merkle-tree" }
+common = { path = "../common" }
+near-sdk.workspace = true
+serde_json.workspace = true

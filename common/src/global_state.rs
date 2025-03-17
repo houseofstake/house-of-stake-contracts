@@ -19,6 +19,15 @@ impl GlobalState {
             venear_growth_config,
         }
     }
+
+    pub fn update(&mut self, current_timestamp: TimestampNs) {
+        self.total_venear_balance.update(
+            self.update_timestamp,
+            current_timestamp,
+            &self.venear_growth_config,
+        );
+        self.update_timestamp = current_timestamp;
+    }
 }
 
 #[derive(Clone)]
