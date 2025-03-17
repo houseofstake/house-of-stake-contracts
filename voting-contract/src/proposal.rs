@@ -1,6 +1,7 @@
 use crate::*;
 use common::{near_add, near_sub, TimestampNs};
 use near_sdk::json_types::U64;
+use near_sdk::Promise;
 
 pub type ProposalId = u32;
 
@@ -181,6 +182,7 @@ impl Contract {
         proposal_id
     }
 
+    #[payable]
     pub fn vote(
         &mut self,
         proposal_id: ProposalId,
@@ -188,7 +190,10 @@ impl Contract {
         merkle_proof: MerkleProof,
         v_account: VAccount,
     ) {
-        let mut proposal: Proposal = self.internal_expect_proposal_update(proposal_id);
+        let attached_deposit = env::attached_deposit();
+        require!(!attached_deposit.is_zero(), "Requires attached deposit");
+
+        let mut proposal: Proposal = self.internal_expect_proposal_updated(proposal_id);
 
         match proposal.status {
             ProposalStatus::Voting => {}
@@ -229,14 +234,30 @@ impl Contract {
             previous_vote != Some(vote),
             "Already voted for the same option"
         );
+        let mut storage_added = self.config.vote_storage_fee;
         if let Some(previous_vote) = previous_vote {
             proposal.votes[previous_vote as usize].remove_vote(account_balance);
             proposal.total_votes.remove_vote(account_balance);
-            // TODO: Refund voting fee
+            // When changing the vote. Don't need to charge the fee again.
+            storage_added = NearToken::from_yoctonear(0);
         }
         proposal.votes[vote as usize].add_vote(account_balance);
         proposal.total_votes.add_vote(account_balance);
-        // TODO: Charge voting fee
+
+        require!(
+            attached_deposit >= storage_added,
+            format!(
+                "Requires deposit of {}",
+                storage_added.exact_amount_display()
+            )
+        );
+
+        // Note, don't refund 1 yoctoNEAR if changing the vote.
+        if attached_deposit > near_add(storage_added, NearToken::from_yoctonear(1)) {
+            let refund = near_sub(attached_deposit, storage_added);
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
+
         self.votes.insert((account_id.clone(), proposal_id), vote);
         self.internal_set_proposal(proposal);
     }
@@ -259,7 +280,7 @@ impl Contract {
             .map(|proposal| proposal.into())
     }
 
-    pub fn internal_expect_proposal_update(&self, proposal_id: ProposalId) -> Proposal {
+    pub fn internal_expect_proposal_updated(&self, proposal_id: ProposalId) -> Proposal {
         let mut proposal = self
             .internal_get_proposal(proposal_id)
             .expect(format!("Proposal {} is not found", proposal_id).as_str());
