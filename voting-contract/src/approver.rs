@@ -99,11 +99,13 @@ impl Contract {
     }
 }
 
+#[allow(dead_code)]
 #[ext_contract(ext_venear)]
 trait ExtVenear {
     fn get_snapshot(&self);
 }
 
+#[allow(dead_code)]
 #[ext_contract(ext_self)]
 trait ExtSelf {
     fn on_get_snapshot(&mut self, proposal_id: ProposalId, voting_start_time_sec: Option<u32>);

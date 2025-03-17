@@ -1,6 +1,4 @@
 use crate::*;
-use near_sdk::assert_one_yocto;
-use near_sdk::json_types::Base58CryptoHash;
 
 impl Contract {
     pub fn assert_owner(&self) {
