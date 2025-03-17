@@ -26,7 +26,7 @@ impl LockupContract {
     }
 
     fn set_venear_unlock_imestamp(&mut self) {
-        self.venear_unlock_imestamp = env::block_timestamp() + self.unlock_duration_ns;
+        self.venear_unlock_timestamp = env::block_timestamp() + self.unlock_duration_ns;
     }
 
     fn venear_lockup_update(&mut self) {
@@ -49,24 +49,32 @@ impl LockupContract {
 
 #[near]
 impl LockupContract {
-    pub fn get_venear_locked_balance(&self) -> WrappedBalance {
-        self.venear_locked_balance.into()
+    pub fn get_venear_locked_balance(&self) -> NearToken {
+        NearToken::from_yoctonear(self.venear_locked_balance)
     }
 
-    pub fn get_venear_pending_balance(&self) -> WrappedBalance {
-        self.venear_pending_balance.into()
+    pub fn get_venear_unlock_timestamp(&self) -> Timestamp {
+        self.venear_unlock_timestamp
     }
 
-    pub fn get_venear_liquid_balance(&self) -> WrappedBalance {
-        self.venear_liquid_balance().into()
+    pub fn get_lockup_update_nonce(&self) -> u64 {
+        self.lockup_update_nonce
+    }
+
+    pub fn get_venear_pending_balance(&self) -> NearToken {
+        NearToken::from_yoctonear(self.venear_pending_balance)
+    }
+
+    pub fn get_venear_liquid_balance(&self) -> NearToken {
+        NearToken::from_yoctonear(self.venear_liquid_balance())
     }
 
     /// specify the amount of near you want to lock, it remembers how much near is now locked
     #[payable]
-    pub fn lock_near(&mut self, amount: Option<WrappedBalance>) {
+    pub fn lock_near(&mut self, amount: Option<NearToken>) {
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
-            amount.into()
+            amount.as_yoctonear()
         } else {
             self.venear_liquid_balance()
         };
@@ -81,15 +89,15 @@ impl LockupContract {
     /// you specify the amount of near to unlock, it starts the process of unlocking it
     /// (works similarly to unstaking from a staking pool).
     #[payable]
-    pub fn begin_unlock_near(&mut self, amount: Option<WrappedBalance>) {
+    pub fn begin_unlock_near(&mut self, amount: Option<NearToken>) {
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
-            amount.into()
+            amount.as_yoctonear()
         } else {
             self.venear_locked_balance
         };
 
-        assert!(amount >= self.venear_locked_balance, "Invalid amount");
+        assert!(amount <= self.venear_locked_balance, "Invalid amount");
 
         self.venear_locked_balance -= amount;
         self.venear_pending_balance += amount;
@@ -100,37 +108,36 @@ impl LockupContract {
 
     /// end the unlocking
     #[payable]
-    pub fn end_unlock_near(&mut self, amount: Option<WrappedBalance>) {
+    pub fn end_unlock_near(&mut self, amount: Option<NearToken>) {
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
-            amount.into()
+            amount.as_yoctonear()
         } else {
             self.venear_pending_balance
         };
 
-        assert!(amount >= self.venear_pending_balance, "Invalid amount");
+        assert!(amount <= self.venear_pending_balance, "Invalid amount");
         assert!(
-            env::block_timestamp() >= self.venear_unlock_imestamp,
+            env::block_timestamp() >= self.venear_unlock_timestamp,
             "Invalid unlock time"
         );
 
         self.venear_pending_balance -= amount;
-        self.set_venear_unlock_imestamp();
 
         self.venear_lockup_update();
     }
 
     ///  if there is an unlock pending, it locks the balance.
     #[payable]
-    pub fn lock_pending_near(&mut self, amount: Option<WrappedBalance>) {
+    pub fn lock_pending_near(&mut self, amount: Option<NearToken>) {
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
-            amount.into()
+            amount.as_yoctonear()
         } else {
             self.venear_pending_balance
         };
 
-        assert!(amount >= self.venear_pending_balance, "Invalid amount");
+        assert!(amount <= self.venear_pending_balance, "Invalid amount");
 
         self.venear_pending_balance -= amount;
         self.venear_locked_balance += amount;

@@ -8,11 +8,12 @@ use near_sdk::NearToken;
 impl LockupContract {
     /// The balance of the account excluding the storage staking balance.
     /// NOTE: The storage staking balance can't be transferred out without deleting this contract.
-    pub fn get_account_balance(&self) -> WrappedBalance {
-        env::account_balance()
-            .saturating_sub(NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE))
-            .as_yoctonear()
-            .into()
+    pub fn get_account_balance(&self) -> NearToken {
+        NearToken::from_yoctonear(
+            env::account_balance()
+                .saturating_sub(NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE))
+                .as_yoctonear(),
+        )
     }
 
     pub fn set_staking_pool_status(&mut self, status: TransactionStatus) {

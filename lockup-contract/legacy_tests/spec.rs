@@ -1,5 +1,5 @@
 use lockup_contract::{
-    LockupContractContract, TerminationStatus, TransfersInformation, WrappedBalance, MIN_BALANCE_FOR_STORAGE
+    LockupContractContract, TerminationStatus, TransfersInformation, MIN_BALANCE_FOR_STORAGE
 };
 use near_sdk::borsh::BorshSerialize;
 use near_sdk::json_types::{Base58PublicKey, U128};
@@ -631,7 +631,7 @@ fn termination_with_staking_hashed() {
         .unwrap_json();
     assert!(res.is_none());
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -654,13 +654,13 @@ fn termination_with_staking_hashed() {
         .unwrap_json();
     assert_eq!(res, Some(TerminationStatus::VestingTerminatedWithDeficit));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     let unvested_balance = (lockup_amount + MIN_BALANCE_FOR_STORAGE) * 5 / 8;
     assert_eq!(res.0, unvested_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     // The rest of the tokens are on the staking pool.
@@ -690,7 +690,7 @@ fn termination_with_staking_hashed() {
         .unwrap_json();
     assert_eq!(res, Some(TerminationStatus::EverythingUnstaked));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     assert_eq_with_gas(res.0, unvested_balance - to_yocto("100"));
@@ -763,7 +763,7 @@ fn termination_with_staking_hashed() {
         .unwrap_json();
     assert!(res);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -807,7 +807,7 @@ fn termination_with_staking_hashed() {
         .unwrap_json();
     assert_eq!(res, None);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -818,17 +818,17 @@ fn termination_with_staking_hashed() {
         foundation_balance + unvested_balance,
     );
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(
@@ -962,7 +962,7 @@ fn termination_with_staking() {
         .unwrap_json();
     assert!(res.is_none());
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -976,13 +976,13 @@ fn termination_with_staking() {
         .unwrap_json();
     assert_eq!(res, Some(TerminationStatus::VestingTerminatedWithDeficit));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     let unvested_balance = (lockup_amount + MIN_BALANCE_FOR_STORAGE) * 5 / 8;
     assert_eq!(res.0, unvested_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     // The rest of the tokens are on the staking pool.
@@ -1012,7 +1012,7 @@ fn termination_with_staking() {
         .unwrap_json();
     assert_eq!(res, Some(TerminationStatus::EverythingUnstaked));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     assert_eq_with_gas(res.0, unvested_balance - to_yocto("100"));
@@ -1085,7 +1085,7 @@ fn termination_with_staking() {
         .unwrap_json();
     assert!(res);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance_deficit())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -1129,7 +1129,7 @@ fn termination_with_staking() {
         .unwrap_json();
     assert_eq!(res, None);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_terminated_unvested_balance())
         .unwrap_json();
     assert_eq!(res.0, 0);
@@ -1140,17 +1140,17 @@ fn termination_with_staking() {
         foundation_balance + unvested_balance,
     );
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(
@@ -1268,7 +1268,7 @@ fn test_release_schedule_unlock_transfers() {
     // Reset timestamp to 0, to avoid any release
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount);
@@ -1283,17 +1283,17 @@ fn test_release_schedule_unlock_transfers() {
         .unwrap_json();
     assert!(!res);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_lockup_amount + received_reward);
@@ -1320,7 +1320,7 @@ fn test_release_schedule_unlock_transfers() {
         .unwrap_json();
     assert!(res);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, lockup_amount + MIN_BALANCE_FOR_STORAGE);
@@ -1330,17 +1330,17 @@ fn test_release_schedule_unlock_transfers() {
         .unwrap_json();
     assert!(res);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, received_reward);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_lockup_amount + received_reward);
@@ -1360,22 +1360,22 @@ fn test_release_schedule_unlock_transfers() {
 
     let liquid_balance = received_reward - transfer_amount;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_lockup_amount + liquid_balance);
@@ -1401,22 +1401,22 @@ fn test_release_schedule_unlock_transfers() {
     // At this timestamp only 1/1000 of the lockup_amount is released.
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 1000000000;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount - full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance + full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance + full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_lockup_amount + liquid_balance);
@@ -1424,22 +1424,22 @@ fn test_release_schedule_unlock_transfers() {
     // Adding more time. So 50/1000 is unlocked
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 50_000_000_000;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount - 50 * full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance + 50 * full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance + 50 * full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_lockup_amount + liquid_balance);
@@ -1464,22 +1464,22 @@ fn test_release_schedule_unlock_transfers() {
     // Setting time to 51/1000 to have round numbers
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 51_000_000_000;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount - 51 * full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, liquid_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_balance);
@@ -1488,23 +1488,23 @@ fn test_release_schedule_unlock_transfers() {
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 200_000_000_000;
     let owners_balance = liquid_balance + 149 * full_lockup_amount / 1000;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, full_lockup_amount - 200 * full_lockup_amount / 1000);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     // The account balance is `100`. `+3.5` for storage and `-20` for transfers.
     assert_eq_with_gas(res.0, to_yocto("80"));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, owners_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_balance);
@@ -1529,22 +1529,22 @@ fn test_release_schedule_unlock_transfers() {
     // Setting time to full release.
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 1100_000_000_000;
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
     assert_eq!(res.0, 0);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, to_yocto("80"));
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_owners_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_balance);
 
-    let res: WrappedBalance = owner
+    let res: NearToken = owner
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_balance);
