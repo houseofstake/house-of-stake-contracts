@@ -1524,15 +1524,6 @@ fn test_release_schedule_unlock_transfers() {
         .try_into()
         .unwrap();
 
-    // Trying to add full access key.
-    assert!(!owner_staking_account
-        .function_call(
-            lockup.contract.add_full_access_key(public_key.clone()),
-            MAX_GAS,
-            0
-        )
-        .is_ok());
-
     // Setting time to full release.
     root.borrow_runtime_mut().cur_block.block_timestamp = unlock_timestamp + 1100_000_000_000;
 
@@ -1555,15 +1546,6 @@ fn test_release_schedule_unlock_transfers() {
         .view_method_call(lockup.contract.get_balance())
         .unwrap_json();
     assert_eq_with_gas(res.0, full_balance);
-
-    // Adding full access key
-    owner_staking_account
-        .function_call(
-            lockup.contract.add_full_access_key(public_key.clone()),
-            MAX_GAS,
-            0,
-        )
-        .assert_success();
 
     let mut lockup_account = root.create_user("tmp".to_string(), to_yocto("100"));
     lockup_account.account_id = LOCKUP_ACCOUNT_ID.to_string();

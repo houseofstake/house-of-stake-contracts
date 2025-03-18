@@ -318,6 +318,18 @@ impl VenearTestWorkspace {
             .json()?)
     }
 
+    pub async fn get_venear_liquid_balance(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<NearToken, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_venear_liquid_balance")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+
     pub async fn get_venear_locked(
         &self,
         account_id: &AccountId,

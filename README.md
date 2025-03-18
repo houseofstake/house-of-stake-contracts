@@ -40,7 +40,7 @@ To test all the contracts locally, run the following command (note, it will buil
   - [x] Unlock timer
   - [x] Lockup contract should return the version of itself with every venear call.
   - [x] A user shouldn't be able to add full-access key
-  - [ ] A user should be able to nuke the contract and clean the state. This effectively is deleting the lockup contract
+  - [x] A user should be able to nuke the contract and clean the state. This effectively is deleting the lockup contract
     and all the state associated with it. It may be needed for lockup upgrades to a new version.
     (Add a delete lockup method, requires `0` veNEAR.)
   - [x] Pass minimum storage deposit amount to lockup initialization.
