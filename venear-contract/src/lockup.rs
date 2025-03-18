@@ -23,6 +23,8 @@ pub struct LockupInitArgs {
 
     /// Starting nonce for lockup updates. It should be unique for every lockup contract.
     lockup_update_nonce: U64,
+
+    min_lockup_deposit: NearToken,
 }
 
 #[near(serializers=[json])]
@@ -159,7 +161,7 @@ impl Contract {
         };
         require!(hash == contract_hash);
         self.config.lockup_contract_config = Some(LockupContractConfig {
-            contract_size: size,
+            contract_size: size as _,
             contract_version: self
                 .config
                 .lockup_contract_config
@@ -223,6 +225,7 @@ impl Contract {
                 .staking_pool_whitelist_account_id
                 .clone(),
             lockup_update_nonce: lockup_update_nonce.into(),
+            min_lockup_deposit: self.config.min_lockup_deposit,
         };
         let arguments =
             serde_json::to_vec(&arguments).expect("Failed to serialize lockup init args");

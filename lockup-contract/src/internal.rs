@@ -11,7 +11,7 @@ impl LockupContract {
     pub fn get_account_balance(&self) -> NearToken {
         NearToken::from_yoctonear(
             env::account_balance()
-                .saturating_sub(NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE))
+                .saturating_sub(self.min_lockup_deposit)
                 .as_yoctonear(),
         )
     }

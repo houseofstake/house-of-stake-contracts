@@ -3,8 +3,7 @@ mod setup;
 use crate::setup::{
     outcome_check, VenearTestWorkspace, VenearTestWorkspaceBuilder, UNLOCK_DURATION_SECONDS,
 };
-use common::near_add;
-use near_sdk::{Gas, Timestamp};
+use near_sdk::Gas;
 use near_workspaces::types::NearToken;
 use near_workspaces::Account;
 use serde_json::json;
@@ -149,11 +148,15 @@ async fn test_early_unlock_attempt() -> Result<(), Box<dyn std::error::Error>> {
     let lockup_id = v.get_lockup_account_id(user.id()).await?;
     transfer_and_lock(&v, &user, NearToken::from_near(100)).await?;
 
-    user.call(&lockup_id, "begin_unlock_near")
+    let outcome = user
+        .call(&lockup_id, "begin_unlock_near")
         .args_json(json!({ "amount": NearToken::from_near(100) }))
+        .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
+
+    assert!(outcome.is_success(), "Unlock should be successful");
 
     // Immediate unlock attempt
     let outcome = user

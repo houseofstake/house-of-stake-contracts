@@ -5,17 +5,8 @@ use near_sdk::json_types::U64;
 use near_sdk::{assert_one_yocto, near, NearToken};
 
 impl LockupContract {
-    fn storage_usage(&self) -> NearToken {
-        NearToken::from_yoctonear(MIN_BALANCE_FOR_STORAGE)
-        // env::storage_byte_cost()
-        //     .checked_mul(env::storage_usage() as u128)
-        //     .unwrap()
-    }
-
     pub(crate) fn venear_liquid_balance(&self) -> Balance {
         let remaining_balance = env::account_balance();
-        //            .checked_sub(self.storage_usage())
-        //            .unwrap();
 
         remaining_balance
             .checked_sub(NearToken::from_yoctonear(self.venear_locked_balance))
