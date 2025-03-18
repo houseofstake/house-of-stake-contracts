@@ -1,6 +1,4 @@
-use lockup_contract::{
-    LockupContractContract, TerminationStatus, TransfersInformation, MIN_BALANCE_FOR_STORAGE
-};
+use lockup_contract::{LockupContractContract, TerminationStatus, TransfersInformation};
 use near_sdk::borsh::BorshSerialize;
 use near_sdk::json_types::{Base58PublicKey, U128};
 use near_sdk::serde_json::json;
@@ -17,6 +15,8 @@ pub const LOCKUP_ACCOUNT_ID: &str = "lockup";
 const STAKING_POOL_WHITELIST_ACCOUNT_ID: &str = "staking-pool-whitelist";
 const STAKING_POOL_ACCOUNT_ID: &str = "staking-pool";
 const TRANSFER_POLL_ACCOUNT_ID: &str = "transfer-poll";
+
+const MIN_BALANCE_FOR_STORAGE: u128 = 16 * 10u128.pow(23);
 
 pub fn public_key(byte_val: u8) -> Base58PublicKey {
     let mut pk = vec![byte_val; 33];
@@ -71,7 +71,8 @@ fn lockup(lockup_amount: Balance, lockup_duration: u64, lockup_timestamp: u64) {
             None,
             None,
             STAKING_POOL_WHITELIST_ACCOUNT_ID.to_string(),
-            None
+            None,
+            MIN_BALANCE_FOR_STORAGE.into(),
         )
     );
 
@@ -821,7 +822,10 @@ fn termination_with_staking_hashed() {
     let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
-    assert_eq!(res.0, (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance);
+    assert_eq!(
+        res.0,
+        (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance
+    );
 
     let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
@@ -1143,7 +1147,10 @@ fn termination_with_staking() {
     let res: NearToken = owner
         .view_method_call(lockup.contract.get_locked_amount())
         .unwrap_json();
-    assert_eq!(res.0, (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance);
+    assert_eq!(
+        res.0,
+        (lockup_amount + MIN_BALANCE_FOR_STORAGE) - unvested_balance
+    );
 
     let res: NearToken = owner
         .view_method_call(lockup.contract.get_liquid_owners_balance())
@@ -1578,7 +1585,6 @@ fn basic_setup() -> (UserAccount, UserAccount, UserAccount, UserAccount) {
     let root = init_simulator(Some(genesis_config));
 
     /// TODO Fix/Remove foundation tests
-
     let foundation = root.create_user("foundation".to_string(), to_yocto("10000"));
 
     let owner = root.create_user("owner".to_string(), to_yocto("30"));

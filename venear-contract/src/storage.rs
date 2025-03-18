@@ -1,5 +1,4 @@
 use crate::*;
-use common::near_add;
 use near_sdk::Promise;
 
 #[near(serializers=[json])]
@@ -71,18 +70,6 @@ impl Contract {
 
     /// Returns the minimum required balance to deploy a lockup.
     pub fn get_lockup_deployment_cost(&self) -> NearToken {
-        let contract_deployment_cost = NearToken::from_yoctonear(
-            env::storage_byte_cost().as_yoctonear()
-                * self
-                    .config
-                    .lockup_contract_config
-                    .as_ref()
-                    .expect("Lockup contract is not set")
-                    .contract_size as u128,
-        );
-        near_add(
-            contract_deployment_cost,
-            self.config.min_extra_lockup_deposit,
-        )
+        self.config.min_lockup_deposit
     }
 }

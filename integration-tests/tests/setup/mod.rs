@@ -1,6 +1,6 @@
 #[allow(dead_code)]
 use common::Fraction;
-use near_sdk::json_types::{Base58CryptoHash, U128};
+use near_sdk::json_types::Base58CryptoHash;
 use near_sdk::{CryptoHash, Gas, NearToken, Timestamp};
 use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
@@ -13,8 +13,6 @@ pub const UNLOCK_DURATION_SECONDS_PROD: u64 = 90u64 * 24 * 60 * 60;
 
 pub const LOCKUP_WASM_FILEPATH: &str = "../res/local/lockup_contract.wasm";
 pub const VENEAR_WASM_FILEPATH: &str = "../res/local/venear_contract.wasm";
-
-pub const STORAGE_COST_PER_BYTE: u128 = 10u128.pow(19);
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -30,7 +28,7 @@ pub struct VenearTestWorkspace {
 pub struct VenearTestWorkspaceBuilder {
     pub unlock_duration_ns: u64,
     pub local_deposit: NearToken,
-    pub min_extra_lockup_deposit: NearToken,
+    pub min_lockup_deposit: NearToken,
     pub annual_growth_rate_ns: Fraction,
 }
 
@@ -39,7 +37,7 @@ impl Default for VenearTestWorkspaceBuilder {
         Self {
             unlock_duration_ns: UNLOCK_DURATION_SECONDS * 1_000_000_000,
             local_deposit: NearToken::from_millinear(100),
-            min_extra_lockup_deposit: NearToken::from_millinear(200),
+            min_lockup_deposit: NearToken::from_millinear(1600),
             annual_growth_rate_ns: Fraction {
                 numerator: 6.into(),
                 denominator: (365u128 * 24 * 60 * 60 * 10u128.pow(9)).into(),
@@ -81,7 +79,7 @@ impl VenearTestWorkspaceBuilder {
                 "staking_pool_whitelist_account_id": staking_pool_whitelist_account.id(),
                 "lockup_code_deployers": &[lockup_deployer.id()],
                 "local_deposit": self.local_deposit,
-                "min_extra_lockup_deposit": self.min_extra_lockup_deposit,
+                "min_lockup_deposit": self.min_lockup_deposit,
                 "owner_account_id": venear_owner.id(),
             },
             "venear_growth_config": {
@@ -141,7 +139,7 @@ impl VenearTestWorkspaceBuilder {
             .call(venear.id(), "set_lockup_contract")
             .args_json(json!({
                 "contract_hash": contract_hash,
-                "min_extra_lockup_deposit": self.min_extra_lockup_deposit,
+                "min_lockup_deposit": self.min_lockup_deposit,
             }))
             .deposit(NearToken::from_yoctonear(1))
             .transact()
@@ -162,18 +160,30 @@ impl VenearTestWorkspaceBuilder {
 
         assert_eq!(
             lockup_cost.as_yoctonear(),
-            self.min_extra_lockup_deposit.as_yoctonear()
-                + (lockup_size as u128 * STORAGE_COST_PER_BYTE),
+            self.min_lockup_deposit.as_yoctonear(),
             "Invalid lockup cost"
         );
 
-        Ok(VenearTestWorkspace {
+        let workspace = VenearTestWorkspace {
             sandbox,
             venear,
             staking_pool_whitelist_account,
             lockup_deployer,
             venear_owner,
-        })
+        };
+
+        let config = workspace.get_config().await?;
+        let lockup_config = config["lockup_contract_config"].clone();
+        assert_eq!(
+            lockup_config["contract_size"].as_u64().unwrap(),
+            lockup_size as u64,
+            "Invalid lockup contract size"
+        );
+        let contract_hash: Base58CryptoHash =
+            serde_json::from_value(lockup_config["contract_hash"].clone()).unwrap();
+        assert_eq!(contract_hash, lockup_hash, "Invalid lockup contract hash");
+
+        Ok(workspace)
     }
 }
 
@@ -283,6 +293,15 @@ impl VenearTestWorkspace {
             .sandbox
             .view(self.venear.id(), "get_lockup_account_id")
             .args_json(json!({ "account_id": account_id }))
+            .await?
+            .json()?)
+    }
+
+    pub async fn get_config(&self) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(self.venear.id(), "get_config")
+            .args_json(json!({}))
             .await?
             .json()?)
     }

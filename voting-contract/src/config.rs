@@ -1,5 +1,5 @@
+use crate::*;
 use near_sdk::json_types::U64;
-use near_sdk::{near, AccountId, NearToken};
 
 #[derive(Debug, Clone)]
 #[near(serializers=[borsh, json])]
@@ -25,4 +25,11 @@ pub struct Config {
     /// Storage fee required to store a vote for an active proposal. It can be refunded once the
     /// proposal is finalized.
     pub vote_storage_fee: NearToken,
+}
+
+#[near]
+impl Contract {
+    pub fn get_config(&self) -> &Config {
+        &self.config
+    }
 }

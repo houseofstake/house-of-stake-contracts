@@ -5,7 +5,7 @@ use near_sdk::json_types::{Base58CryptoHash, U64};
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct LockupContractConfig {
-    pub contract_size: u64,
+    pub contract_size: u32,
     pub contract_version: Version,
     pub contract_hash: Base58CryptoHash,
 }
@@ -27,11 +27,18 @@ pub struct Config {
     /// The amount in NEAR required for local storage in veNEAR contract.
     pub local_deposit: NearToken,
 
-    /// The minimum additional amount in NEAR required for lockup deployment.
-    pub min_extra_lockup_deposit: NearToken,
+    /// The minimum amount in NEAR required for lockup deployment.
+    pub min_lockup_deposit: NearToken,
 
     /// The account ID that can upgrade the current contract and modify the config.
     pub owner_account_id: AccountId,
+}
+
+#[near]
+impl Contract {
+    pub fn get_config(&self) -> &Config {
+        &self.config
+    }
 }
 
 impl Contract {

@@ -6,7 +6,7 @@ pub use crate::owner_callbacks::*;
 pub use crate::types::*;
 pub use crate::venear::*;
 use near_sdk::json_types::U64;
-use near_sdk::{env, ext_contract, near, AccountId, PanicOnDefault};
+use near_sdk::{env, ext_contract, near, require, AccountId, PanicOnDefault};
 use near_sdk::{Gas, NearToken};
 
 pub mod gas;
@@ -18,10 +18,6 @@ pub mod internal;
 pub mod owner;
 pub mod venear;
 pub mod venear_ext;
-
-/// The contract keeps at least 1.6 NEAR in the account to avoid being transferred out to cover
-/// contract code storage and some internal state.
-pub const MIN_BALANCE_FOR_STORAGE: u128 = 1_600_000_000_000_000_000_000_000;
 
 pub type Version = u64;
 
@@ -124,6 +120,9 @@ pub struct LockupContract {
 
     /// Version of the lockup contract
     pub version: Version,
+
+    /// The minimum amount in NEAR required for lockup deployment.
+    pub min_lockup_deposit: NearToken,
 }
 
 #[near]
@@ -134,9 +133,13 @@ impl LockupContract {
     /// - `owner_account_id` - the account ID of the owner. Only this account can call owner's
     ///    methods on this contract.
     /// - `venear_account_id` - the account ID of the VeNEAR contract.
+    /// - `unlock_duration_ns` - The time in nanoseconds for unlocking the lockup amount.
     /// - `staking_pool_whitelist_account_id` - the Account ID of the staking pool whitelist contract.
     ///    The version of the contract. It is a monotonically increasing number.
     /// - `version` - Version of the lockup contract will be tracked by the veNEAR contract.
+    /// - `lockup_update_nonce` - The nonce of the lockup update. It should be incremented for every
+    ///   new update by the lockup contract.
+    /// - `min_lockup_deposit` - The minimum amount in NEAR required for lockup deployment.
     #[payable]
     #[init]
     pub fn new(
@@ -146,7 +149,12 @@ impl LockupContract {
         staking_pool_whitelist_account_id: AccountId,
         version: Version,
         lockup_update_nonce: U64,
+        min_lockup_deposit: NearToken,
     ) -> Self {
+        require!(
+            env::account_balance() >= min_lockup_deposit,
+            "Not enough NEAR for storage"
+        );
         Self {
             owner_account_id,
             venear_account_id,
@@ -159,6 +167,7 @@ impl LockupContract {
             venear_pending_balance: 0,
             lockup_update_nonce: lockup_update_nonce.into(),
             version,
+            min_lockup_deposit,
         }
     }
 }
@@ -166,7 +175,6 @@ impl LockupContract {
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
-    use near_sdk::json_types::U64;
     use near_sdk::{testing_env, AccountId, NearToken, VMContext};
     use std::convert::TryInto;
     use std::str::FromStr;
@@ -179,6 +187,7 @@ mod tests {
     const VENEAR_ACCOUNT_ID: &str = "venear";
     const LOCKUP_VERSION: Version = 1;
     const UNLOCK_DURATION_NS: u64 = 90u64 * 24 * 60 * 60 * 10u64.pow(9);
+    const MIN_LOCKUP_DEPOSIT: NearToken = NearToken::from_millinear(1600);
 
     fn basic_context() -> VMContext {
         get_context(
@@ -200,6 +209,7 @@ mod tests {
             AccountId::from_str("whitelist").unwrap(),
             LOCKUP_VERSION,
             0.into(),
+            MIN_LOCKUP_DEPOSIT,
         )
     }
 
@@ -214,6 +224,7 @@ mod tests {
             AccountId::from_str("whitelist").unwrap(),
             LOCKUP_VERSION,
             0.into(),
+            MIN_LOCKUP_DEPOSIT,
         );
 
         (context, contract)
