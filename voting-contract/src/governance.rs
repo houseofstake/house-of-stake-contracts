@@ -25,10 +25,10 @@ impl Contract {
     }
 
     #[payable]
-    pub fn set_proposal_fee(&mut self, proposal_fee: NearToken) {
+    pub fn set_base_proposal_fee(&mut self, base_proposal_fee: NearToken) {
         assert_one_yocto();
         self.assert_owner();
-        self.config.proposal_fee = proposal_fee;
+        self.config.base_proposal_fee = base_proposal_fee;
     }
 
     #[payable]
