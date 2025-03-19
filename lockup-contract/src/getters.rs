@@ -27,9 +27,8 @@ impl LockupContract {
     }
 
     /// Returns the balance of the account owner. It includes vested and extra tokens that
-    /// may have been deposited to this account, but excludes locked tokens.
+    /// may have been deposited to this account.
     /// NOTE: Some of this tokens may be deposited to the staking pool.
-    /// This method also doesn't account for tokens locked for the contract storage.
     pub fn get_owners_balance(&self) -> NearToken {
         NearToken::from_yoctonear(
             env::account_balance().as_yoctonear()

@@ -183,7 +183,7 @@ mod tests {
     const VENEAR_ACCOUNT_ID: &str = "venear";
     const LOCKUP_VERSION: Version = 1;
     const UNLOCK_DURATION_NS: u64 = 90u64 * 24 * 60 * 60 * 10u64.pow(9);
-    const MIN_LOCKUP_DEPOSIT: NearToken = NearToken::from_millinear(1600);
+    const MIN_LOCKUP_DEPOSIT: NearToken = NearToken::from_millinear(2000);
 
     fn basic_context() -> VMContext {
         get_context(

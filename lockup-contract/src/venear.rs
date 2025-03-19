@@ -1,5 +1,6 @@
 use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use crate::*;
+use common::events;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::json_types::U64;
 use near_sdk::{assert_one_yocto, near, NearToken, Promise};
@@ -75,6 +76,14 @@ impl LockupContract {
         assert!(amount <= self.venear_liquid_balance(), "Invalid amount");
 
         self.venear_locked_balance += amount;
+
+        events::emit::lockup_action(
+            "lockup_lock_near".as_ref(),
+            &(env::current_account_id()),
+            &None, //Some(U64::from(self.lockup_update_nonce)),
+            &None, // &Some(U64::from(env::block_timestamp())),
+            &None, // &Some(NearToken::from_yoctonear(amount)),
+        );
 
         self.venear_lockup_update();
     }

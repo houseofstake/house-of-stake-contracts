@@ -11,3 +11,8 @@ license.workspace = true
 near-sdk.workspace = true
 serde_json.workspace = true
 uint.workspace = true
+
+[dev-dependencies]
+serde = { version = "1.0", features = ["derive"] }
+near-sdk = { workspace = true, features = ["legacy", "unit-testing"] }
+serde_json.workspace = true

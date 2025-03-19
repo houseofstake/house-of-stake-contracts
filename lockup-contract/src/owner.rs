@@ -1,5 +1,5 @@
 use crate::*;
-use near_sdk::{near, AccountId, NearToken, Promise};
+use near_sdk::{assert_one_yocto, near, AccountId, NearToken, Promise};
 
 #[near]
 impl LockupContract {
@@ -409,8 +409,9 @@ impl LockupContract {
 
     /// OWNER'S METHOD
     /// Removes the lockup contract and transfers all NEAR to the initial owner.
-    pub fn delete(&mut self) -> Promise {
+    pub fn delete_lockup(&mut self) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_no_staking_or_idle();
         assert_eq!(
             self.get_known_deposited_balance().as_yoctonear(),
