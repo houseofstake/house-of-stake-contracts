@@ -25,8 +25,8 @@ fi
 UNLOCK_DURATION_NS="${UNLOCK_DURATION_SEC}000000000"
 # 0.1 NEAR (enough for 10000 bytes)
 : ${LOCAL_DEPOSIT:="100000000000000000000000"}
-# 1.6 NEAR
-: ${MIN_LOCKUP_DEPOSIT:="1600000000000000000000000"}
+# 2 NEAR
+: ${MIN_LOCKUP_DEPOSIT:="2000000000000000000000000"}
 # 10 minutes for testing
 : "${VOTING_DURATION_SEC:=600}"
 VOTING_DURATION_NS="${VOTING_DURATION_SEC}000000000"
@@ -52,7 +52,7 @@ echo "Creating account $OWNER_ACCOUNT_ID"
 near account create-account fund-myself $OWNER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Creating account $LOCKUP_DEPLOYER_ACCOUNT_ID"
-near account create-account fund-myself $LOCKUP_DEPLOYER_ACCOUNT_ID '1.7 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
+near account create-account fund-myself $LOCKUP_DEPLOYER_ACCOUNT_ID '2.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Deploying and initializing veNEAR contract"
 near contract deploy $VENEAR_ACCOUNT_ID use-file res/local/venear_contract.wasm with-init-call new json-args '{
@@ -98,7 +98,7 @@ near contract call-function as-transaction $VENEAR_ACCOUNT_ID set_lockup_contrac
   "min_lockup_deposit": "'$MIN_LOCKUP_DEPOSIT'"
 }' prepaid-gas '20.0 Tgas' attached-deposit '1 yoctoNEAR' sign-as $OWNER_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
-echo "Done!"
+echo "Done deploying!"
 echo "Accounts:"
 echo "veNEAR:            $VENEAR_ACCOUNT_ID"
 echo "Voting:            $VOTING_ACCOUNT_ID"
