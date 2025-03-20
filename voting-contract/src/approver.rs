@@ -1,7 +1,7 @@
 use crate::proposal::{Proposal, ProposalStatus, SnapshotAndState};
 use crate::*;
 use common::global_state::{GlobalState, VGlobalState};
-use common::TimestampNs;
+use common::{events, TimestampNs};
 use near_sdk::{assert_one_yocto, ext_contract, Gas, Promise};
 use std::ops::Mul;
 
@@ -22,6 +22,13 @@ impl Contract {
         if proposal.status != ProposalStatus::Created {
             env::panic_str("Proposal is not in the Created status");
         }
+
+        events::emit::approve_proposal_action(
+            "proposal_approve",
+            &env::predecessor_account_id(),
+            proposal_id,
+            voting_start_time_sec,
+        );
 
         ext_venear::ext(self.config.venear_account_id.clone())
             .with_unused_gas_weight(1)
@@ -45,6 +52,13 @@ impl Contract {
 
         proposal.rejected = true;
         proposal.status = ProposalStatus::Rejected;
+
+        events::emit::approve_proposal_action(
+            "proposal_reject",
+            &env::predecessor_account_id(),
+            proposal_id,
+            None,
+        );
 
         self.internal_set_proposal(proposal);
     }

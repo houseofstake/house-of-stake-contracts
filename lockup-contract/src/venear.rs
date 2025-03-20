@@ -80,6 +80,7 @@ impl LockupContract {
         events::emit::lockup_action(
             "lockup_lock_near".as_ref(),
             &(env::current_account_id()),
+            self.version,
             &Some(U64::from(self.lockup_update_nonce)),
             &Some(U64::from(env::block_timestamp())),
             &Some(NearToken::from_yoctonear(amount)),

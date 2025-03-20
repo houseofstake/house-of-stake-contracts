@@ -1,4 +1,5 @@
 use crate::*;
+use common::events;
 use near_sdk::{assert_one_yocto, near, AccountId, NearToken, Promise};
 
 #[near]
@@ -426,6 +427,15 @@ impl LockupContract {
         assert_eq!(
             self.venear_pending_balance, 0,
             "Can't delete account with non-zero pending venear balance"
+        );
+
+        events::emit::lockup_action(
+            "lockup_delete",
+            &env::predecessor_account_id(),
+            self.version,
+            &Some(U64::from(self.lockup_update_nonce)),
+            &None,
+            &None,
         );
 
         Promise::new(env::current_account_id()).delete_account(self.owner_account_id.clone())
