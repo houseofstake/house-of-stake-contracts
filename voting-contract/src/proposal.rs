@@ -1,5 +1,5 @@
 use crate::*;
-use common::{near_add, near_sub, TimestampNs};
+use common::{events, near_add, near_sub, TimestampNs};
 use near_sdk::json_types::U64;
 use near_sdk::Promise;
 
@@ -157,6 +157,17 @@ impl Contract {
 
         let proposer_id = env::predecessor_account_id();
         let proposal_id = self.proposals.len();
+
+        events::emit::create_proposal_action(
+            "create_proposal",
+            &proposer_id,
+            proposal_id,
+            &metadata.title,
+            &metadata.description,
+            &metadata.link,
+            &metadata.voting_options,
+        );
+
         let proposal = Proposal {
             id: proposal_id,
             creation_time_ns: env::block_timestamp().into(),
@@ -268,6 +279,14 @@ impl Contract {
             let refund = near_sub(attached_deposit, storage_added);
             Promise::new(env::predecessor_account_id()).transfer(refund);
         }
+
+        events::emit::proposal_vote_action(
+            "vote",
+            &account_id,
+            proposal_id,
+            vote,
+            &account_balance,
+        );
 
         self.votes.insert((account_id.clone(), proposal_id), vote);
         self.internal_set_proposal(proposal);

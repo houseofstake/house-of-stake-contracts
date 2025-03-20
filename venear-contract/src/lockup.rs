@@ -1,6 +1,7 @@
 use crate::account::AccountInternal;
 use crate::config::LockupContractConfig;
 use crate::*;
+use common::events;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use common::near_add;
 use near_sdk::json_types::{Base58CryptoHash, U64};
@@ -69,8 +70,17 @@ impl Contract {
             account_internal.lockup_version == Some(version),
             "Invalid lockup version"
         );
+
         match update {
             VLockupUpdate::V1(lockup_update) => {
+                events::emit::lockup_action(
+                    "lockup_update",
+                    &owner_account_id,
+                    version,
+                    &Some(lockup_update.lockup_update_nonce),
+                    &Some(lockup_update.timestamp),
+                    &Some(lockup_update.locked_near_balance),
+                );
                 self.internal_lockup_update(owner_account_id, account_internal, lockup_update);
             }
         }
@@ -94,6 +104,16 @@ impl Contract {
                 "Invalid nonce"
             );
             account_internal.lockup_update_nonce = lockup_update_nonce;
+
+            events::emit::lockup_action(
+                "lockup_deployed",
+                &account_id,
+                version,
+                &None,
+                &None,
+                &None,
+            );
+
             self.internal_set_account_internal(account_id, account_internal);
         } else {
             // Refunding the deposit if the lockup contract deployment failed.
