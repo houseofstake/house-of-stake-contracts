@@ -1,26 +1,29 @@
 use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use crate::*;
+use common::events;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use near_sdk::json_types::U64;
-use near_sdk::{assert_one_yocto, near, NearToken};
+use near_sdk::{assert_one_yocto, near, NearToken, Promise};
 
 impl LockupContract {
+    // get the amount of NEAR that is not locked in venear contract
     pub(crate) fn venear_liquid_balance(&self) -> Balance {
-        let remaining_balance = env::account_balance();
+        // total available NEAR (including tokens on a lockup and staked in pools)
+        let total_near_balance: u128 = self.get_account_balance().as_yoctonear()
+            + self.get_known_deposited_balance().as_yoctonear();
 
-        remaining_balance
-            .checked_sub(NearToken::from_yoctonear(self.venear_locked_balance))
+        total_near_balance
+            .checked_sub(self.venear_locked_balance)
             .expect("Illegal balance")
-            .checked_sub(NearToken::from_yoctonear(self.venear_pending_balance))
+            .checked_sub(self.venear_pending_balance)
             .expect("Illegal balance")
-            .as_yoctonear()
     }
 
     fn set_venear_unlock_imestamp(&mut self) {
         self.venear_unlock_timestamp = env::block_timestamp() + self.unlock_duration_ns;
     }
 
-    fn venear_lockup_update(&mut self) {
+    pub fn venear_lockup_update(&mut self) -> Promise {
         self.lockup_update_nonce += 1;
 
         // Calls veNEAR with new total NEAR balance locked in the lockup
@@ -30,11 +33,11 @@ impl LockupContract {
                 self.version,
                 self.owner_account_id.clone(),
                 VLockupUpdate::V1(LockupUpdateV1 {
-                    locked_near_balance: NearToken::from_yoctonear(self.venear_locked_balance),
+                    locked_near_balance: self.get_venear_locked_balance(),
                     timestamp: env::block_timestamp().into(),
                     lockup_update_nonce: U64::from(self.lockup_update_nonce),
                 }),
-            );
+            )
     }
 }
 
@@ -73,6 +76,14 @@ impl LockupContract {
         assert!(amount <= self.venear_liquid_balance(), "Invalid amount");
 
         self.venear_locked_balance += amount;
+
+        events::emit::lockup_action(
+            "lockup_lock_near".as_ref(),
+            &(env::current_account_id()),
+            &Some(U64::from(self.lockup_update_nonce)),
+            &Some(U64::from(env::block_timestamp())),
+            &Some(NearToken::from_yoctonear(amount)),
+        );
 
         self.venear_lockup_update();
     }

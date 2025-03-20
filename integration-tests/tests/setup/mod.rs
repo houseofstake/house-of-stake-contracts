@@ -37,7 +37,7 @@ impl Default for VenearTestWorkspaceBuilder {
         Self {
             unlock_duration_ns: UNLOCK_DURATION_SECONDS * 1_000_000_000,
             local_deposit: NearToken::from_millinear(100),
-            min_lockup_deposit: NearToken::from_millinear(1600),
+            min_lockup_deposit: NearToken::from_millinear(2000),
             annual_growth_rate_ns: Fraction {
                 numerator: 6.into(),
                 denominator: (365u128 * 24 * 60 * 60 * 10u128.pow(9)).into(),
@@ -313,6 +313,18 @@ impl VenearTestWorkspace {
         Ok(self
             .sandbox
             .view(account_id, "get_venear_unlock_timestamp")
+            .args_json(json!({}))
+            .await?
+            .json()?)
+    }
+
+    pub async fn get_venear_liquid_balance(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<NearToken, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(account_id, "get_venear_liquid_balance")
             .args_json(json!({}))
             .await?
             .json()?)

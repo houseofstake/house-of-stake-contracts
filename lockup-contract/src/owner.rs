@@ -1,5 +1,5 @@
 use crate::*;
-use near_sdk::{near, AccountId, NearToken, Promise, PublicKey};
+use near_sdk::{assert_one_yocto, near, AccountId, NearToken, Promise};
 
 #[near]
 impl LockupContract {
@@ -408,31 +408,26 @@ impl LockupContract {
     }
 
     /// OWNER'S METHOD
-    ///
-    /// Requires 50 TGas (2 * BASE_GAS)
-    /// Not intended to hand over the access to someone else except the owner
-    ///
-    /// Adds full access key with the given public key to the account.
-    /// The following requirements should be met:
-    /// - The contract is fully vested;
-    /// - Lockup duration has expired;
-    /// - Transfers are enabled;
-    /// - If there’s a termination made by foundation, it has to be finished.
-    /// Full access key will allow owner to use this account as a regular account and remove
-    /// the contract.
-    pub fn add_full_access_key(&mut self, new_public_key: PublicKey) -> Promise {
+    /// Removes the lockup contract and transfers all NEAR to the initial owner.
+    pub fn delete_lockup(&mut self) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_no_staking_or_idle();
         assert_eq!(
-            self.get_locked_amount().as_yoctonear(),
+            self.get_known_deposited_balance().as_yoctonear(),
             0,
-            "Tokens are still locked/unvested"
+            "Can't delete account with non-zero staked NEAR balance"
         );
 
-        env::log_str("Adding a full access key");
+        assert_eq!(
+            self.venear_locked_balance, 0,
+            "Can't delete account with non-zero locked venear balance"
+        );
+        assert_eq!(
+            self.venear_pending_balance, 0,
+            "Can't delete account with non-zero pending venear balance"
+        );
 
-        let new_public_key: PublicKey = new_public_key;
-
-        Promise::new(env::current_account_id()).add_full_access_key(new_public_key)
+        Promise::new(env::current_account_id()).delete_account(self.owner_account_id.clone())
     }
 }

@@ -26,20 +26,13 @@ impl LockupContract {
             .unwrap_or(NearToken::from_yoctonear(0))
     }
 
-    /// Returns the amount of tokens that are locked in the account due to lockup or vesting.
-    pub fn get_locked_amount(&self) -> NearToken {
-        NearToken::from_yoctonear(self.lockup_amount)
-    }
-
     /// Returns the balance of the account owner. It includes vested and extra tokens that
-    /// may have been deposited to this account, but excludes locked tokens.
+    /// may have been deposited to this account.
     /// NOTE: Some of this tokens may be deposited to the staking pool.
-    /// This method also doesn't account for tokens locked for the contract storage.
     pub fn get_owners_balance(&self) -> NearToken {
         NearToken::from_yoctonear(
-            (env::account_balance().as_yoctonear()
-                + self.get_known_deposited_balance().as_yoctonear())
-            .saturating_sub(self.get_locked_amount().as_yoctonear()),
+            env::account_balance().as_yoctonear()
+                + self.get_known_deposited_balance().as_yoctonear(),
         )
     }
 

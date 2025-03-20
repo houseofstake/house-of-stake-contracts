@@ -91,9 +91,6 @@ pub struct LockupContract {
     /// Account Id of VeNEAR Contract
     pub venear_account_id: AccountId,
 
-    /// The amount in yocto-NEAR tokens locked for this account.
-    pub lockup_amount: Balance,
-
     /// Account ID of the staking pool whitelist contract.
     pub staking_pool_whitelist_account_id: AccountId,
 
@@ -158,7 +155,6 @@ impl LockupContract {
         Self {
             owner_account_id,
             venear_account_id,
-            lockup_amount: env::account_balance().as_yoctonear(),
             staking_information: None,
             staking_pool_whitelist_account_id,
             unlock_duration_ns: unlock_duration_ns.into(),
@@ -187,7 +183,7 @@ mod tests {
     const VENEAR_ACCOUNT_ID: &str = "venear";
     const LOCKUP_VERSION: Version = 1;
     const UNLOCK_DURATION_NS: u64 = 90u64 * 24 * 60 * 60 * 10u64.pow(9);
-    const MIN_LOCKUP_DEPOSIT: NearToken = NearToken::from_millinear(1600);
+    const MIN_LOCKUP_DEPOSIT: NearToken = NearToken::from_millinear(2000);
 
     fn basic_context() -> VMContext {
         get_context(
@@ -236,63 +232,18 @@ mod tests {
         // Checking initial values at genesis time
         testing_env!(context.clone());
 
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
 
         // Checking values in 1 day after genesis time
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + 1);
 
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
 
         // Checking values next day after lockup timestamp
         context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR + 1);
         testing_env!(context.clone());
 
-        assert_almost_eq(contract.get_owners_balance().as_yoctonear(), 0);
-    }
-
-    #[test]
-    #[should_panic(expected = "Tokens are still locked/unvested")]
-    fn test_add_full_access_key() {
-        let (mut context, mut contract) = lockup_only_setup();
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.add_full_access_key(public_key(4));
-    }
-
-    #[test]
-    #[should_panic(expected = "Tokens are still locked/unvested")]
-    fn test_add_full_access_key_when_vesting_is_not_finished() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let mut contract = new_contract(true, None);
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR - 10);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.add_full_access_key(public_key(4));
-    }
-
-    #[test]
-    #[should_panic(expected = "Tokens are still locked/unvested")]
-    fn test_add_full_access_key_when_lockup_is_not_finished() {
-        let mut context = basic_context();
-        testing_env!(context.clone());
-        let mut contract = new_contract(true, Some(to_nanos(YEAR).into()));
-
-        context.block_timestamp = to_ts(GENESIS_TIME_IN_DAYS + YEAR - 10);
-        context.predecessor_account_id = account_owner();
-        context.signer_account_id = account_owner();
-        context.signer_account_pk = public_key(1).try_into().unwrap();
-        testing_env!(context.clone());
-
-        contract.add_full_access_key(public_key(4));
+        assert_almost_eq(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
     }
 
     #[test]
@@ -308,20 +259,17 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "The available liquid balance 0 is smaller than the requested transfer amount 100000000000000000000000000"
-    )]
     fn test_lockup_only_transfer_call_by_owner() {
         let (mut context, mut contract) = lockup_only_setup();
 
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
 
         context.predecessor_account_id = account_owner();
         context.signer_account_id = account_owner();
         context.signer_account_pk = public_key(1).try_into().unwrap();
         testing_env!(context.clone());
 
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
         contract.transfer(NearToken::from_near(100), non_owner());
         assert_almost_eq(
             env::account_balance().as_yoctonear(),
@@ -458,8 +406,11 @@ mod tests {
         contract.on_staking_pool_stake_inner(NearToken::from_yoctonear(amount), true);
 
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
-        assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
+        assert_eq!(
+            contract.get_liquid_owners_balance().as_yoctonear(),
+            to_yocto(100) - MIN_LOCKUP_DEPOSIT.as_yoctonear()
+        );
         assert_eq!(
             contract.get_known_deposited_balance().as_yoctonear(),
             amount
@@ -480,10 +431,10 @@ mod tests {
             contract.get_known_deposited_balance().as_yoctonear(),
             total_balance
         );
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(20));
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1020));
         assert_eq!(
             contract.get_liquid_owners_balance().as_yoctonear(),
-            to_yocto(20)
+            to_yocto(100) - MIN_LOCKUP_DEPOSIT.as_yoctonear()
         );
 
         // Withdrawing these tokens
@@ -498,10 +449,10 @@ mod tests {
             contract.get_known_deposited_balance().as_yoctonear(),
             total_balance
         );
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(5));
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1005));
         assert_eq!(
             contract.get_liquid_owners_balance().as_yoctonear(),
-            to_yocto(5)
+            to_yocto(100) - MIN_LOCKUP_DEPOSIT.as_yoctonear() - to_yocto(15)
         );
     }
 
@@ -599,7 +550,7 @@ mod tests {
 
         let lockup_amount = to_yocto(LOCKUP_NEAR);
         testing_env!(context.clone());
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
+        assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
 
         // Selecting staking pool
         let staking_pool = AccountId::from_str("staking_pool").unwrap();
@@ -614,7 +565,7 @@ mod tests {
         // Deposit to the staking_pool
         let mut total_amount = 0;
         let amount = to_yocto(100);
-        for _ in 1..=5 {
+        for i in 1..=5 {
             total_amount += amount;
             context.predecessor_account_id = account_owner();
             testing_env!(context.clone());
@@ -632,13 +583,16 @@ mod tests {
                 contract.get_known_deposited_balance().as_yoctonear(),
                 total_amount
             );
-            assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
-            assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
+            assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
+            assert_eq!(
+                contract.get_liquid_owners_balance().as_yoctonear(),
+                to_yocto(1000) - MIN_LOCKUP_DEPOSIT.as_yoctonear() - to_yocto(i * 100)
+            );
         }
 
         // Withdrawing from the staking_pool.
         let mut total_withdrawn_amount = 0;
-        for _ in 1..=5 {
+        for i in 1..=5 {
             total_withdrawn_amount += amount;
             context.predecessor_account_id = account_owner();
             testing_env!(context.clone());
@@ -657,8 +611,11 @@ mod tests {
                 contract.get_known_deposited_balance().as_yoctonear(),
                 total_amount.saturating_sub(total_withdrawn_amount)
             );
-            assert_eq!(contract.get_owners_balance().as_yoctonear(), 0);
-            assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), 0);
+            assert_eq!(contract.get_owners_balance().as_yoctonear(), to_yocto(1000));
+            assert_eq!(
+                contract.get_liquid_owners_balance().as_yoctonear(),
+                to_yocto(1000) - MIN_LOCKUP_DEPOSIT.as_yoctonear() - to_yocto((5 - i) * 100)
+            )
         }
 
         // Withdrawing from the staking_pool one extra time as a reward
@@ -675,7 +632,13 @@ mod tests {
             contract.get_known_deposited_balance().as_yoctonear(),
             total_amount.saturating_sub(total_withdrawn_amount)
         );
-        assert_eq!(contract.get_owners_balance().as_yoctonear(), amount);
-        assert_eq!(contract.get_liquid_owners_balance().as_yoctonear(), amount);
+        assert_eq!(
+            contract.get_owners_balance().as_yoctonear(),
+            to_yocto(1000) + amount
+        );
+        assert_eq!(
+            contract.get_liquid_owners_balance().as_yoctonear(),
+            to_yocto(1000) + amount - MIN_LOCKUP_DEPOSIT.as_yoctonear()
+        );
     }
 }
