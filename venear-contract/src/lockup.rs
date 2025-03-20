@@ -76,6 +76,7 @@ impl Contract {
                 events::emit::lockup_action(
                     "lockup_update",
                     &owner_account_id,
+                    version,
                     &Some(lockup_update.lockup_update_nonce),
                     &Some(lockup_update.timestamp),
                     &Some(lockup_update.locked_near_balance),
@@ -104,7 +105,14 @@ impl Contract {
             );
             account_internal.lockup_update_nonce = lockup_update_nonce;
 
-            events::emit::lockup_action("lockup_deployed", &account_id, &None, &None, &None);
+            events::emit::lockup_action(
+                "lockup_deployed",
+                &account_id,
+                version,
+                &None,
+                &None,
+                &None,
+            );
 
             self.internal_set_account_internal(account_id, account_internal);
         } else {
