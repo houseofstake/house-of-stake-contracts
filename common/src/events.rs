@@ -4,7 +4,6 @@ pub mod emit {
     use super::*;
     use crate::TimestampNs;
     use near_sdk::json_types::U64;
-    use near_sdk::serde_json::json;
     use near_sdk::{log, AccountId, NearToken};
 
     #[derive(Serialize)]
@@ -12,11 +11,8 @@ pub mod emit {
     pub(crate) struct LockupUpdateData<'a> {
         pub(crate) account_id: &'a AccountId,
         pub(crate) lockup_version: u64,
-        #[serde(with = "option_u64_dec_format")]
         pub(crate) timestamp: &'a Option<TimestampNs>,
-        #[serde(with = "option_u64_dec_format")]
         pub(crate) lockup_update_nonce: &'a Option<U64>,
-        #[serde(with = "option_u128_dec_format")]
         pub(crate) locked_near_balance: &'a Option<NearToken>,
     }
 
@@ -26,7 +22,6 @@ pub mod emit {
         pub(crate) account_id: &'a AccountId,
         pub(crate) proposal_id: u32,
         pub(crate) vote: u32,
-        #[serde(with = "u128_dec_format")]
         pub(crate) account_balance: &'a NearToken,
     }
 
@@ -49,15 +44,29 @@ pub mod emit {
         pub(crate) voting_options: &'a Vec<String>,
     }
 
-    fn log_event<T: Serialize>(event: &str, data: T) {
-        let event = json!({
-            "standard": "venear",
-            "version": "0.1.0",
-            "event": event,
-            "data": [data]
-        });
+    #[derive(Serialize)]
+    #[serde(crate = "near_sdk::serde")]
+    pub(crate) struct EventJson<'a, T>
+    where
+        T: Serialize,
+    {
+        pub(crate) standard: &'a str,
+        pub(crate) version: &'a str,
+        pub(crate) event: &'a str,
+        pub(crate) data: &'a [T],
+    }
 
-        log!("EVENT_JSON:{}", event.to_string());
+    fn log_event<T: Serialize>(event: &str, data: T) {
+        log!(
+            "EVENT_JSON:{}",
+            serde_json::to_string(&EventJson {
+                standard: "venear",
+                version: "0.1.0",
+                event,
+                data: &[data],
+            })
+            .unwrap()
+        );
     }
 
     pub fn lockup_action(
@@ -137,48 +146,6 @@ pub mod emit {
     }
 }
 
-pub mod u128_dec_format {
-    use near_sdk::serde::Serializer;
-    use near_sdk::NearToken;
-
-    pub fn serialize<S>(num: &NearToken, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&num.as_yoctonear().to_string())
-    }
-}
-pub mod option_u128_dec_format {
-    use near_sdk::serde::Serializer;
-    use near_sdk::NearToken;
-
-    pub fn serialize<S>(num: &Option<NearToken>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(
-            &num.as_ref()
-                .map_or_else(|| "0".to_string(), |n| n.as_yoctonear().to_string()),
-        )
-    }
-}
-
-pub mod option_u64_dec_format {
-    use near_sdk::json_types::U64;
-    use near_sdk::serde::Serializer;
-
-    pub fn serialize<S>(value: &Option<U64>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(
-            &value
-                .as_ref()
-                .map_or_else(|| "0".to_string(), |v| v.0.to_string()),
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,13 +154,10 @@ mod tests {
     use near_sdk::NearToken;
     use near_sdk::{serde_json, AccountId};
 
-    type TimestampNs = U64; // Assuming original type alias
-
     #[test]
     fn test_option_u64_serializer() {
         #[derive(Serialize)]
         struct TestStruct {
-            #[serde(with = "option_u64_dec_format")]
             value: Option<U64>,
         }
 
@@ -207,14 +171,13 @@ mod tests {
         // Test None value
         let test = TestStruct { value: None };
         let json = serde_json::to_string(&test).unwrap();
-        assert_eq!(json, r#"{"value":"0"}"#);
+        assert_eq!(json, r#"{"value":null}"#);
     }
 
     #[test]
     fn test_option_near_token_serializer() {
         #[derive(Serialize)]
         struct TestStruct {
-            #[serde(with = "option_u128_dec_format")]
             value: Option<NearToken>,
         }
 
@@ -228,7 +191,7 @@ mod tests {
         // Test None value
         let test = TestStruct { value: None };
         let json = serde_json::to_string(&test).unwrap();
-        assert_eq!(json, r#"{"value":"0"}"#);
+        assert_eq!(json, r#"{"value":null}"#);
     }
 
     #[test]
@@ -265,7 +228,7 @@ mod tests {
         let json = serde_json::to_string(&test_data).unwrap();
         assert_eq!(
             json,
-            r#"{"account_id":"test.near","lockup_version":1,"timestamp":"0","lockup_update_nonce":"0","locked_near_balance":"0"}"#
+            r#"{"account_id":"test.near","lockup_version":1,"timestamp":null,"lockup_update_nonce":null,"locked_near_balance":null}"#
         );
     }
 
@@ -288,7 +251,7 @@ mod tests {
 
         // The actual log would need to be captured and verified
         // This is just a format check example
-        let expected_log = format!(
+        let _expected_log = format!(
             r#"EVENT_JSON:{{"standard":"venear","version":"0.1.0","event":"test_event","data":[{{"account_id":"event_test.near","lockup_version":1,"timestamp":"987654321","lockup_update_nonce":"777","locked_near_balance":"5555555555555555555"}}]}}"#
         );
         // Normally you would check the actual logs here

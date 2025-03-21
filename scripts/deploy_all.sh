@@ -38,7 +38,7 @@ VOTING_DURATION_NS="${VOTING_DURATION_SEC}000000000"
 # Shorter name, so we can fit more
 export ROOT_ACCOUNT_ID="$ROOT_ACCOUNT_ID"
 export VENEAR_ACCOUNT_ID="v.$ROOT_ACCOUNT_ID"
-export APPROVER_ACCOUNT_ID="approver.$ROOT_ACCOUNT_ID"
+export REVIEWER_ACCOUNT_ID="reviewer.$ROOT_ACCOUNT_ID"
 export VOTING_ACCOUNT_ID="vote.$ROOT_ACCOUNT_ID"
 export OWNER_ACCOUNT_ID="owner.$ROOT_ACCOUNT_ID"
 export LOCKUP_DEPLOYER_ACCOUNT_ID="lockup-deployer.$ROOT_ACCOUNT_ID"
@@ -73,14 +73,14 @@ near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/local/venear_contra
   }
 }' prepaid-gas '10.0 Tgas' attached-deposit '0 NEAR' network-config $CHAIN_ID sign-with-keychain send
 
-echo "Creating account $APPROVER_ACCOUNT_ID"
-near --quiet account create-account fund-myself $APPROVER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
+echo "Creating account $REVIEWER_ACCOUNT_ID"
+near --quiet account create-account fund-myself $REVIEWER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Deploying and initializing voting contract"
 near --quiet contract deploy $VOTING_ACCOUNT_ID use-file res/local/voting_contract.wasm with-init-call new json-args '{
   "config": {
     "venear_account_id": "'$VENEAR_ACCOUNT_ID'",
-    "approver_id": "'$APPROVER_ACCOUNT_ID'",
+    "reviewer_ids": ["'$REVIEWER_ACCOUNT_ID'"],
     "owner_account_id": "'$OWNER_ACCOUNT_ID'",
     "voting_duration_ns": "'$VOTING_DURATION_NS'",
     "max_number_of_voting_options": 16,
@@ -105,13 +105,13 @@ echo "veNEAR:            $VENEAR_ACCOUNT_ID"
 echo "Voting:            $VOTING_ACCOUNT_ID"
 echo "Owner:             $OWNER_ACCOUNT_ID"
 echo "Lockup deployer:   $LOCKUP_DEPLOYER_ACCOUNT_ID"
-echo "Proposal approver: $APPROVER_ACCOUNT_ID"
+echo "Proposal reviewer: $REVIEWER_ACCOUNT_ID"
 echo "Export commands:"
 echo "export ROOT_ACCOUNT_ID=$ROOT_ACCOUNT_ID"
 echo "export VENEAR_ACCOUNT_ID=$VENEAR_ACCOUNT_ID"
 echo "export VOTING_ACCOUNT_ID=$VOTING_ACCOUNT_ID"
 echo "export OWNER_ACCOUNT_ID=$OWNER_ACCOUNT_ID"
 echo "export LOCKUP_DEPLOYER_ACCOUNT_ID=$LOCKUP_DEPLOYER_ACCOUNT_ID"
-echo "export APPROVER_ACCOUNT_ID=$APPROVER_ACCOUNT_ID"
+echo "export REVIEWER_ACCOUNT_ID=$REVIEWER_ACCOUNT_ID"
 
 popd

@@ -1,3 +1,4 @@
+use crate::metadata::ProposalMetadata;
 use crate::*;
 use common::{events, near_add, near_sub, TimestampNs};
 use near_sdk::json_types::U64;
@@ -34,13 +35,13 @@ pub struct Proposal {
     pub creation_time_ns: U64,
     /// The account ID of the proposer.
     pub proposer_id: AccountId,
-    /// The metadata of the proposal, provided by the proposer.
-    pub metadata: ProposalMetadata,
-    /// The timestamp when the voting starts, provided by the approver.
+    /// The account ID of the reviewer, who approved or rejected the proposal.
+    pub reviewer_id: Option<AccountId>,
+    /// The timestamp when the voting starts, provided by the reviewer.
     pub voting_start_time_ns: Option<U64>,
     /// The voting duration in nanoseconds, generated from the config.
     pub voting_duration_ns: U64,
-    /// The flag indicating if the proposal was rejected by the approver.
+    /// The flag indicating if the proposal was rejected by the reviewer.
     pub rejected: bool,
     /// The snapshot of the contract state and global state. Fetched when the proposal is approved.
     pub snapshot_and_state: Option<SnapshotAndState>,
@@ -50,6 +51,15 @@ pub struct Proposal {
     pub total_votes: VoteStats,
     /// The status of the proposal. It's optional and can be computed from the proposal itself.
     pub status: ProposalStatus,
+}
+
+#[derive(Clone)]
+#[near(serializers=[json])]
+pub struct ProposalInfo {
+    #[serde(flatten)]
+    pub proposal: Proposal,
+    #[serde(flatten)]
+    pub metadata: ProposalMetadata,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -78,22 +88,6 @@ pub struct SnapshotAndState {
     pub total_venear: NearToken,
     /// The growth configuration of the veNEAR tokens from the global state.
     pub venear_growth_config: VenearGrowthConfig,
-}
-
-#[derive(Clone)]
-#[near(serializers=[borsh, json])]
-pub struct ProposalMetadata {
-    /// The title of the proposal.
-    pub title: Option<String>,
-
-    /// The description of the proposal.
-    pub description: Option<String>,
-
-    /// The link to the proposal.
-    pub link: Option<String>,
-
-    /// The voting options for the proposal.
-    pub voting_options: Vec<String>,
 }
 
 #[derive(Clone, Default)]
@@ -172,7 +166,7 @@ impl Contract {
             id: proposal_id,
             creation_time_ns: env::block_timestamp().into(),
             proposer_id,
-            metadata,
+            reviewer_id: None,
             voting_start_time_ns: None,
             voting_duration_ns: self.config.voting_duration_ns,
             rejected: false,
@@ -184,6 +178,8 @@ impl Contract {
         let storage_usage = env::storage_usage();
         self.proposals.push(proposal.into());
         self.proposals.flush();
+        self.proposal_metadata.push(metadata.into());
+        self.proposal_metadata.flush();
         let updated_storage_usage = env::storage_usage();
         let storage_added = updated_storage_usage.saturating_sub(storage_usage);
         let storage_added_cost = env::storage_byte_cost()
@@ -292,8 +288,17 @@ impl Contract {
         self.internal_set_proposal(proposal);
     }
 
-    pub fn get_proposal(&self, proposal_id: ProposalId) -> Option<Proposal> {
+    pub fn get_proposal(&self, proposal_id: ProposalId) -> Option<ProposalInfo> {
         self.internal_get_proposal(proposal_id)
+            .map(|proposal| ProposalInfo {
+                proposal,
+                metadata: self
+                    .proposal_metadata
+                    .get(proposal_id)
+                    .unwrap()
+                    .clone()
+                    .into(),
+            })
     }
 }
 
