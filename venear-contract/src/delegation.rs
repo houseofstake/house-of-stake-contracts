@@ -5,13 +5,13 @@ use near_sdk::assert_one_yocto;
 impl Contract {
     /// Delegate all veNEAR tokens to the given receiver account ID.
     #[payable]
-    pub fn delegate_all(&mut self, account_id: AccountId) {
+    pub fn delegate_all(&mut self, receiver_id: AccountId) {
         assert_one_yocto();
         let predecessor_id = env::predecessor_account_id();
-        require!(account_id != predecessor_id, "Can't delegate to self");
+        require!(receiver_id != predecessor_id, "Can't delegate to self");
         let mut account = self.internal_expect_account_updated(&predecessor_id);
         if let Some(delegation) = &account.delegation {
-            if account_id == delegation.account_id {
+            if receiver_id == delegation.account_id {
                 return;
             }
         }
@@ -19,11 +19,13 @@ impl Contract {
             self.internal_undelegate(&mut account);
         }
 
-        let mut delegation_account = self.internal_expect_account_updated(&account_id);
+        let mut delegation_account = self.internal_expect_account_updated(&receiver_id);
         delegation_account.delegated_balance += account.balance;
-        self.internal_set_account(account_id.clone(), delegation_account);
+        self.internal_set_account(receiver_id.clone(), delegation_account);
 
-        account.delegation = Some(AccountDelegation { account_id });
+        account.delegation = Some(AccountDelegation {
+            account_id: receiver_id,
+        });
         self.internal_set_account(predecessor_id, account);
     }
 

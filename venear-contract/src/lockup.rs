@@ -93,7 +93,7 @@ impl Contract {
         account_id: AccountId,
         lockup_update_nonce: U64,
         lockup_deposit: NearToken,
-    ) {
+    ) -> Option<AccountId> {
         if is_promise_success() {
             let mut account_internal = self
                 .internal_get_account_internal(&account_id)
@@ -114,10 +114,13 @@ impl Contract {
                 &None,
             );
 
-            self.internal_set_account_internal(account_id, account_internal);
+            self.internal_set_account_internal(account_id.clone(), account_internal);
+
+            Some(self.get_lockup_account_id(&account_id))
         } else {
             // Refunding the deposit if the lockup contract deployment failed.
             Promise::new(account_id).transfer(lockup_deposit);
+            None
         }
     }
 

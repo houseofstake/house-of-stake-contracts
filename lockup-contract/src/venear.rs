@@ -9,7 +9,7 @@ impl LockupContract {
     // get the amount of NEAR that is not locked in venear contract
     pub(crate) fn venear_liquid_balance(&self) -> Balance {
         // total available NEAR (including tokens on a lockup and staked in pools)
-        let total_near_balance: u128 = self.get_account_balance().as_yoctonear()
+        let total_near_balance: u128 = env::account_balance().as_yoctonear()
             + self.get_known_deposited_balance().as_yoctonear();
 
         total_near_balance

@@ -55,6 +55,44 @@ impl Contract {
                 internal,
             })
     }
+
+    pub fn get_num_accounts(&self) -> u32 {
+        self.tree.len() as u32
+    }
+
+    pub fn get_account_by_index(&self, index: u32) -> Option<AccountInfo> {
+        self.tree.get_by_index(index).map(|account| {
+            let mut account: Account = account.clone().into();
+            account.update(
+                env::block_timestamp().into(),
+                self.internal_get_venear_growth_config(),
+            );
+            let internal = self
+                .internal_get_account_internal(&account.account_id)
+                .unwrap();
+            AccountInfo { account, internal }
+        })
+    }
+
+    pub fn get_accounts(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<AccountInfo> {
+        let from_index = from_index.unwrap_or(0);
+        let limit = limit.unwrap_or(u32::MAX);
+        let to_index = std::cmp::min(from_index.saturating_add(limit), self.get_num_accounts());
+        (from_index..to_index)
+            .into_iter()
+            .filter_map(|i| self.get_account_by_index(i))
+            .collect()
+    }
+
+    pub fn get_accounts_raw(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<&VAccount> {
+        let from_index = from_index.unwrap_or(0);
+        let limit = limit.unwrap_or(u32::MAX);
+        let to_index = std::cmp::min(from_index.saturating_add(limit), self.get_num_accounts());
+        (from_index..to_index)
+            .into_iter()
+            .filter_map(|i| self.tree.get_by_index(i))
+            .collect()
+    }
 }
 
 impl Contract {
