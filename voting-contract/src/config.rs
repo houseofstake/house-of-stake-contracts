@@ -7,8 +7,8 @@ pub struct Config {
     /// The account ID of the veNEAR contract.
     pub venear_account_id: AccountId,
 
-    /// The account ID that can approve proposals.
-    pub approver_id: AccountId,
+    /// The account ID that can approve or reject proposals.
+    pub reviewer_ids: Vec<AccountId>,
 
     /// The account ID that can upgrade the current contract and modify the config.
     pub owner_account_id: AccountId,

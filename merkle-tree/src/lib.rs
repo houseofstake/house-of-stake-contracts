@@ -298,6 +298,7 @@ mod tests {
         assert_eq!(tree.tree_height(), 1);
         assert_ne!(tree.root, CryptoHash::default());
         assert_eq!(tree.length, 1);
+        let old_root = tree.root;
 
         context.block_index += 1;
         testing_env!(context.clone());
@@ -306,7 +307,21 @@ mod tests {
         assert_eq!(old_value, Some(value));
         assert_eq!(tree.tree_height(), 1);
         assert_ne!(tree.root, CryptoHash::default());
+        assert_ne!(tree.root, old_root);
         assert_eq!(tree.length, 1);
+        let old_root = tree.root;
+
+        context.block_index += 1;
+        testing_env!(context.clone());
+
+        let bob_value = 69u32;
+        let bob_account_id: AccountId = "bob.near".parse().unwrap();
+        let bob_old_value = tree.set(bob_account_id.clone(), bob_value);
+        assert_eq!(bob_old_value, None);
+        assert_eq!(tree.tree_height(), 2);
+        assert_ne!(tree.root, CryptoHash::default());
+        assert_ne!(tree.root, old_root);
+        assert_eq!(tree.length, 2);
 
         context.block_index += 1;
         testing_env!(context.clone());

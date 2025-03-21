@@ -11,10 +11,10 @@ impl Contract {
     }
 
     #[payable]
-    pub fn set_approver_id(&mut self, approver_id: AccountId) {
+    pub fn set_reviewer_ids(&mut self, reviewer_ids: Vec<AccountId>) {
         assert_one_yocto();
         self.assert_owner();
-        self.config.approver_id = approver_id;
+        self.config.reviewer_ids = reviewer_ids;
     }
 
     #[payable]

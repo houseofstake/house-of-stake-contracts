@@ -1,4 +1,4 @@
-use crate::proposal::{Proposal, ProposalStatus, SnapshotAndState};
+use crate::proposal::{ProposalInfo, ProposalStatus, SnapshotAndState};
 use crate::*;
 use common::global_state::{GlobalState, VGlobalState};
 use common::{events, TimestampNs};
@@ -16,7 +16,7 @@ impl Contract {
         voting_start_time_sec: Option<u32>,
     ) -> Promise {
         assert_one_yocto();
-        self.assert_called_by_approver();
+        self.assert_called_by_reviewer();
         let proposal = self.internal_expect_proposal_updated(proposal_id);
 
         if proposal.status != ProposalStatus::Created {
@@ -43,7 +43,7 @@ impl Contract {
     #[payable]
     pub fn reject_proposal(&mut self, proposal_id: ProposalId) {
         assert_one_yocto();
-        self.assert_called_by_approver();
+        self.assert_called_by_reviewer();
         let mut proposal = self.internal_expect_proposal_updated(proposal_id);
 
         if proposal.status != ProposalStatus::Created {
@@ -51,6 +51,7 @@ impl Contract {
         }
 
         proposal.rejected = true;
+        proposal.reviewer_id = Some(env::predecessor_account_id());
         proposal.status = ProposalStatus::Rejected;
 
         events::emit::approve_proposal_action(
@@ -69,7 +70,7 @@ impl Contract {
         #[callback] snapshot_and_state: (MerkleTreeSnapshot, VGlobalState),
         proposal_id: ProposalId,
         voting_start_time_sec: Option<u32>,
-    ) -> Proposal {
+    ) -> ProposalInfo {
         let mut proposal = self.internal_expect_proposal_updated(proposal_id);
 
         if proposal.status != ProposalStatus::Created {
@@ -78,6 +79,7 @@ impl Contract {
 
         let timestamp: TimestampNs = env::block_timestamp().into();
 
+        proposal.reviewer_id = Some(env::predecessor_account_id());
         proposal.voting_start_time_ns = Some(
             voting_start_time_sec
                 .map(|v| u64::from(v).mul(10u64.pow(9)).into())
@@ -100,15 +102,17 @@ impl Contract {
 
         self.internal_set_proposal(proposal.clone());
 
-        proposal
+        self.get_proposal(proposal_id).unwrap()
     }
 }
 
 impl Contract {
-    pub fn assert_called_by_approver(&self) {
+    pub fn assert_called_by_reviewer(&self) {
         require!(
-            env::predecessor_account_id() == self.config.approver_id,
-            "Only the approver can call this method"
+            self.config
+                .reviewer_ids
+                .contains(&env::predecessor_account_id()),
+            "Only the reviewers can call this method"
         );
     }
 }
