@@ -41,7 +41,7 @@ pub struct Contract {
 #[near]
 impl Contract {
     #[init]
-    pub fn init(config: Config, venear_growth_config: VenearGrowthConfigFixedRate) -> Self {
+    pub fn new(config: Config, venear_growth_config: VenearGrowthConfigFixedRate) -> Self {
         Self {
             tree: MerkleTree::new(
                 StorageKeys::Tree,

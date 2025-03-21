@@ -139,7 +139,7 @@ where
             let right_hash = self.internal_get_hash(height - 1, (height_index << 1) + 1);
             let concat = [&left_hash[..], &right_hash[..]].concat();
             let hash = near_sdk::env::sha256(&concat).try_into().unwrap();
-            self.internal_set_hash(0, index, hash);
+            self.internal_set_hash(height, height_index, hash);
         }
         self.root = self.internal_get_hash(self.tree_height() - 1, 0);
     }
@@ -204,6 +204,18 @@ where
             MerkleProof { index, path },
             self.data.get(&index).cloned().unwrap(),
         ))
+    }
+
+    pub fn len(&self) -> u32 {
+        self.length
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    pub fn get_by_index(&self, index: u32) -> Option<&V> {
+        self.data.get(&index)
     }
 }
 

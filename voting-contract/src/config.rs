@@ -19,8 +19,8 @@ pub struct Config {
     /// The maximum number of voting options per proposal.
     pub max_number_of_voting_options: u16,
 
-    /// The fee that is paid to the contract for creating a proposal.
-    pub proposal_fee: NearToken,
+    /// The base fee in addition to the storage fee required to create a proposal.
+    pub base_proposal_fee: NearToken,
 
     /// Storage fee required to store a vote for an active proposal. It can be refunded once the
     /// proposal is finalized.

@@ -29,6 +29,13 @@ To test all the contracts locally, run the following command (note, it will buil
 ./test_all.sh
 ```
 
+### Run end-to-end flow on testnet
+
+```bash
+./build_all.sh
+scripts/test_all.sh
+```
+
 ### TODO:
 
 - Lockup contract

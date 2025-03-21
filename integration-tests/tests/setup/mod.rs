@@ -90,11 +90,7 @@ impl VenearTestWorkspaceBuilder {
         let outcome = venear
             .batch(venear.id())
             .deploy(&venear_wasm)
-            .call(
-                Function::new("init")
-                    .args_json(args)
-                    .gas(Gas::from_tgas(10)),
-            )
+            .call(Function::new("new").args_json(args).gas(Gas::from_tgas(10)))
             .transact()
             .await?;
         assert!(

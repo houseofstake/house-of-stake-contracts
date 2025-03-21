@@ -140,14 +140,6 @@ impl Contract {
     #[payable]
     pub fn create_proposal(&mut self, metadata: ProposalMetadata) -> ProposalId {
         let attached_deposit = env::attached_deposit();
-        require!(
-            attached_deposit == self.config.proposal_fee,
-            format!(
-                "Requires deposit of {}",
-                self.config.proposal_fee.exact_amount_display()
-            )
-        );
-
         let num_voting_options = metadata.voting_options.len();
 
         require!(
@@ -189,7 +181,26 @@ impl Contract {
             total_votes: VoteStats::default(),
             status: ProposalStatus::Created,
         };
+        let storage_usage = env::storage_usage();
         self.proposals.push(proposal.into());
+        self.proposals.flush();
+        let updated_storage_usage = env::storage_usage();
+        let storage_added = updated_storage_usage.saturating_sub(storage_usage);
+        let storage_added_cost = env::storage_byte_cost()
+            .checked_mul(storage_added as _)
+            .unwrap();
+        let required_deposit = near_add(self.config.base_proposal_fee, storage_added_cost);
+        require!(
+            attached_deposit >= required_deposit,
+            format!(
+                "Requires deposit of {}",
+                required_deposit.exact_amount_display()
+            )
+        );
+        if attached_deposit > required_deposit {
+            let refund = near_sub(attached_deposit, required_deposit);
+            Promise::new(env::predecessor_account_id()).transfer(refund);
+        }
         proposal_id
     }
 

@@ -98,7 +98,7 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
     let outcome = user_a
         .call(v.venear.id(), "delegate_all")
         .args_json(json!({
-            "account_id": temp_user.id()
+            "receiver_id": temp_user.id()
         }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
@@ -125,7 +125,7 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
     let outcome = user_a
         .call(v.venear.id(), "delegate_all")
         .args_json(json!({
-            "account_id": user_b.id()
+            "receiver_id": user_b.id()
         }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
