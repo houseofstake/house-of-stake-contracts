@@ -297,6 +297,7 @@ impl Contract {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn prepare_lockup_code() {
     env::setup_panic_hook();
