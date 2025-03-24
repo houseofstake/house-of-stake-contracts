@@ -18,6 +18,7 @@ impl Contract {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn upgrade() {
     env::setup_panic_hook();

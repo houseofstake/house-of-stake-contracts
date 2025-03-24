@@ -36,6 +36,13 @@ To test all the contracts locally, run the following command (note, it will buil
 scripts/test_all.sh
 ```
 
+### Deploying on testnet
+
+```bash
+export ROOT_ACCOUNT_ID=hos01.testnet
+env CONTRACTS_SOURCE=release CHAIN_ID=testnet VOTING_DURATION_SEC=604800 scripts/deploy_all.sh $ROOT_ACCOUNT_ID
+```
+
 ### TODO:
 
 - Lockup contract

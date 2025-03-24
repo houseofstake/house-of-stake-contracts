@@ -18,6 +18,17 @@ if [ ${#ROOT_ACCOUNT_ID} -gt 20 ]; then
   exit 1
 fi
 
+: "${CONTRACTS_SOURCE:=local}"
+
+if [ "$CONTRACTS_SOURCE" = "local" ]; then
+  echo "Deploying contracts from local sources"
+elif [ "$CONTRACTS_SOURCE" = "release" ]; then
+  echo "Deploying contracts from release sources"
+else
+  echo "Error: Unknown contracts source: $CONTRACTS_SOURCE"
+  exit 1
+fi
+
 : "${CHAIN_ID:=testnet}"
 : "${STAKING_POOL_WHITELIST_ACCOUNT_ID:=whitelist.f863973.m0}"
 # 10 minutes for testing
@@ -56,7 +67,7 @@ echo "Creating account $LOCKUP_DEPLOYER_ACCOUNT_ID"
 near --quiet account create-account fund-myself $LOCKUP_DEPLOYER_ACCOUNT_ID '2.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Deploying and initializing veNEAR contract"
-near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/local/venear_contract.wasm with-init-call new json-args '{
+near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/venear_contract.wasm with-init-call new json-args '{
   "config": {
     "unlock_duration_ns": "'$UNLOCK_DURATION_NS'",
     "staking_pool_whitelist_account_id": "'$STAKING_POOL_WHITELIST_ACCOUNT_ID'",
@@ -77,7 +88,7 @@ echo "Creating account $REVIEWER_ACCOUNT_ID"
 near --quiet account create-account fund-myself $REVIEWER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Deploying and initializing voting contract"
-near --quiet contract deploy $VOTING_ACCOUNT_ID use-file res/local/voting_contract.wasm with-init-call new json-args '{
+near --quiet contract deploy $VOTING_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/voting_contract.wasm with-init-call new json-args '{
   "config": {
     "venear_account_id": "'$VENEAR_ACCOUNT_ID'",
     "reviewer_ids": ["'$REVIEWER_ACCOUNT_ID'"],
@@ -90,9 +101,9 @@ near --quiet contract deploy $VOTING_ACCOUNT_ID use-file res/local/voting_contra
 }' prepaid-gas '10.0 Tgas' attached-deposit '0 NEAR' network-config $CHAIN_ID sign-with-keychain send
 
 echo "Preparing lockup contract on veNEAR"
-near --quiet contract call-function as-transaction $VENEAR_ACCOUNT_ID prepare_lockup_code file-args res/local/lockup_contract.wasm prepaid-gas '100.0 Tgas' attached-deposit '1.98 NEAR' sign-as $LOCKUP_DEPLOYER_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
+near --quiet contract call-function as-transaction $VENEAR_ACCOUNT_ID prepare_lockup_code file-args res/$CONTRACTS_SOURCE/lockup_contract.wasm prepaid-gas '100.0 Tgas' attached-deposit '1.98 NEAR' sign-as $LOCKUP_DEPLOYER_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
-CONTRACT_HASH=$(cat res/local/lockup_contract.wasm | sha256sum | awk '{ print $1 }' | xxd -r -p | base58)
+CONTRACT_HASH=$(cat res/$CONTRACTS_SOURCE/lockup_contract.wasm | sha256sum | awk '{ print $1 }' | xxd -r -p | base58)
 echo "Activating lockup contract on veNEAR with hash $CONTRACT_HASH"
 near --quiet contract call-function as-transaction $VENEAR_ACCOUNT_ID set_lockup_contract json-args '{
   "contract_hash": "'$CONTRACT_HASH'",
