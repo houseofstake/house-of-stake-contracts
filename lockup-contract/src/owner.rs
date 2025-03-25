@@ -141,6 +141,7 @@ impl LockupContract {
                 .clone(),
         )
         .with_static_gas(gas::staking_pool::DEPOSIT_AND_STAKE)
+        .with_attached_deposit(amount)
         .deposit_and_stake()
         .then(
             ext_self_owner::ext(env::current_account_id())
