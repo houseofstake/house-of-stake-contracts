@@ -411,6 +411,7 @@ impl LockupContract {
 
     /// OWNER'S METHOD
     /// Removes the lockup contract and transfers all NEAR to the initial owner.
+    #[payable]
     pub fn delete_lockup(&mut self) -> Promise {
         self.assert_owner();
         assert_one_yocto();
