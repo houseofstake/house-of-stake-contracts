@@ -300,6 +300,37 @@ impl Contract {
                     .into(),
             })
     }
+
+    pub fn get_num_proposals(&self) -> u32 {
+        self.proposals.len()
+    }
+
+    pub fn get_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<ProposalInfo> {
+        let from_index = from_index;
+        let limit = limit.unwrap_or(u32::MAX);
+        let to_index = std::cmp::min(from_index.saturating_add(limit), self.get_num_proposals());
+        (from_index..to_index)
+            .into_iter()
+            .filter_map(|i| self.get_proposal(i))
+            .collect()
+    }
+
+    pub fn get_num_approved_proposals(&self) -> u32 {
+        self.approved_proposals.len()
+    }
+
+    pub fn get_approved_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<ProposalInfo> {
+        let from_index = from_index;
+        let limit = limit.unwrap_or(u32::MAX);
+        let to_index = std::cmp::min(
+            from_index.saturating_add(limit),
+            self.get_num_approved_proposals(),
+        );
+        (from_index..to_index)
+            .into_iter()
+            .filter_map(|i| self.get_proposal(self.approved_proposals[i]))
+            .collect()
+    }
 }
 
 impl Contract {
