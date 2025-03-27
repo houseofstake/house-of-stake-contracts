@@ -36,6 +36,7 @@ pub struct Config {
 
 #[near]
 impl Contract {
+    /// Returns the current contract configuration.
     pub fn get_config(&self) -> &Config {
         &self.config
     }

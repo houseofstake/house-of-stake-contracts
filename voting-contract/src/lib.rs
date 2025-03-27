@@ -13,7 +13,7 @@ use crate::proposal::{ProposalId, VProposal};
 use common::account::*;
 use common::venear::VenearGrowthConfig;
 use near_sdk::store::{LookupMap, Vector};
-use near_sdk::{env, near, require, AccountId, BorshStorageKey, NearToken, PanicOnDefault};
+use near_sdk::{env, near, require, sys, AccountId, BorshStorageKey, NearToken, PanicOnDefault};
 
 #[derive(BorshStorageKey)]
 #[near]
@@ -37,6 +37,7 @@ pub struct Contract {
 
 #[near]
 impl Contract {
+    /// Initializes the contract with the given configuration.
     #[init]
     pub fn new(config: Config) -> Self {
         Self {

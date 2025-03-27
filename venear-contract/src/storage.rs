@@ -30,6 +30,7 @@ impl Contract {
 impl Contract {
     /// Registers a new account. If the account is already registered, it refunds the attached
     /// deposit.
+    /// Requires a deposit of at least `storage_balance_bounds().min`.
     #[payable]
     pub fn storage_deposit(&mut self, account_id: Option<AccountId>) -> StorageBalance {
         let amount = env::attached_deposit();
