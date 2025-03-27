@@ -10,8 +10,10 @@ impl LockupContract {
     ///
     /// Selects staking pool contract at the given account ID. The staking pool first has to be
     /// checked against the staking pool whitelist contract.
+    #[payable]
     pub fn select_staking_pool(&mut self, staking_pool_account_id: AccountId) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(
             env::is_valid_account_id(staking_pool_account_id.as_bytes()),
             "The staking pool account ID is invalid"
@@ -39,19 +41,21 @@ impl LockupContract {
     ///
     /// Unselects the current staking pool.
     /// It requires that there are no known deposits left on the currently selected staking pool.
+    #[payable]
     pub fn unselect_staking_pool(&mut self) {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_staking_pool_is_idle();
         // NOTE: This is best effort checks. There is still some balance might be left on the
         // staking pool, but it's up to the owner whether to unselect the staking pool.
         // The contract doesn't care about leftovers.
-        assert_eq!(
+        assert!(
             self.staking_information
                 .as_ref()
                 .unwrap()
                 .deposit_amount
-                .as_yoctonear(),
-            0,
+                .as_yoctonear()
+                <= 1, // 1 yocto from this call
             "There is still a deposit on the staking pool"
         );
 
@@ -71,8 +75,10 @@ impl LockupContract {
     /// Requires 100 TGas (4 * BASE_GAS)
     ///
     /// Deposits the given extra amount to the staking pool
+    #[payable]
     pub fn deposit_to_staking_pool(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
         assert!(
@@ -113,8 +119,10 @@ impl LockupContract {
     /// Requires 125 TGas (5 * BASE_GAS)
     ///
     /// Deposits and stakes the given extra amount to the selected staking pool
+    #[payable]
     pub fn deposit_and_stake(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
         assert!(
@@ -158,8 +166,10 @@ impl LockupContract {
     /// This method is helpful when the owner received some rewards for staking and wants to
     /// transfer them back to this account for withdrawal. In order to know the actual liquid
     /// balance on the account, this contract needs to query the staking pool.
+    #[payable]
     pub fn refresh_staking_pool_balance(&mut self) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_staking_pool_is_idle();
 
         env::log_str(&format!(
@@ -193,8 +203,10 @@ impl LockupContract {
     /// Requires 125 TGas (5 * BASE_GAS)
     ///
     /// Withdraws the given amount from the staking pool
+    #[payable]
     pub fn withdraw_from_staking_pool(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
 
@@ -230,8 +242,10 @@ impl LockupContract {
     /// Requires 175 TGas (7 * BASE_GAS)
     ///
     /// Tries to withdraws all unstaked balance from the staking pool
+    #[payable]
     pub fn withdraw_all_from_staking_pool(&mut self) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_staking_pool_is_idle();
 
         env::log_str(&format!(
@@ -267,8 +281,10 @@ impl LockupContract {
     /// Requires 125 TGas (5 * BASE_GAS)
     ///
     /// Stakes the given extra amount at the staking pool
+    #[payable]
     pub fn stake(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
 
@@ -304,8 +320,10 @@ impl LockupContract {
     /// Requires 125 TGas (5 * BASE_GAS)
     ///
     /// Unstakes the given amount at the staking pool
+    #[payable]
     pub fn unstake(&mut self, amount: NearToken) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         self.assert_staking_pool_is_idle();
 
@@ -341,8 +359,10 @@ impl LockupContract {
     /// Requires 125 TGas (5 * BASE_GAS)
     ///
     /// Unstakes all tokens from the staking pool
+    #[payable]
     pub fn unstake_all(&mut self) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         self.assert_staking_pool_is_idle();
 
         env::log_str(&format!(
@@ -379,8 +399,10 @@ impl LockupContract {
     ///
     /// Transfers the given amount to the given receiver account ID.
     /// This requires transfers to be enabled within the voting contract.
+    #[payable]
     pub fn transfer(&mut self, amount: NearToken, receiver_id: AccountId) -> Promise {
         self.assert_owner();
+        assert_one_yocto();
         assert!(amount.as_yoctonear() > 0, "Amount should be positive");
         assert!(
             env::is_valid_account_id(receiver_id.as_bytes()),
