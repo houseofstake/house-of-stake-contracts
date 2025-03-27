@@ -131,6 +131,9 @@ impl Proposal {
 
 #[near]
 impl Contract {
+    /// Creates a new proposal with the given metadata.
+    /// The proposal is created by the predecessor account and requires a deposit to cover the
+    /// storage and the base proposal fee.
     #[payable]
     pub fn create_proposal(&mut self, metadata: ProposalMetadata) -> ProposalId {
         let attached_deposit = env::attached_deposit();
@@ -200,6 +203,10 @@ impl Contract {
         proposal_id
     }
 
+    /// Cast a vote for the given proposal and the given voting option.
+    /// The caller has to provide a merkle proof and the account state from the snapshot.
+    /// The caller should match the account ID in the account state.
+    /// Requires a deposit to cover the storage fee or at least 1 yoctoNEAR if changing the vote.
     #[payable]
     pub fn vote(
         &mut self,
@@ -235,6 +242,10 @@ impl Contract {
         let timestamp_ns = proposal.snapshot_and_state.as_ref().unwrap().timestamp_ns;
         let account: Account = v_account.into();
         let account_id = &account.account_id;
+        require!(
+            account_id == &env::predecessor_account_id(),
+            "Account ID doesn't match the predecessor account ID"
+        );
         let account_balance = account
             .venear_balance(
                 timestamp_ns,
@@ -288,6 +299,7 @@ impl Contract {
         self.internal_set_proposal(proposal);
     }
 
+    /// Returns the proposal information by the given proposal ID.
     pub fn get_proposal(&self, proposal_id: ProposalId) -> Option<ProposalInfo> {
         self.internal_get_proposal(proposal_id)
             .map(|proposal| ProposalInfo {
@@ -301,10 +313,12 @@ impl Contract {
             })
     }
 
+    /// Returns the number of proposals.
     pub fn get_num_proposals(&self) -> u32 {
         self.proposals.len()
     }
 
+    /// Returns a list of proposals from the given index based on the proposal ID order.
     pub fn get_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<ProposalInfo> {
         let from_index = from_index;
         let limit = limit.unwrap_or(u32::MAX);
@@ -315,10 +329,13 @@ impl Contract {
             .collect()
     }
 
+    /// Returns the number of approved proposals.
     pub fn get_num_approved_proposals(&self) -> u32 {
         self.approved_proposals.len()
     }
 
+    /// Returns a list of approved proposals from the given index based on the approved proposals
+    /// order.
     pub fn get_approved_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<ProposalInfo> {
         let from_index = from_index;
         let limit = limit.unwrap_or(u32::MAX);

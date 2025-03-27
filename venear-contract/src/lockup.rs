@@ -1,13 +1,11 @@
 use crate::account::AccountInternal;
 use crate::config::LockupContractConfig;
 use crate::*;
-use common::events;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
 use common::near_add;
+use common::{events, near_sub};
 use near_sdk::json_types::{Base58CryptoHash, U64};
 use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
-
-const CONTRACT_CODE_EXTRA_STORAGE_BYTES: u64 = 100;
 
 const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(20);
 const ON_LOCKUP_DEPLOYED: Gas = Gas::from_tgas(15);
@@ -45,6 +43,7 @@ impl Contract {
     /// If the lockup contract is already deployed, the method will fail after the attempt.
     /// Requires the caller to attach the deposit for the lockup contract of at least
     /// `get_lockup_deployment_cost()`.
+    /// Requires the caller to already be registered.
     #[payable]
     pub fn deploy_lockup(&mut self) {
         self.internal_deploy_lockup(env::predecessor_account_id());
@@ -86,6 +85,7 @@ impl Contract {
         }
     }
 
+    /// Callback after the attempt to deploy the lockup contract.
     #[private]
     pub fn on_lockup_deployed(
         &mut self,
@@ -124,6 +124,8 @@ impl Contract {
         }
     }
 
+    /// Returns the account ID for the lockup contract for the given account.
+    /// Note, the lockup contract is not guaranteed to be deployed.
     pub fn get_lockup_account_id(&self, account_id: &AccountId) -> AccountId {
         let owner_account_id_hash = hex::encode(&env::sha256(account_id.as_bytes())[0..20]);
         format!("{}.{}", owner_account_id_hash, env::current_account_id())
@@ -297,6 +299,11 @@ impl Contract {
     }
 }
 
+/// Stores the new lockup contract code internally, doesn't modify the active lockup contract.
+/// The input should be the lockup contract code.
+/// Returns the contract hash.
+/// Requires the caller to attach the deposit to cover the storage cost.
+/// Requires the caller to be one of the lockup code deployers.
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn prepare_lockup_code() {
@@ -315,13 +322,8 @@ pub extern "C" fn prepare_lockup_code() {
     unsafe {
         sys::input(CONTRACT_REGISTER);
     }
-    let (mut size, contract_hash) = internal_get_hash_and_size(CONTRACT_REGISTER);
-    size += CONTRACT_CODE_EXTRA_STORAGE_BYTES;
-    let cost = NearToken::from_yoctonear(env::storage_byte_cost().as_yoctonear() * size as u128);
-    require!(
-        env::attached_deposit() >= cost,
-        "Not enough attached deposit"
-    );
+    let (_size, contract_hash) = internal_get_hash_and_size(CONTRACT_REGISTER);
+    let starting_storage_usage = env::storage_usage();
     let key = StorageKeys::LockupCode(contract_hash).into_storage_key();
     unsafe {
         sys::storage_write(
@@ -331,6 +333,18 @@ pub extern "C" fn prepare_lockup_code() {
             CONTRACT_REGISTER,
             1,
         );
+    }
+    let final_storage_usage = env::storage_usage();
+    let storage_cost = env::storage_byte_cost()
+        .checked_mul((final_storage_usage - starting_storage_usage) as u128)
+        .unwrap();
+    let attached_deposit = env::attached_deposit();
+    require!(
+        attached_deposit >= storage_cost,
+        "Not enough attached deposit"
+    );
+    if attached_deposit > storage_cost {
+        Promise::new(predecessor_id).transfer(near_sub(attached_deposit, storage_cost));
     }
     let result = serde_json::to_vec(&Base58CryptoHash::from(contract_hash)).unwrap();
     unsafe {

@@ -47,7 +47,7 @@ impl From<VAccountInternal> for AccountInternal {
 
 #[near]
 impl Contract {
-    /// Helper method to get the account info.
+    /// Returns the account info for a given account ID.
     pub fn get_account_info(&self, account_id: AccountId) -> Option<AccountInfo> {
         self.internal_get_account_internal(&account_id)
             .map(|internal| AccountInfo {
@@ -56,10 +56,12 @@ impl Contract {
             })
     }
 
+    /// Returns the number of accounts.
     pub fn get_num_accounts(&self) -> u32 {
         self.tree.len() as u32
     }
 
+    /// Returns the account info for a given index in the Merkle tree.
     pub fn get_account_by_index(&self, index: u32) -> Option<AccountInfo> {
         self.tree.get_by_index(index).map(|account| {
             let mut account: Account = account.clone().into();
@@ -74,6 +76,7 @@ impl Contract {
         })
     }
 
+    /// Returns a list of account info from the given index based on the merkle tree order.
     pub fn get_accounts(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<AccountInfo> {
         let from_index = from_index.unwrap_or(0);
         let limit = limit.unwrap_or(u32::MAX);
@@ -84,6 +87,7 @@ impl Contract {
             .collect()
     }
 
+    /// Returns a list of raw account data from the given index based on the merkle tree order.
     pub fn get_accounts_raw(&self, from_index: Option<u32>, limit: Option<u32>) -> Vec<&VAccount> {
         let from_index = from_index.unwrap_or(0);
         let limit = limit.unwrap_or(u32::MAX);

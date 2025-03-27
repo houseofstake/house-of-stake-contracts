@@ -9,6 +9,10 @@ pub const GAS_FOR_ON_GET_SNAPSHOT: Gas = Gas::from_tgas(30);
 
 #[near]
 impl Contract {
+    /// Approves the proposal to start the voting process.
+    /// An optional voting start time in seconds can be provided to delay the start of the voting.
+    /// Requires 1 yocto attached to the call.
+    /// Can only be called by the reviewers.
     #[payable]
     pub fn approve_proposal(
         &mut self,
@@ -40,6 +44,9 @@ impl Contract {
             )
     }
 
+    /// Rejects the proposal.
+    /// Requires 1 yocto attached to the call.
+    /// Can only be called by the reviewers.
     #[payable]
     pub fn reject_proposal(&mut self, proposal_id: ProposalId) {
         assert_one_yocto();
@@ -64,6 +71,7 @@ impl Contract {
         self.internal_set_proposal(proposal);
     }
 
+    /// A callback after the snapshot is received for approving the proposal.
     #[private]
     pub fn on_get_snapshot(
         &mut self,

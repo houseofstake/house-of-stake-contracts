@@ -4,6 +4,8 @@ use near_sdk::assert_one_yocto;
 #[near]
 impl Contract {
     /// Delegate all veNEAR tokens to the given receiver account ID.
+    /// The receiver account ID must be registered in the contract.
+    /// Requires 1 yocto NEAR.
     #[payable]
     pub fn delegate_all(&mut self, receiver_id: AccountId) {
         assert_one_yocto();
@@ -30,6 +32,7 @@ impl Contract {
     }
 
     /// Undelegate all NEAR tokens.
+    /// Requires 1 yocto NEAR.
     #[payable]
     pub fn undelegate(&mut self) {
         assert_one_yocto();

@@ -2,22 +2,29 @@ use crate::*;
 use near_sdk::Gas;
 
 const MIGRATE_STATE_GAS: Gas = Gas::from_tgas(50);
-const GET_VERSION_GAS: Gas = Gas::from_tgas(5);
+const GET_CONFIG_GAS: Gas = Gas::from_tgas(5);
 
 #[near]
 impl Contract {
+    /// Private method to migrate the contract state during the contract upgrade.
     #[private]
     #[init(ignore_state)]
-    pub fn upgrade_state() -> Self {
+    pub fn migrate_state() -> Self {
         let contract: Self = env::state_read().unwrap();
         contract
     }
 
+    /// Returns the version of the contract from the Cargo.toml.
     pub fn get_version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
 }
 
+/// Upgrades the contract to the new version.
+/// Requires the contract to be owned by the owner.
+/// The input is the new contract code.
+/// The contract will call `migrate_state` method on the new contract and then return the config,
+/// to verify that the migration was successful.
 #[cfg(target_arch = "wasm32")]
 #[no_mangle]
 pub extern "C" fn upgrade() {
@@ -27,7 +34,7 @@ pub extern "C" fn upgrade() {
     let current_account_id = env::current_account_id();
     let current_account_id = current_account_id.as_str();
     let migrate_method_name = b"migrate_state".to_vec();
-    let get_config_method_name = b"get_version".to_vec();
+    let get_config_method_name = b"get_config".to_vec();
     let empty_args = b"{}".to_vec();
     unsafe {
         sys::input(0);
@@ -48,7 +55,7 @@ pub extern "C" fn upgrade() {
             MIGRATE_STATE_GAS.as_gas(),
             1,
         );
-        // Scheduling to return a version after the migration is completed.
+        // Scheduling to return a config after the migration is completed.
         // It's an extra safety guard for the remote contract upgrades.
         sys::promise_batch_action_function_call(
             promise_id,
@@ -57,7 +64,7 @@ pub extern "C" fn upgrade() {
             empty_args.len() as _,
             empty_args.as_ptr() as _,
             0 as _,
-            GET_VERSION_GAS.as_gas(),
+            GET_CONFIG_GAS.as_gas(),
         );
         sys::promise_return(promise_id);
     }

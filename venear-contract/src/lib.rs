@@ -40,6 +40,7 @@ pub struct Contract {
 
 #[near]
 impl Contract {
+    /// Initializes the contract with the given configuration.
     #[init]
     pub fn new(config: Config, venear_growth_config: VenearGrowthConfigFixedRate) -> Self {
         Self {
@@ -51,7 +52,4 @@ impl Contract {
             config,
         }
     }
-
-    // TODO:
-    // - contract upgrades
 }
