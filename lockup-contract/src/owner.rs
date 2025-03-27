@@ -49,13 +49,13 @@ impl LockupContract {
         // NOTE: This is best effort checks. There is still some balance might be left on the
         // staking pool, but it's up to the owner whether to unselect the staking pool.
         // The contract doesn't care about leftovers.
-        assert!(
+        assert_eq!(
             self.staking_information
                 .as_ref()
                 .unwrap()
                 .deposit_amount
-                .as_yoctonear()
-                <= 1, // 1 yocto from this call
+                .as_yoctonear(),
+            0,
             "There is still a deposit on the staking pool"
         );
 
