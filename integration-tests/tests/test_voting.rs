@@ -143,7 +143,7 @@ async fn test_voting() -> Result<(), Box<dyn std::error::Error>> {
         .sandbox
         .view(v.venear.id(), "get_proof")
         .args_json(json!({
-            "account_id": user_b.id(),
+            "account_id": user_c.id(),
         }))
         .await?
         .json()?;
