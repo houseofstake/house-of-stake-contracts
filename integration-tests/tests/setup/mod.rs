@@ -8,11 +8,13 @@ use near_workspaces::{Account, AccountId, Worker};
 use serde_json::json;
 use sha2::Digest;
 use std::str::FromStr;
+
 pub const UNLOCK_DURATION_SECONDS: u64 = 60;
-pub const UNLOCK_DURATION_SECONDS_PROD: u64 = 90u64 * 24 * 60 * 60;
+pub const VOTING_DURATION_SECONDS: u64 = 60;
 
 pub const LOCKUP_WASM_FILEPATH: &str = "../res/local/lockup_contract.wasm";
 pub const VENEAR_WASM_FILEPATH: &str = "../res/local/venear_contract.wasm";
+pub const VOTING_WASM_FILEPATH: &str = "../res/local/voting_contract.wasm";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -22,6 +24,15 @@ pub struct VenearTestWorkspace {
     pub staking_pool_whitelist_account: Account,
     pub lockup_deployer: Account,
     pub venear_owner: Account,
+    pub voting: Option<VotingTestWorkspace>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct VotingTestWorkspace {
+    pub contract: Account,
+    pub owner: Account,
+    pub reviewer: Account,
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +41,11 @@ pub struct VenearTestWorkspaceBuilder {
     pub local_deposit: NearToken,
     pub min_lockup_deposit: NearToken,
     pub annual_growth_rate_ns: Fraction,
+    pub deploy_voting: bool,
+    pub voting_duration_ns: u64,
+    pub max_number_of_voting_options: u8,
+    pub base_proposal_fee: NearToken,
+    pub vote_storage_fee: NearToken,
 }
 
 impl Default for VenearTestWorkspaceBuilder {
@@ -42,6 +58,11 @@ impl Default for VenearTestWorkspaceBuilder {
                 numerator: 6.into(),
                 denominator: (365u128 * 24 * 60 * 60 * 10u128.pow(9)).into(),
             },
+            deploy_voting: false,
+            voting_duration_ns: VOTING_DURATION_SECONDS * 1_000_000_000,
+            max_number_of_voting_options: 16,
+            base_proposal_fee: NearToken::from_millinear(100),
+            vote_storage_fee: NearToken::from_yoctonear(125 * 10u128.pow(19)),
         }
     }
 }
@@ -160,12 +181,55 @@ impl VenearTestWorkspaceBuilder {
             "Invalid lockup cost"
         );
 
+        let voting = if self.deploy_voting {
+            let voting_wasm = std::fs::read(VOTING_WASM_FILEPATH)?;
+
+            let contract = sandbox.dev_create_account().await?;
+
+            let reviewer = sandbox.dev_create_account().await?;
+            let owner = sandbox.dev_create_account().await?;
+
+            let args = json!({
+                "config": {
+                    "venear_account_id": venear.id(),
+                    "reviewer_ids": &[reviewer.id()],
+                    "owner_account_id": owner.id(),
+                    "voting_duration_ns": self.voting_duration_ns.to_string(),
+                    "max_number_of_voting_options": self.max_number_of_voting_options,
+                    "base_proposal_fee": self.base_proposal_fee,
+                    "vote_storage_fee": self.vote_storage_fee,
+                },
+            });
+
+            let outcome = contract
+                .batch(contract.id())
+                .deploy(&voting_wasm)
+                .call(Function::new("new").args_json(args).gas(Gas::from_tgas(10)))
+                .transact()
+                .await?;
+
+            assert!(
+                outcome.is_success(),
+                "Failed to deploy voting: {:#?}",
+                outcome.outcomes()
+            );
+
+            Some(VotingTestWorkspace {
+                contract,
+                owner,
+                reviewer,
+            })
+        } else {
+            None
+        };
+
         let workspace = VenearTestWorkspace {
             sandbox,
             venear,
             staking_pool_whitelist_account,
             lockup_deployer,
             venear_owner,
+            voting,
         };
 
         let config = workspace.get_config().await?;
@@ -181,8 +245,14 @@ impl VenearTestWorkspaceBuilder {
 
         Ok(workspace)
     }
+
+    pub fn with_voting(mut self) -> Self {
+        self.deploy_voting = true;
+        self
+    }
 }
 
+#[allow(dead_code)]
 impl VenearTestWorkspace {
     pub async fn account_info(
         &self,
@@ -361,8 +431,21 @@ impl VenearTestWorkspace {
             .await?
             .json()?)
     }
+
+    pub async fn get_proposal(
+        &self,
+        proposal_id: u32,
+    ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(self.voting.as_ref().unwrap().contract.id(), "get_proposal")
+            .args_json(json!({ "proposal_id": proposal_id }))
+            .await?
+            .json()?)
+    }
 }
 
+#[allow(dead_code)]
 pub fn outcome_check(outcome: &near_workspaces::result::ExecutionFinalResult) {
     if outcome.failures().len() > 0 || outcome.is_failure() {
         println!("Failure outcome: {:?}", &outcome);

@@ -235,7 +235,7 @@ pub struct MerkleTreeSnapshot {
 }
 
 impl MerkleProof {
-    pub fn verify<T>(&self, root: CryptoHash, length: u32, value: &T) -> bool
+    pub fn is_valid<T>(&self, root: CryptoHash, length: u32, value: &T) -> bool
     where
         T: BorshSerialize,
     {
@@ -330,6 +330,6 @@ mod tests {
         assert_eq!(global_state, gs);
         let (proof, account) = tree.get_proof(&account_id).unwrap();
         assert_eq!(account, value + 1);
-        assert!(proof.verify(snapshot.root.into(), snapshot.length, &account));
+        assert!(proof.is_valid(snapshot.root.into(), snapshot.length, &account));
     }
 }

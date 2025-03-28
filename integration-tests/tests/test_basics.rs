@@ -159,7 +159,7 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn attempt_upgrade(
+async fn attempt_venear_upgrade(
     user: &near_workspaces::Account,
     v: &VenearTestWorkspace,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -189,14 +189,11 @@ async fn test_upgrade_venear() -> Result<(), Box<dyn std::error::Error>> {
     let user_a = v.create_account_with_lockup().await?;
 
     assert!(
-        attempt_upgrade(&user_a, &v,).await.is_err(),
+        attempt_venear_upgrade(&user_a, &v).await.is_err(),
         "User should not be able to upgrade the contract"
     );
 
-    assert!(
-        attempt_upgrade(&v.venear_owner, &v).await.is_ok(),
-        "Owner should be able to upgrade the contract"
-    );
+    attempt_venear_upgrade(&v.venear_owner, &v).await?;
 
     Ok(())
 }

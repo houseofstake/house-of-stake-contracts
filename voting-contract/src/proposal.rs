@@ -236,7 +236,10 @@ impl Contract {
         // Validate merkle proof
         {
             let SnapshotAndState { snapshot, .. } = proposal.snapshot_and_state.as_ref().unwrap();
-            merkle_proof.verify(snapshot.root.into(), snapshot.length, &v_account);
+            require!(
+                merkle_proof.is_valid(snapshot.root.into(), snapshot.length, &v_account),
+                "Invalid merkle proof"
+            );
         }
 
         let timestamp_ns = proposal.snapshot_and_state.as_ref().unwrap().timestamp_ns;
