@@ -66,6 +66,8 @@ impl Default for VenearTestWorkspaceBuilder {
         }
     }
 }
+
+#[allow(dead_code)]
 impl VenearTestWorkspaceBuilder {
     pub async fn build(self) -> Result<VenearTestWorkspace, Box<dyn std::error::Error>> {
         let lockup_wasm = std::fs::read(LOCKUP_WASM_FILEPATH)?;

@@ -1,10 +1,6 @@
 //! A smart contract that allows tokens to be locked up.
 
-pub use crate::getters::*;
-pub use crate::owner::*;
-pub use crate::owner_callbacks::*;
 pub use crate::types::*;
-pub use crate::venear::*;
 use near_sdk::json_types::U64;
 use near_sdk::{env, ext_contract, near, require, AccountId, PanicOnDefault};
 use near_sdk::{Gas, NearToken};
@@ -192,21 +188,6 @@ mod tests {
             to_yocto(LOCKUP_NEAR),
             0,
             to_ts(GENESIS_TIME_IN_DAYS),
-        )
-    }
-
-    fn new_contract(
-        transfers_enabled: bool,
-        release_duration: Option<WrappedDuration>,
-    ) -> LockupContract {
-        LockupContract::new(
-            account_owner(),
-            AccountId::from_str(VENEAR_ACCOUNT_ID).unwrap(),
-            UNLOCK_DURATION_NS.into(),
-            AccountId::from_str("whitelist").unwrap(),
-            LOCKUP_VERSION,
-            0.into(),
-            MIN_LOCKUP_DEPOSIT,
         )
     }
 

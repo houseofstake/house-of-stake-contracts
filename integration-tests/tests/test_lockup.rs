@@ -116,7 +116,6 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-
 async fn test_over_unlock_should_fail() -> Result<(), Box<dyn std::error::Error>> {
     let v = VenearTestWorkspaceBuilder::default().build().await?;
     let user = v.create_account_with_lockup().await?;
@@ -141,7 +140,6 @@ async fn test_over_unlock_should_fail() -> Result<(), Box<dyn std::error::Error>
 }
 
 #[tokio::test]
-
 async fn test_early_unlock_attempt() -> Result<(), Box<dyn std::error::Error>> {
     let v = VenearTestWorkspaceBuilder::default().build().await?;
     let user = v.create_account_with_lockup().await?;
@@ -167,6 +165,128 @@ async fn test_early_unlock_attempt() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     assert!(outcome.is_failure(), "Early unlock should be prevented");
+
+    Ok(())
+}
+
+async fn attempt_lockup_delete(
+    v: &VenearTestWorkspace,
+    user: &Account,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let lockup_id = v.get_lockup_account_id(user.id()).await?;
+    let outcome = user
+        .call(&lockup_id, "delete_lockup")
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    if outcome.is_failure() {
+        return Err(format!("Failed to delete lockup: {:#?}", outcome).into());
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+pub async fn test_lockup_recreation() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user = v.create_account_with_lockup().await?;
+    let lockup_id = v.get_lockup_account_id(user.id()).await?;
+    transfer_and_lock(&v, &user, NearToken::from_near(100)).await?;
+
+    assert!(
+        v.sandbox.view_account(&lockup_id).await.is_ok(),
+        "Lockup account should exist"
+    );
+
+    // Attempt to delete the lockup account, but it should fail because of locked NEAR
+    assert!(
+        attempt_lockup_delete(&v, &user).await.is_err(),
+        "Lockup deletion should fail"
+    );
+
+    assert!(
+        v.sandbox.view_account(&lockup_id).await.is_ok(),
+        "Lockup account should exist"
+    );
+
+    let outcome = user
+        .call(&lockup_id, "begin_unlock_near")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(outcome.is_success(), "Unlock should be successful");
+
+    assert_eq!(
+        v.get_venear_pending(&lockup_id).await?,
+        NearToken::from_near(100),
+        "Pending should be 100 NEAR"
+    );
+
+    let unlock_timestamp = v.get_venear_unlock_timestamp(&lockup_id).await?;
+    assert!(unlock_timestamp > 0, "venear_unlock_timestamp was not set");
+
+    for i in 0..=10 {
+        // Fast forward time, number of seconds
+        v.sandbox.fast_forward(UNLOCK_DURATION_SECONDS).await?;
+        let block = v.sandbox.view_block().await?;
+        if block.timestamp() >= unlock_timestamp {
+            break;
+        } else {
+            assert_ne!(i, 10, "Unlock timestamp was not reached");
+            println!("Unlock timestamp is in the future, waiting...");
+        }
+    }
+
+    // Complete unlock
+    let outcome = user
+        .call(&lockup_id, "end_unlock_near")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(outcome.is_success(), "Unlock should be successful");
+
+    // Attempt to delete the lockup account again, this time it should succeed
+    attempt_lockup_delete(&v, &user).await?;
+
+    // Check that the lockup account is deleted
+    assert!(
+        v.sandbox.view_account(&lockup_id).await.is_err(),
+        "Lockup account should be deleted"
+    );
+
+    // Redeploy lockup
+
+    let lockup_cost: NearToken = v
+        .sandbox
+        .view(v.venear.id(), "get_lockup_deployment_cost")
+        .await?
+        .json()?;
+
+    let outcome = user
+        .call(v.venear.id(), "deploy_lockup")
+        .deposit(lockup_cost)
+        .args_json(json!({}))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(
+        outcome.is_success(),
+        "Lockup deployment should be successful"
+    );
+
+    // Check that the lockup account is recreated
+    assert!(
+        v.sandbox.view_account(&lockup_id).await.is_ok(),
+        "Lockup account should exist"
+    );
 
     Ok(())
 }
