@@ -1,6 +1,6 @@
 mod setup;
 
-use crate::setup::VenearTestWorkspaceBuilder;
+use crate::setup::{VenearTestWorkspace, VenearTestWorkspaceBuilder, VENEAR_WASM_FILEPATH};
 use common::near_add;
 use near_sdk::Gas;
 use near_workspaces::types::NearToken;
@@ -154,6 +154,48 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         delegated_balance, balance_a,
         "Delegated balance should be equal to balance from user A"
+    );
+
+    Ok(())
+}
+
+async fn attempt_upgrade(
+    user: &near_workspaces::Account,
+    v: &VenearTestWorkspace,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let venear_wasm = std::fs::read(VENEAR_WASM_FILEPATH)?;
+
+    let outcome = user
+        .call(v.venear.id(), "upgrade")
+        .args(venear_wasm)
+        .gas(Gas::from_tgas(200))
+        .transact()
+        .await?;
+
+    if !outcome.is_success() {
+        return Err(format!(
+            "Failed to upgrade venear contract: {:#?}",
+            outcome.outcomes()
+        )
+        .into());
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_upgrade_venear() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user_a = v.create_account_with_lockup().await?;
+
+    assert!(
+        attempt_upgrade(&user_a, &v,).await.is_err(),
+        "User should not be able to upgrade the contract"
+    );
+
+    assert!(
+        attempt_upgrade(&v.venear_owner, &v).await.is_ok(),
+        "Owner should be able to upgrade the contract"
     );
 
     Ok(())
