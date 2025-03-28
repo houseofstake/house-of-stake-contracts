@@ -1,7 +1,9 @@
 mod setup;
 
-use crate::setup::{VenearTestWorkspace, VenearTestWorkspaceBuilder, VENEAR_WASM_FILEPATH};
-use common::near_add;
+use crate::setup::{
+    assert_almost_eq, VenearTestWorkspace, VenearTestWorkspaceBuilder, VENEAR_WASM_FILEPATH,
+};
+use common::{near_add, Fraction};
 use near_sdk::Gas;
 use near_workspaces::types::NearToken;
 use serde_json::json;
@@ -194,6 +196,67 @@ async fn test_upgrade_venear() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     attempt_venear_upgrade(&v.venear_owner, &v).await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
+    // 10 minutes in nanoseconds
+    let period = 600 * 10u128.pow(9);
+    // Configure the annual growth rate to be 10% per selected period
+    let v = VenearTestWorkspaceBuilder::default()
+        .annual_growth_rate_ns(Fraction {
+            numerator: 10.into(),
+            denominator: (100 * period).into(),
+        })
+        .build()
+        .await?;
+    let user = v.create_account_with_lockup().await?;
+    v.transfer_and_lock(&user, NearToken::from_near(1000))
+        .await?;
+
+    let account_info = v.account_info(user.id()).await?;
+    let near_balance: NearToken =
+        serde_json::from_value(account_info["account"]["balance"]["near_balance"].clone())?;
+    // The expected balance is 1000 from lockup + 0.1 from local storage
+    let expected_balance = NearToken::from_millinear(1000100);
+    assert_eq!(near_balance, expected_balance);
+    let balance = v.ft_balance(user.id()).await?;
+    assert_almost_eq(balance, expected_balance, NearToken::from_near(1));
+    // Account for the growth during the deployment and function calls
+    let actual_early_diff = balance.checked_sub(expected_balance).unwrap();
+    // println!("Actual diff {}", actual_early_diff.exact_amount_display());
+
+    let start_timestamp = v.sandbox.view_block().await?.timestamp();
+
+    v.fast_forward(
+        start_timestamp + period as u64,
+        (period / 10u128.pow(9)) as u64 / 5,
+        30,
+    )
+    .await?;
+
+    let timestamp = v.sandbox.view_block().await?.timestamp();
+    let balance = v.ft_balance(user.id()).await?;
+
+    let approximate_growth = 0.1f64 * (timestamp - start_timestamp) as f64 / period as f64;
+    // println!(
+    //     "Time passed {:.3} sec",
+    //     (timestamp - start_timestamp) as f64 / 1e9f64
+    // );
+    // println!("Approximate growth {:.3}", approximate_growth);
+
+    let new_expected_balance = NearToken::from_yoctonear(
+        (expected_balance.as_yoctonear() as f64 * (1.0 + approximate_growth)) as _,
+    )
+    .checked_add(actual_early_diff)
+    .unwrap();
+    assert_almost_eq(
+        balance,
+        new_expected_balance,
+        NearToken::from_millinear(100),
+    );
 
     Ok(())
 }
