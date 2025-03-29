@@ -17,7 +17,7 @@ pub struct Config {
     pub voting_duration_ns: U64,
 
     /// The maximum number of voting options per proposal.
-    pub max_number_of_voting_options: u16,
+    pub max_number_of_voting_options: u8,
 
     /// The base fee in addition to the storage fee required to create a proposal.
     pub base_proposal_fee: NearToken,

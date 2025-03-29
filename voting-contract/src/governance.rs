@@ -59,7 +59,7 @@ impl Contract {
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
     #[payable]
-    pub fn set_max_number_of_voting_options(&mut self, max_number_of_voting_options: u16) {
+    pub fn set_max_number_of_voting_options(&mut self, max_number_of_voting_options: u8) {
         assert_one_yocto();
         self.assert_owner();
         self.config.max_number_of_voting_options = max_number_of_voting_options;

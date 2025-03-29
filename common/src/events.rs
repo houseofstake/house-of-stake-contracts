@@ -21,7 +21,7 @@ pub mod emit {
     pub(crate) struct ProposalVoteData<'a> {
         pub(crate) account_id: &'a AccountId,
         pub(crate) proposal_id: u32,
-        pub(crate) vote: u32,
+        pub(crate) vote: u8,
         pub(crate) account_balance: &'a NearToken,
     }
 
@@ -46,6 +46,22 @@ pub mod emit {
 
     #[derive(Serialize)]
     #[serde(crate = "near_sdk::serde")]
+    pub(crate) struct FtMintLog<'a> {
+        pub(crate) owner_id: &'a AccountId,
+        pub(crate) amount: NearToken,
+        pub(crate) memo: &'a Option<String>,
+    }
+
+    #[derive(Serialize)]
+    #[serde(crate = "near_sdk::serde")]
+    pub(crate) struct FtBurnLog<'a> {
+        pub(crate) owner_id: &'a AccountId,
+        pub(crate) amount: NearToken,
+        pub(crate) memo: &'a Option<String>,
+    }
+
+    #[derive(Serialize)]
+    #[serde(crate = "near_sdk::serde")]
     pub(crate) struct EventJson<'a, T>
     where
         T: Serialize,
@@ -56,12 +72,12 @@ pub mod emit {
         pub(crate) data: &'a [T],
     }
 
-    fn log_event<T: Serialize>(event: &str, data: T) {
+    fn log_event<T: Serialize>(standard: &str, event: &str, data: T) {
         log!(
             "EVENT_JSON:{}",
             serde_json::to_string(&EventJson {
-                standard: "venear",
-                version: "0.1.0",
+                standard,
+                version: "1.0.0",
                 event,
                 data: &[data],
             })
@@ -78,6 +94,7 @@ pub mod emit {
         locked_near_balance: &Option<NearToken>,
     ) {
         log_event(
+            "venear",
             action,
             LockupUpdateData {
                 account_id,
@@ -93,10 +110,11 @@ pub mod emit {
         action: &str,
         account_id: &AccountId,
         proposal_id: u32,
-        vote: u32,
+        vote: u8,
         account_balance: &NearToken,
     ) {
         log_event(
+            "venear",
             action,
             ProposalVoteData {
                 account_id,
@@ -114,6 +132,7 @@ pub mod emit {
         voting_start_time_sec: Option<u32>,
     ) {
         log_event(
+            "venear",
             action,
             VotingProposalUpdateData {
                 account_id,
@@ -133,6 +152,7 @@ pub mod emit {
         voting_options: &Vec<String>,
     ) {
         log_event(
+            "venear",
             action,
             ProposalData {
                 proposer_id,
@@ -141,6 +161,30 @@ pub mod emit {
                 description,
                 link,
                 voting_options,
+            },
+        );
+    }
+
+    pub fn ft_mint(owner_id: &AccountId, amount: NearToken) {
+        log_event(
+            "nep141",
+            "ft_mint",
+            FtMintLog {
+                owner_id,
+                amount,
+                memo: &None,
+            },
+        );
+    }
+
+    pub fn ft_burn(owner_id: &AccountId, amount: NearToken) {
+        log_event(
+            "nep141",
+            "ft_burn",
+            FtBurnLog {
+                owner_id,
+                amount,
+                memo: &None,
             },
         );
     }
@@ -252,7 +296,7 @@ mod tests {
         // The actual log would need to be captured and verified
         // This is just a format check example
         let _expected_log = format!(
-            r#"EVENT_JSON:{{"standard":"venear","version":"0.1.0","event":"test_event","data":[{{"account_id":"event_test.near","lockup_version":1,"timestamp":"987654321","lockup_update_nonce":"777","locked_near_balance":"5555555555555555555"}}]}}"#
+            r#"EVENT_JSON:{{"standard":"venear","version":"1.0.0","event":"test_event","data":[{{"account_id":"event_test.near","lockup_version":1,"timestamp":"987654321","lockup_update_nonce":"777","locked_near_balance":"5555555555555555555"}}]}}"#
         );
         // Normally you would check the actual logs here
     }
