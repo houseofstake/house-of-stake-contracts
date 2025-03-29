@@ -1,5 +1,5 @@
 use crate::*;
-use common::{VenearBalance, Version};
+use common::{events, VenearBalance, Version};
 use near_sdk::json_types::U64;
 
 #[derive(Clone)]
@@ -160,6 +160,28 @@ impl Contract {
     }
 
     pub fn internal_set_account(&mut self, account_id: AccountId, account: Account) {
+        // Previous balance
+        let old_balance = self
+            .internal_get_account(&account_id)
+            .map(|account| {
+                let mut total = account.delegated_balance;
+                if account.delegation.is_none() {
+                    total += account.balance;
+                }
+                total.total()
+            })
+            .unwrap_or_default();
+        // New balance
+        let mut new_balance = account.delegated_balance;
+        if account.delegation.is_none() {
+            new_balance += account.balance;
+        }
+        let new_balance = new_balance.total();
+        if new_balance > old_balance {
+            events::emit::ft_mint(&account_id, new_balance.checked_sub(old_balance).unwrap());
+        } else if new_balance < old_balance {
+            events::emit::ft_burn(&account_id, old_balance.checked_sub(new_balance).unwrap());
+        }
         self.tree.set(account_id, account.into());
     }
 }

@@ -31,7 +31,7 @@ pub struct Contract {
     proposals: Vector<VProposal>,
     proposal_metadata: Vector<VProposalMetadata>,
     /// A map from the account ID and the proposal ID to the vote option index.
-    votes: LookupMap<(AccountId, ProposalId), u32>,
+    votes: LookupMap<(AccountId, ProposalId), u8>,
     approved_proposals: Vector<ProposalId>,
 }
 

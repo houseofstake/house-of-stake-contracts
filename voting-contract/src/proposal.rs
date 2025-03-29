@@ -211,7 +211,7 @@ impl Contract {
     pub fn vote(
         &mut self,
         proposal_id: ProposalId,
-        vote: u32,
+        vote: u8,
         merkle_proof: MerkleProof,
         v_account: VAccount,
     ) {
@@ -272,6 +272,14 @@ impl Contract {
             proposal.total_votes.remove_vote(account_balance);
             // When changing the vote. Don't need to charge the fee again.
             storage_added = NearToken::from_yoctonear(0);
+
+            events::emit::proposal_vote_action(
+                "remove_vote",
+                &account_id,
+                proposal_id,
+                previous_vote,
+                &account_balance,
+            );
         }
         proposal.votes[vote as usize].add_vote(account_balance);
         proposal.total_votes.add_vote(account_balance);
@@ -291,7 +299,7 @@ impl Contract {
         }
 
         events::emit::proposal_vote_action(
-            "vote",
+            "add_vote",
             &account_id,
             proposal_id,
             vote,

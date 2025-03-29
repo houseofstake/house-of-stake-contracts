@@ -260,3 +260,133 @@ async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_ft_events() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default()
+        .annual_growth_rate_ns(Fraction {
+            numerator: 0.into(),
+            denominator: 1.into(),
+        })
+        .build()
+        .await?;
+    let user_a = v.sandbox.dev_create_account().await?;
+
+    let storage_balance_bounds: serde_json::Value = v
+        .sandbox
+        .view(v.venear.id(), "storage_balance_bounds")
+        .await?
+        .json()?;
+
+    let storage_balance_bounds_min: NearToken =
+        serde_json::from_value(storage_balance_bounds["min"].clone())?;
+
+    let outcome = user_a
+        .call(v.venear.id(), "storage_deposit")
+        .deposit(storage_balance_bounds_min)
+        .args_json(json!({}))
+        .transact()
+        .await?;
+    assert!(outcome.is_success());
+    let event = outcome.logs()[0];
+    let event: serde_json::Value =
+        serde_json::from_str(event.trim_start_matches("EVENT_JSON:")).unwrap();
+    assert_eq!(event["standard"].as_str().unwrap(), "nep141");
+    assert_eq!(event["event"].as_str().unwrap(), "ft_mint");
+    let event_data = &event["data"][0];
+    assert_eq!(
+        event_data["owner_id"].as_str().unwrap(),
+        user_a.id().as_str()
+    );
+    assert_eq!(
+        event_data["amount"].as_str().unwrap(),
+        storage_balance_bounds_min.as_yoctonear().to_string()
+    );
+
+    let user_b = v.create_account_with_lockup().await?;
+    let lockup_id_b = v.get_lockup_account_id(user_b.id()).await?;
+
+    // Lock 1 NEAR
+    let outcome = user_b
+        .call(&lockup_id_b, "lock_near")
+        .args_json(json!({
+            "amount": NearToken::from_near(1)
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(outcome.is_success());
+    let mut found = false;
+    for log in outcome.logs() {
+        let event = log;
+        let event: serde_json::Value =
+            serde_json::from_str(event.trim_start_matches("EVENT_JSON:")).unwrap();
+        let standard = event["standard"].as_str().unwrap();
+        if standard != "nep141" {
+            continue;
+        }
+        found = true;
+        assert_eq!(event["event"].as_str().unwrap(), "ft_mint");
+        let event_data = &event["data"][0];
+        assert_eq!(
+            event_data["owner_id"].as_str().unwrap(),
+            user_b.id().as_str()
+        );
+        assert_eq!(
+            event_data["amount"].as_str().unwrap(),
+            NearToken::from_near(1).as_yoctonear().to_string()
+        );
+    }
+    assert!(found, "Expected ft_mint event not found");
+
+    let balance_a = v.ft_balance(user_a.id()).await?;
+    assert_eq!(balance_a, storage_balance_bounds_min);
+
+    let balance_b = v.ft_balance(user_b.id()).await?;
+    // Delegate all from user B to user A
+    let outcome = user_b
+        .call(v.venear.id(), "delegate_all")
+        .args_json(json!({
+            "receiver_id": user_a.id()
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(outcome.is_success());
+
+    let mut logs = outcome.logs();
+    logs.sort();
+    let event = logs[0];
+    let event: serde_json::Value =
+        serde_json::from_str(event.trim_start_matches("EVENT_JSON:")).unwrap();
+    assert_eq!(event["standard"].as_str().unwrap(), "nep141");
+    assert_eq!(event["event"].as_str().unwrap(), "ft_burn");
+    let event_data = &event["data"][0];
+    assert_eq!(
+        event_data["owner_id"].as_str().unwrap(),
+        user_b.id().as_str()
+    );
+    assert_eq!(
+        event_data["amount"].as_str().unwrap(),
+        balance_b.as_yoctonear().to_string()
+    );
+
+    let event = logs[1];
+    let event: serde_json::Value =
+        serde_json::from_str(event.trim_start_matches("EVENT_JSON:")).unwrap();
+    assert_eq!(event["standard"].as_str().unwrap(), "nep141");
+    assert_eq!(event["event"].as_str().unwrap(), "ft_mint");
+    let event_data = &event["data"][0];
+    assert_eq!(
+        event_data["owner_id"].as_str().unwrap(),
+        user_a.id().as_str()
+    );
+    assert_eq!(
+        event_data["amount"].as_str().unwrap(),
+        balance_b.as_yoctonear().to_string()
+    );
+
+    Ok(())
+}
