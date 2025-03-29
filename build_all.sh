@@ -4,6 +4,11 @@ set -e
 cd $(dirname $0)
 mkdir -p res/local
 
+pushd sandbox-staking-whitelist-contract
+cargo near build non-reproducible-wasm
+popd
+cp target/near/sandbox_staking_whitelist_contract/sandbox_staking_whitelist_contract.wasm res/local/
+
 pushd venear-contract
 cargo near build non-reproducible-wasm
 popd
