@@ -1,0 +1,15 @@
+[package]
+name = "sandbox-staking-whitelist-contract"
+description = "This crate provides the sandbox implementation for staking pool and whitelist contract. Used for tests"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+near-sdk.workspace = true
+serde_json.workspace = true

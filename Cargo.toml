@@ -14,7 +14,8 @@ members = [
     "voting-contract",
     "merkle-tree",
     "common",
-    "integration-tests"
+    "integration-tests",
+    "sandbox-staking-whitelist-contract",
 ]
 
 [workspace.dependencies]

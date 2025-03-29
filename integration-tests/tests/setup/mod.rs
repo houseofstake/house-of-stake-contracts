@@ -56,7 +56,7 @@ impl Default for VenearTestWorkspaceBuilder {
             min_lockup_deposit: NearToken::from_millinear(2000),
             annual_growth_rate_ns: Fraction {
                 numerator: 6.into(),
-                denominator: (365u128 * 24 * 60 * 60 * 10u128.pow(9)).into(),
+                denominator: (100u128 * 365 * 24 * 60 * 60 * 10u128.pow(9)).into(),
             },
             deploy_voting: false,
             voting_duration_ns: VOTING_DURATION_SECONDS * 1_000_000_000,
@@ -66,6 +66,8 @@ impl Default for VenearTestWorkspaceBuilder {
         }
     }
 }
+
+#[allow(dead_code)]
 impl VenearTestWorkspaceBuilder {
     pub async fn build(self) -> Result<VenearTestWorkspace, Box<dyn std::error::Error>> {
         let lockup_wasm = std::fs::read(LOCKUP_WASM_FILEPATH)?;
@@ -246,6 +248,11 @@ impl VenearTestWorkspaceBuilder {
         Ok(workspace)
     }
 
+    pub fn annual_growth_rate_ns(mut self, annual_growth_rate_ns: Fraction) -> Self {
+        self.annual_growth_rate_ns = annual_growth_rate_ns;
+        self
+    }
+
     pub fn with_voting(mut self) -> Self {
         self.deploy_voting = true;
         self
@@ -261,6 +268,18 @@ impl VenearTestWorkspace {
         Ok(self
             .sandbox
             .view(self.venear.id(), "get_account_info")
+            .args_json(json!({ "account_id": account_id }))
+            .await?
+            .json()?)
+    }
+
+    pub async fn ft_balance(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<NearToken, Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(self.venear.id(), "ft_balance_of")
             .args_json(json!({ "account_id": account_id }))
             .await?
             .json()?)
@@ -443,6 +462,51 @@ impl VenearTestWorkspace {
             .await?
             .json()?)
     }
+
+    pub async fn transfer_and_lock(
+        &self,
+        user: &Account,
+        amount: NearToken,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let lockup_id = self.get_lockup_account_id(user.id()).await?;
+
+        let outcome = self
+            .sandbox
+            .root_account()
+            .unwrap()
+            .transfer_near(&lockup_id, amount)
+            .await?;
+        outcome_check(&outcome);
+
+        user.call(&lockup_id, "lock_near")
+            .args_json(json!({ "amount": amount }))
+            .deposit(NearToken::from_yoctonear(1))
+            .gas(Gas::from_tgas(200))
+            .transact()
+            .await?
+            .into_result()?;
+        Ok(())
+    }
+
+    pub async fn fast_forward(
+        &self,
+        timestamp: Timestamp,
+        num_block: u64,
+        max_num_iterations: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for i in 1..=max_num_iterations {
+            self.sandbox.fast_forward(num_block).await?;
+            let block = self.sandbox.view_block().await?;
+            if block.timestamp() >= timestamp {
+                break;
+            } else {
+                assert_ne!(i, max_num_iterations, "Unlock timestamp was not reached");
+                // println!("Unlock timestamp is in the future, waiting...");
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[allow(dead_code)]
@@ -451,4 +515,21 @@ pub fn outcome_check(outcome: &near_workspaces::result::ExecutionFinalResult) {
         println!("Failure outcome: {:?}", &outcome);
     }
     assert!(outcome.failures().len() == 0 && outcome.is_success());
+}
+
+#[allow(dead_code)]
+pub fn assert_almost_eq(left: NearToken, right: NearToken, max_delta: NearToken) {
+    let left2 = left.as_yoctonear();
+    let right2 = right.as_yoctonear();
+    let max_delta2 = max_delta.as_yoctonear();
+    assert!(
+        std::cmp::max(left2, right2) - std::cmp::min(left2, right2) <= max_delta2,
+        "{}",
+        format!(
+            "Left {} is not even close to Right {} within delta {}",
+            left.exact_amount_display(),
+            right.exact_amount_display(),
+            max_delta.exact_amount_display()
+        )
+    );
 }
