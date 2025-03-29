@@ -15,6 +15,8 @@ pub const VOTING_DURATION_SECONDS: u64 = 60;
 pub const LOCKUP_WASM_FILEPATH: &str = "../res/local/lockup_contract.wasm";
 pub const VENEAR_WASM_FILEPATH: &str = "../res/local/venear_contract.wasm";
 pub const VOTING_WASM_FILEPATH: &str = "../res/local/voting_contract.wasm";
+pub const SANDBOX_CONTRACT_WASM_FILEPATH: &str =
+    "../res/local/sandbox_staking_whitelist_contract.wasm";
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -22,6 +24,7 @@ pub struct VenearTestWorkspace {
     pub sandbox: Worker<Sandbox>,
     pub venear: Account,
     pub staking_pool_whitelist_account: Account,
+    pub staking_pool: Account,
     pub lockup_deployer: Account,
     pub venear_owner: Account,
     pub voting: Option<VotingTestWorkspace>,
@@ -76,11 +79,58 @@ impl VenearTestWorkspaceBuilder {
         let lockup_hash = Base58CryptoHash::from(lockup_hash);
 
         let venear_wasm = std::fs::read(VENEAR_WASM_FILEPATH)?;
+        let sandbox_wasm = std::fs::read(SANDBOX_CONTRACT_WASM_FILEPATH)?;
 
         let sandbox = near_workspaces::sandbox().await?;
 
-        // TODO: Deploy
         let staking_pool_whitelist_account = sandbox.dev_create_account().await?;
+        let outcome = staking_pool_whitelist_account
+            .batch(staking_pool_whitelist_account.id())
+            .deploy(&sandbox_wasm)
+            .call(
+                Function::new("new")
+                    .args_json(json!({}))
+                    .gas(Gas::from_tgas(10)),
+            )
+            .transact()
+            .await?;
+        assert!(
+            outcome.is_success(),
+            "Failed to deploy sandbox contract for whitelist: {:#?}",
+            outcome.outcomes()
+        );
+
+        // Create a staking pool account
+        let staking_pool = sandbox.dev_create_account().await?;
+        let outcome = staking_pool
+            .batch(staking_pool.id())
+            .deploy(&sandbox_wasm)
+            .call(
+                Function::new("new")
+                    .args_json(json!({}))
+                    .gas(Gas::from_tgas(10)),
+            )
+            .transact()
+            .await?;
+        assert!(
+            outcome.is_success(),
+            "Failed to deploy sandbox contract for staking: {:#?}",
+            outcome.outcomes()
+        );
+
+        // Whitelist the staking pool account
+        let outcome = staking_pool_whitelist_account
+            .call(staking_pool_whitelist_account.id(), "sandbox_whitelist")
+            .args_json(json!({
+                "staking_pool_account_id": staking_pool.id(),
+            }))
+            .transact()
+            .await?;
+        assert!(
+            outcome.is_success(),
+            "Failed to whitelist staking_pool: {:#?}",
+            outcome.outcomes()
+        );
 
         let lockup_deployer = sandbox.dev_create_account().await?;
         let venear_owner = sandbox.dev_create_account().await?;
@@ -229,6 +279,7 @@ impl VenearTestWorkspaceBuilder {
             sandbox,
             venear,
             staking_pool_whitelist_account,
+            staking_pool,
             lockup_deployer,
             venear_owner,
             voting,
