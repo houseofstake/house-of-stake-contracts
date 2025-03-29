@@ -131,7 +131,7 @@ impl Contract {
         );
 
         account.unstaked_balance = account.unstaked_balance.checked_sub(amount).unwrap();
-        Promise::new(account_id.clone()).transfer(account.unstaked_balance);
+        Promise::new(account_id.clone()).transfer(amount);
         self.accounts.insert(account_id, account);
     }
 
