@@ -558,6 +558,10 @@ impl VenearTestWorkspace {
 
         Ok(())
     }
+
+    pub fn voting_id(&self) -> &AccountId {
+        self.voting.as_ref().unwrap().contract.id()
+    }
 }
 
 #[allow(dead_code)]
