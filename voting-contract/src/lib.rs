@@ -4,6 +4,7 @@ mod metadata;
 mod proposal;
 mod reviewer;
 mod upgrade;
+mod votes;
 
 use merkle_tree::{MerkleProof, MerkleTreeSnapshot};
 

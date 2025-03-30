@@ -140,7 +140,7 @@ async fn test_voting() -> Result<(), Box<dyn std::error::Error>> {
 
     let proposal = v.get_proposal(proposal_id).await?;
     assert_eq!(proposal["total_votes"]["total_votes"].as_u64().unwrap(), 0);
-    assert_eq!(proposal["status"].as_str().unwrap(), "Approved");
+    assert_eq!(proposal["status"].as_str().unwrap(), "Voting");
     assert_eq!(
         proposal["reviewer_id"].as_str().unwrap(),
         v.voting.as_ref().unwrap().reviewer.id().as_str()
@@ -204,6 +204,17 @@ async fn test_voting() -> Result<(), Box<dyn std::error::Error>> {
         "user_a: Failed to vote: {:#?}",
         outcome
     );
+
+    let vote: Option<u8> = v
+        .sandbox
+        .view(v.voting_id(), "get_vote")
+        .args_json(json!({
+            "account_id": user_a.id(),
+            "proposal_id": proposal_id,
+        }))
+        .await?
+        .json()?;
+    assert_eq!(vote, Some(1));
 
     let proposal = v.get_proposal(proposal_id).await?;
     assert_eq!(proposal["votes"][0]["total_votes"].as_u64().unwrap(), 0);
