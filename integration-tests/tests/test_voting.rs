@@ -323,7 +323,7 @@ async fn test_voting_governance() -> Result<(), Box<dyn std::error::Error>> {
         outcome
     );
 
-    // Vhange config with the owner
+    // Change config with the owner
     let outcome = voting_owner
         .call(v.voting_id(), "set_venear_account_id")
         .args_json(json!({
