@@ -1,7 +1,6 @@
 use crate::*;
 
-// TODO: Icon
-const ICON_BASE64: &str = "data:image/svg;base64,todo";
+const ICON_BASE64: &str = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgZmlsbD0ibm9uZSI+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIyMCIgZmlsbD0iIzAwMCIvPgogIDx0ZXh0IHg9IjQwIiB5PSI2NSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjYwIiBmaWxsPSIjZmZmIiBmb250LXdlaWdodD0iYm9sZCI+TjwvdGV4dD4KICA8dGV4dCB4PSIxNSIgeT0iNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMCIgZmlsbD0iI2ZmZiI+dmU8L3RleHQ+Cjwvc3ZnPgo=";
 
 #[near]
 impl Contract {
