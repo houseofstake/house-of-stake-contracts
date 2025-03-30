@@ -40,7 +40,11 @@ impl Contract {
             .then(
                 ext_self::ext(env::current_account_id())
                     .with_static_gas(GAS_FOR_ON_GET_SNAPSHOT)
-                    .on_get_snapshot(proposal_id, voting_start_time_sec),
+                    .on_get_snapshot(
+                        env::predecessor_account_id(),
+                        proposal_id,
+                        voting_start_time_sec,
+                    ),
             )
     }
 
@@ -76,6 +80,7 @@ impl Contract {
     pub fn on_get_snapshot(
         &mut self,
         #[callback] snapshot_and_state: (MerkleTreeSnapshot, VGlobalState),
+        reviewer_id: AccountId,
         proposal_id: ProposalId,
         voting_start_time_sec: Option<u32>,
     ) -> ProposalInfo {
@@ -87,7 +92,7 @@ impl Contract {
 
         let timestamp: TimestampNs = env::block_timestamp().into();
 
-        proposal.reviewer_id = Some(env::predecessor_account_id());
+        proposal.reviewer_id = Some(reviewer_id);
         proposal.voting_start_time_ns = Some(
             voting_start_time_sec
                 .map(|v| u64::from(v).mul(10u64.pow(9)).into())
@@ -107,6 +112,7 @@ impl Contract {
             venear_growth_config: global_state.venear_growth_config,
         });
         proposal.status = ProposalStatus::Approved;
+        self.approved_proposals.push(proposal_id);
 
         self.internal_set_proposal(proposal.clone());
 
@@ -134,5 +140,10 @@ trait ExtVenear {
 #[allow(dead_code)]
 #[ext_contract(ext_self)]
 trait ExtSelf {
-    fn on_get_snapshot(&mut self, proposal_id: ProposalId, voting_start_time_sec: Option<u32>);
+    fn on_get_snapshot(
+        &mut self,
+        reviewer_id: AccountId,
+        proposal_id: ProposalId,
+        voting_start_time_sec: Option<u32>,
+    );
 }
