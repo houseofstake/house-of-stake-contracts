@@ -368,17 +368,15 @@ impl Contract {
     }
 
     pub fn internal_get_proposal(&self, proposal_id: ProposalId) -> Option<Proposal> {
-        self.proposals
-            .get(proposal_id)
-            .cloned()
-            .map(|proposal| proposal.into())
+        self.proposals.get(proposal_id).cloned().map(|proposal| {
+            let mut proposal: Proposal = proposal.into();
+            proposal.update(env::block_timestamp().into());
+            proposal
+        })
     }
 
     pub fn internal_expect_proposal_updated(&self, proposal_id: ProposalId) -> Proposal {
-        let mut proposal = self
-            .internal_get_proposal(proposal_id)
-            .expect(format!("Proposal {} is not found", proposal_id).as_str());
-        proposal.update(env::block_timestamp().into());
-        proposal
+        self.internal_get_proposal(proposal_id)
+            .expect(format!("Proposal {} is not found", proposal_id).as_str())
     }
 }
