@@ -115,7 +115,7 @@ where
         if self.length == 0 {
             0
         } else {
-            self.length.ilog2() as u8 + 1
+            33 - (self.length - 1).leading_zeros() as u8
         }
     }
 
@@ -217,6 +217,23 @@ where
     pub fn get_by_index(&self, index: u32) -> Option<&V> {
         self.data.get(&index)
     }
+
+    /// Used in tests to remerkalize the tree.
+    fn remerkalize(&mut self) {
+        for i in 0..self.length {
+            self.internal_set_hash(0, i, self.internal_hash_value(i));
+        }
+        for height in 1..self.tree_height() {
+            for i in 0..(1 << (height - 1)) {
+                let left_hash = self.internal_get_hash(height - 1, i << 1);
+                let right_hash = self.internal_get_hash(height - 1, (i << 1) + 1);
+                let concat = [&left_hash[..], &right_hash[..]].concat();
+                let hash = near_sdk::env::sha256(&concat).try_into().unwrap();
+                self.internal_set_hash(height, i, hash);
+            }
+        }
+        self.root = self.internal_get_hash(self.tree_height() - 1, 0);
+    }
 }
 
 #[derive(Clone)]
@@ -243,7 +260,7 @@ impl MerkleProof {
             return false;
         }
         // The length is greater than 0
-        let tree_height = length.ilog2() + 1;
+        let tree_height = 33 - (length - 1).leading_zeros() as u8;
         if self.path.len() + 1 != tree_height as usize {
             return false;
         }
@@ -278,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merkle_tree() {
+    fn test_merkle_tree_basic() {
         let mut context = VMContextBuilder::new().build();
         testing_env!(context.clone());
 
@@ -331,5 +348,74 @@ mod tests {
         let (proof, account) = tree.get_proof(&account_id).unwrap();
         assert_eq!(account, value + 1);
         assert!(proof.is_valid(snapshot.root.into(), snapshot.length, &account));
+    }
+
+    #[test]
+    fn test_merkle_tree() {
+        let mut context = VMContextBuilder::new().build();
+        testing_env!(context.clone());
+
+        let global_state = "global_state".to_string();
+        let mut tree = MerkleTree::new(StorageKeys::Tree, global_state.clone());
+        assert_eq!(tree.tree_height(), 0);
+        assert_eq!(tree.root, CryptoHash::default());
+        assert_eq!(tree.length, 0);
+
+        context.block_index += 1;
+        testing_env!(context.clone());
+
+        let num_accounts = 10;
+
+        let accounts: Vec<AccountId> = (0..num_accounts)
+            .map(|i| format!("account{}", i).parse().unwrap())
+            .collect();
+
+        let expected_tree_height = [0, 1, 2, 3, 3, 4, 4, 4, 4, 5, 5];
+        for i in 1..=num_accounts {
+            for j in 0..i {
+                let value = (i * num_accounts + j) as u32;
+                let account_id = accounts[j].clone();
+                let _ = tree.set(account_id.clone(), value);
+            }
+            assert_eq!(tree.tree_height(), expected_tree_height[i]);
+            assert_ne!(tree.root, CryptoHash::default());
+            assert_eq!(tree.length, i as u32);
+
+            context.block_index += 1;
+            testing_env!(context.clone());
+
+            let (snapshot, gs) = tree.get_snapshot().unwrap();
+            assert_eq!(global_state, gs);
+
+            for j in 0..i {
+                let account_id = accounts[j].clone();
+                let (proof, value) = tree.get_proof(&account_id).unwrap();
+                assert_eq!(value, (i * num_accounts + j) as u32);
+                assert!(proof.is_valid(snapshot.root.into(), snapshot.length, &value));
+                for k in 0..i {
+                    if k != j {
+                        let other_account_id = accounts[k].clone();
+                        let (other_proof, other_value) = tree.get_proof(&other_account_id).unwrap();
+                        assert!(!proof.is_valid(
+                            snapshot.root.into(),
+                            snapshot.length,
+                            &other_value
+                        ));
+                        assert!(!other_proof.is_valid(
+                            snapshot.root.into(),
+                            snapshot.length,
+                            &value
+                        ));
+                    }
+                }
+            }
+
+            context.block_index += 1;
+            testing_env!(context.clone());
+
+            let old_root = tree.root;
+            tree.remerkalize();
+            assert_eq!(tree.root, old_root);
+        }
     }
 }
