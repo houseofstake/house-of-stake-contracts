@@ -13,8 +13,8 @@ pub enum VenearGrowthConfig {
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct VenearGrowthConfigFixedRate {
-    /// The growth rate of veNEAR tokens per nanosecond. E.g. 6 / (NUM_SEC_IN_YEAR * 10**9) means
-    /// 6% annual growth rate.
+    /// The growth rate of veNEAR tokens per nanosecond. E.g. 6 / (100 * NUM_SEC_IN_YEAR * 10**9)
+    /// means 6% annual growth rate.
     pub annual_growth_rate_ns: Fraction,
 }
 

@@ -79,7 +79,7 @@ near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/v
   "venear_growth_config": {
     "annual_growth_rate_ns": {
       "numerator": "6",
-      "denominator": "31536000000000000"
+      "denominator": "3153600000000000000"
     }
   }
 }' prepaid-gas '10.0 Tgas' attached-deposit '0 NEAR' network-config $CHAIN_ID sign-with-keychain send
