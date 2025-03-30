@@ -396,7 +396,7 @@ async fn test_ft_events() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn test_governance() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     let v = VenearTestWorkspaceBuilder::default().build().await?;
     let user = v.create_account_with_lockup().await?;
 
