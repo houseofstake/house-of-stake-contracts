@@ -219,6 +219,7 @@ where
     }
 
     /// Used in tests to remerkalize the tree.
+    #[allow(dead_code)]
     fn remerkalize(&mut self) {
         for i in 0..self.length {
             self.internal_set_hash(0, i, self.internal_hash_value(i));
