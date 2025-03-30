@@ -83,6 +83,10 @@ impl Contract {
                 &account_balance,
             );
         }
+        require!(
+            (vote as usize) < proposal.votes.len(),
+            "Vote option is out of bounds"
+        );
         proposal.votes[vote as usize].add_vote(account_balance);
         proposal.total_votes.add_vote(account_balance);
 
