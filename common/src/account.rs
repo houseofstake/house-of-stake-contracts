@@ -31,19 +31,19 @@ pub struct AccountDelegation {
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub enum VAccount {
-    Current(Account),
+    V0(Account),
 }
 
 impl From<Account> for VAccount {
     fn from(account: Account) -> Self {
-        Self::Current(account)
+        Self::V0(account)
     }
 }
 
 impl From<VAccount> for Account {
     fn from(value: VAccount) -> Self {
         match value {
-            VAccount::Current(account) => account,
+            VAccount::V0(account) => account,
         }
     }
 }

@@ -33,19 +33,19 @@ impl GlobalState {
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub enum VGlobalState {
-    Current(GlobalState),
+    V0(GlobalState),
 }
 
 impl From<GlobalState> for VGlobalState {
     fn from(global_state: GlobalState) -> Self {
-        Self::Current(global_state)
+        Self::V0(global_state)
     }
 }
 
 impl From<VGlobalState> for GlobalState {
     fn from(value: VGlobalState) -> Self {
         match value {
-            VGlobalState::Current(global_state) => global_state,
+            VGlobalState::V0(global_state) => global_state,
         }
     }
 }
@@ -53,7 +53,7 @@ impl From<VGlobalState> for GlobalState {
 impl VGlobalState {
     pub fn get_venear_growth_config(&self) -> &VenearGrowthConfig {
         match self {
-            VGlobalState::Current(global_state) => &global_state.venear_growth_config,
+            VGlobalState::V0(global_state) => &global_state.venear_growth_config,
         }
     }
 }
