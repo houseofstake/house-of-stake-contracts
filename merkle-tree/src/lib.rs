@@ -237,18 +237,28 @@ where
     }
 }
 
+/// A proof of inclusion in the Merkle tree.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct MerkleProof {
+    /// The index of the leaf in the tree.
     pub index: u32,
+
+    /// The corresponding hashes of the siblings in the tree on the path to the root.
     pub path: Vec<Base58CryptoHash>,
 }
 
+/// A snapshot of the Merkle tree.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct MerkleTreeSnapshot {
+    /// The root hash of the tree.
     pub root: Base58CryptoHash,
+
+    /// The length of the tree.
     pub length: u32,
+
+    /// The block height when the snapshot was taken.
     pub block_height: BlockHeight,
 }
 

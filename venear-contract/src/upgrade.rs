@@ -21,7 +21,7 @@ impl Contract {
 }
 
 /// Upgrades the contract to the new version.
-/// Requires the contract to be owned by the owner.
+/// Requires the method to be called by the owner.
 /// The input is the new contract code.
 /// The contract will call `migrate_state` method on the new contract and then return the config,
 /// to verify that the migration was successful.

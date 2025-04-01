@@ -20,6 +20,7 @@ impl From<VProposalMetadata> for ProposalMetadata {
     }
 }
 
+/// Metadata for a proposal.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct ProposalMetadata {

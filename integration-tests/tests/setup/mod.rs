@@ -1,6 +1,7 @@
 #[allow(dead_code)]
 use common::Fraction;
-use near_sdk::json_types::Base58CryptoHash;
+use common::TimestampNs;
+use near_sdk::json_types::{Base58CryptoHash, U64};
 use near_sdk::{CryptoHash, Gas, NearToken, Timestamp};
 use near_workspaces::network::Sandbox;
 use near_workspaces::operations::Function;
@@ -445,7 +446,7 @@ impl VenearTestWorkspace {
     pub async fn get_venear_unlock_timestamp(
         &self,
         account_id: &AccountId,
-    ) -> Result<Timestamp, Box<dyn std::error::Error>> {
+    ) -> Result<TimestampNs, Box<dyn std::error::Error>> {
         Ok(self
             .sandbox
             .view(account_id, "get_venear_unlock_timestamp")
@@ -493,7 +494,7 @@ impl VenearTestWorkspace {
     pub async fn get_lockup_update_nonce(
         &self,
         account_id: &AccountId,
-    ) -> Result<u64, Box<dyn std::error::Error>> {
+    ) -> Result<U64, Box<dyn std::error::Error>> {
         Ok(self
             .sandbox
             .view(account_id, "get_lockup_update_nonce")

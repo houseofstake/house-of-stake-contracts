@@ -1,6 +1,7 @@
 use crate::*;
 use near_sdk::json_types::U64;
 
+/// The configuration of the voting contract.
 #[derive(Debug, Clone)]
 #[near(serializers=[borsh, json])]
 pub struct Config {

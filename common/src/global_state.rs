@@ -1,6 +1,7 @@
 use crate::venear::VenearGrowthConfig;
 use crate::*;
 
+/// The global state of the veNEAR contract and the merkle tree.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct GlobalState {

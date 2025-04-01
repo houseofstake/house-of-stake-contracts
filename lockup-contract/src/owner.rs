@@ -7,6 +7,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 75 TGas (3 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Selects staking pool contract at the given account ID. The staking pool first has to be
     /// checked against the staking pool whitelist contract.
@@ -38,6 +39,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 25 TGas (1 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Unselects the current staking pool.
     /// It requires that there are no known deposits left on the currently selected staking pool.
@@ -73,6 +75,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 100 TGas (4 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Deposits the given extra amount to the staking pool
     #[payable]
@@ -117,6 +120,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 125 TGas (5 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Deposits and stakes the given extra amount to the selected staking pool
     #[payable]
@@ -161,6 +165,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 75 TGas (3 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Retrieves total balance from the staking pool and remembers it internally.
     /// This method is helpful when the owner received some rewards for staking and wants to
@@ -201,6 +206,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 125 TGas (5 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Withdraws the given amount from the staking pool
     #[payable]
@@ -240,6 +246,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 175 TGas (7 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Tries to withdraws all unstaked balance from the staking pool
     #[payable]
@@ -279,6 +286,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 125 TGas (5 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Stakes the given extra amount at the staking pool
     #[payable]
@@ -318,6 +326,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 125 TGas (5 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Unstakes the given amount at the staking pool
     #[payable]
@@ -357,6 +366,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 125 TGas (5 * BASE_GAS)
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Unstakes all tokens from the staking pool
     #[payable]
@@ -395,7 +405,7 @@ impl LockupContract {
     /// OWNER'S METHOD
     ///
     /// Requires 50 TGas (2 * BASE_GAS)
-    /// Not intended to hand over the access to someone else except the owner
+    /// Requires 1 yoctoNEAR attached
     ///
     /// Transfers the given amount to the given receiver account ID.
     /// This requires transfers to be enabled within the voting contract.
@@ -432,6 +442,10 @@ impl LockupContract {
     }
 
     /// OWNER'S METHOD
+    ///
+    /// Requires 1 yoctoNEAR attached
+    /// Requires no locked balances or staking pool deposits.
+    ///
     /// Removes the lockup contract and transfers all NEAR to the initial owner.
     #[payable]
     pub fn delete_lockup(&mut self) -> Promise {

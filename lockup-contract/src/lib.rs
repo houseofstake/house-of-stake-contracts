@@ -43,11 +43,6 @@ pub trait ExtStakingPoolWhitelist {
     fn is_whitelisted(&self, staking_pool_account_id: AccountId) -> bool;
 }
 
-#[ext_contract(ext_transfer_poll)]
-pub trait ExtTransferPoll {
-    fn get_result(&self) -> Option<PollResult>;
-}
-
 #[ext_contract(ext_self_owner)]
 pub trait ExtLockupContractOwner {
     fn on_whitelist_is_whitelisted(
@@ -67,8 +62,6 @@ pub trait ExtLockupContractOwner {
     fn on_staking_pool_unstake(&mut self, amount: NearToken) -> bool;
 
     fn on_staking_pool_unstake_all(&mut self) -> bool;
-
-    fn on_get_result_from_transfer_poll(&mut self, #[callback] poll_result: PollResult) -> bool;
 
     fn on_get_account_total_balance(&mut self, #[callback] total_balance: NearToken);
 

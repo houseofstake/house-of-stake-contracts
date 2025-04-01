@@ -1,7 +1,7 @@
 use crate::venear_ext::{ext_venear, GAS_FOR_VENEAR_LOCKUP_UPDATE};
 use crate::*;
-use common::events;
 use common::lockup_update::{LockupUpdateV1, VLockupUpdate};
+use common::{events, TimestampNs};
 use near_sdk::json_types::U64;
 use near_sdk::{assert_one_yocto, near, NearToken, Promise};
 
@@ -19,7 +19,7 @@ impl LockupContract {
             .expect("Illegal balance")
     }
 
-    fn set_venear_unlock_imestamp(&mut self) {
+    fn set_venear_unlock_timestamp(&mut self) {
         self.venear_unlock_timestamp = env::block_timestamp() + self.unlock_duration_ns;
     }
 
@@ -43,29 +43,41 @@ impl LockupContract {
 
 #[near]
 impl LockupContract {
+    /// Returns the amount of NEAR locked in the lockup contract
     pub fn get_venear_locked_balance(&self) -> NearToken {
         NearToken::from_yoctonear(self.venear_locked_balance)
     }
 
-    pub fn get_venear_unlock_timestamp(&self) -> Timestamp {
-        self.venear_unlock_timestamp
+    /// Returns the timestamp in nanoseconds when the pending amount will be unlocked
+    pub fn get_venear_unlock_timestamp(&self) -> TimestampNs {
+        self.venear_unlock_timestamp.into()
     }
 
-    pub fn get_lockup_update_nonce(&self) -> u64 {
-        self.lockup_update_nonce
+    /// Returns the nonce of the lockup update
+    pub fn get_lockup_update_nonce(&self) -> U64 {
+        self.lockup_update_nonce.into()
     }
 
+    /// Returns the amount of NEAR that is pending to be unlocked
     pub fn get_venear_pending_balance(&self) -> NearToken {
         NearToken::from_yoctonear(self.venear_pending_balance)
     }
 
+    /// Returns the amount of NEAR that is liquid (the NEAR that can be locked)
     pub fn get_venear_liquid_balance(&self) -> NearToken {
         NearToken::from_yoctonear(self.venear_liquid_balance())
     }
 
-    /// specify the amount of near you want to lock, it remembers how much near is now locked
+    /// OWNER'S METHOD
+    ///
+    /// Requires 1 yoctoNEAR attached
+    ///
+    /// Locks the NEAR in the lockup contract.
+    /// You can specify the amount of NEAR to lock, or if you don't specify it, all the liquid NEAR
+    /// will be locked.
     #[payable]
     pub fn lock_near(&mut self, amount: Option<NearToken>) {
+        self.assert_owner();
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.as_yoctonear()
@@ -89,10 +101,17 @@ impl LockupContract {
         self.venear_lockup_update();
     }
 
-    /// you specify the amount of near to unlock, it starts the process of unlocking it
+    /// OWNER'S METHOD
+    ///
+    /// Requires 1 yoctoNEAR attached
+    ///
+    /// Starts the unlocking process of the in the lockup contract.
+    /// You specify the amount of near to unlock, or if you don't specify it, all the locked NEAR
+    /// will be unlocked.
     /// (works similarly to unstaking from a staking pool).
     #[payable]
     pub fn begin_unlock_near(&mut self, amount: Option<NearToken>) {
+        self.assert_owner();
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.as_yoctonear()
@@ -104,14 +123,22 @@ impl LockupContract {
 
         self.venear_locked_balance -= amount;
         self.venear_pending_balance += amount;
-        self.set_venear_unlock_imestamp();
+        self.set_venear_unlock_timestamp();
 
         self.venear_lockup_update();
     }
 
-    /// end the unlocking
+    /// OWNER'S METHOD
+    ///
+    /// Requires 1 yoctoNEAR attached
+    /// Requires that the unlock timestamp is reached
+    ///
+    /// Finishes the unlocking process of the NEAR in the lockup contract.
+    /// You can specify the amount of NEAR to unlock, or if you don't specify it, all the pending
+    /// NEAR will be unlocked.
     #[payable]
     pub fn end_unlock_near(&mut self, amount: Option<NearToken>) {
+        self.assert_owner();
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.as_yoctonear()
@@ -130,9 +157,16 @@ impl LockupContract {
         self.venear_lockup_update();
     }
 
-    ///  if there is an unlock pending, it locks the balance.
+    /// OWNER'S METHOD
+    ///
+    /// Requires 1 yoctoNEAR attached
+    ///
+    /// Locks the pending NEAR in the lockup contract.
+    /// You can specify the amount of NEAR to lock, or if you don't specify it, all the pending NEAR
+    /// will be locked.
     #[payable]
     pub fn lock_pending_near(&mut self, amount: Option<NearToken>) {
+        self.assert_owner();
         assert_one_yocto();
         let amount: Balance = if let Some(amount) = amount {
             amount.as_yoctonear()

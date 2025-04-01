@@ -116,6 +116,7 @@ impl Contract {
         self.internal_set_proposal(proposal);
     }
 
+    /// Returns the vote of the given account ID and proposal ID.
     pub fn get_vote(&self, account_id: AccountId, proposal_id: ProposalId) -> Option<u8> {
         self.votes.get(&(account_id, proposal_id)).cloned()
     }

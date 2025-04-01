@@ -31,7 +31,7 @@ impl Contract {
         self.internal_set_account(predecessor_id, account);
     }
 
-    /// Undelegate all NEAR tokens.
+    /// Undelegate all veNEAR tokens.
     /// Requires 1 yocto NEAR.
     #[payable]
     pub fn undelegate(&mut self) {
