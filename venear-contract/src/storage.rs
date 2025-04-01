@@ -73,4 +73,9 @@ impl Contract {
     pub fn get_lockup_deployment_cost(&self) -> NearToken {
         self.config.min_lockup_deposit
     }
+
+    /// Returns the storage balance of the given account.
+    pub fn storage_balance_of(&self, account_id: AccountId) -> Option<StorageBalance> {
+        self.internal_storage_balance_of(&account_id)
+    }
 }

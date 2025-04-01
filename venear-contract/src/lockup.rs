@@ -86,6 +86,7 @@ impl Contract {
     }
 
     /// Callback after the attempt to deploy the lockup contract.
+    /// Returns the lockup contract account ID if the deployment was successful.
     #[private]
     pub fn on_lockup_deployed(
         &mut self,

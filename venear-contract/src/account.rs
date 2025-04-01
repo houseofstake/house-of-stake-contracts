@@ -2,6 +2,7 @@ use crate::*;
 use common::{events, VenearBalance, Version};
 use near_sdk::json_types::U64;
 
+/// Full information about the account
 #[derive(Clone)]
 #[near(serializers=[json])]
 pub struct AccountInfo {
@@ -12,6 +13,7 @@ pub struct AccountInfo {
     pub internal: AccountInternal,
 }
 
+/// Internal account information from veNEAR contract.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct AccountInternal {
