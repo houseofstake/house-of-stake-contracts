@@ -26,6 +26,7 @@ impl From<VProposal> for Proposal {
     }
 }
 
+/// The proposal structure that contains all the information about a proposal.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct Proposal {
@@ -53,6 +54,7 @@ pub struct Proposal {
     pub status: ProposalStatus,
 }
 
+/// The proposal information structure that contains the proposal and its metadata.
 #[derive(Clone)]
 #[near(serializers=[json])]
 pub struct ProposalInfo {
@@ -62,6 +64,7 @@ pub struct ProposalInfo {
     pub metadata: ProposalMetadata,
 }
 
+/// The status of the proposal
 #[derive(Clone, Copy, PartialEq)]
 #[near(serializers=[borsh, json])]
 pub enum ProposalStatus {
@@ -77,6 +80,8 @@ pub enum ProposalStatus {
     Finished,
 }
 
+/// The snapshot of the Merkle tree and the global state at the moment when the proposal was
+/// approved.
 #[derive(Clone)]
 #[near(serializers=[borsh, json])]
 pub struct SnapshotAndState {
@@ -90,6 +95,8 @@ pub struct SnapshotAndState {
     pub venear_growth_config: VenearGrowthConfig,
 }
 
+/// The vote statistics structure that contains the total amount of veNEAR tokens and the total
+/// number of votes.
 #[derive(Clone, Default)]
 #[near(serializers=[borsh, json])]
 pub struct VoteStats {

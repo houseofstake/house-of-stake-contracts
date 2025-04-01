@@ -20,20 +20,6 @@ pub type WrappedTimestamp = U64;
 /// Duration in nanosecond wrapped into a struct for JSON serialization as a string.
 pub type WrappedDuration = U64;
 
-/// Contains information about the transfers. Whether transfers are enabled or disabled.
-#[near(serializers=[borsh, json])]
-pub enum TransfersInformation {
-    /// The timestamp when the transfers were enabled.
-    TransfersEnabled {
-        transfers_timestamp: WrappedTimestamp,
-    },
-    /// The account ID of the transfers poll contract, to check if the transfers are enabled.
-    /// The lockup period can start only after the transfer voted to be enabled.
-    /// At the launch of the network transfers are disabled for all lockup contracts, once transfers
-    /// are enabled, they can't be disabled and don't need to be checked again.
-    TransfersDisabled { transfer_poll_account_id: AccountId },
-}
-
 /// Describes the status of transactions with the staking pool contract or terminated unvesting
 /// amount withdrawal.
 #[near(serializers=[borsh, json])]
@@ -57,7 +43,3 @@ pub struct StakingInformation {
     /// NOTE: The unstaked amount on the staking pool might be higher due to staking rewards.
     pub deposit_amount: NearToken,
 }
-
-/// The result of the transfer poll.
-/// Contains The timestamp when the proposal was voted in.
-pub type PollResult = Option<WrappedTimestamp>;

@@ -26,7 +26,18 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
         .await?;
     outcome_check(&outcome);
 
-    let nonce_before = v.get_lockup_update_nonce(&lockup_account_id).await?;
+    let nonce_before = v.get_lockup_update_nonce(&lockup_account_id).await?.0;
+
+    // Attempt to lock by other account
+    let other_account = v.sandbox.dev_create_account().await?;
+    let outcome = other_account
+        .call(&lockup_account_id, "lock_near")
+        .args_json(json!({ "amount": NearToken::from_near(50) }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(200))
+        .transact()
+        .await?;
+    assert!(outcome.is_failure(), "Locking by other account should fail");
 
     // Lock 50 NEAR
     let outcome = user
@@ -38,11 +49,24 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
         .await?;
     outcome_check(&outcome);
 
-    let nonce_after = v.get_lockup_update_nonce(&lockup_account_id).await?;
+    let nonce_after = v.get_lockup_update_nonce(&lockup_account_id).await?.0;
     assert_eq!(nonce_after, nonce_before + 1, "Nonce should increment");
 
     let locked = v.get_venear_locked(&lockup_account_id).await?;
     assert_eq!(locked, NearToken::from_near(50));
+
+    // Attempt to unlock by other account
+    let outcome = other_account
+        .call(&lockup_account_id, "begin_unlock_near")
+        .args_json(json!({ "amount": NearToken::from_near(30) }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(200))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "Unlocking by other account should fail"
+    );
 
     // Begin unlock 30 NEAR
     let outcome = user
@@ -54,7 +78,7 @@ async fn test_full_lock_unlock_cycle() -> Result<(), Box<dyn std::error::Error>>
         .await?;
     outcome_check(&outcome);
 
-    let unlock_timestamp = v.get_venear_unlock_timestamp(&lockup_account_id).await?;
+    let unlock_timestamp = v.get_venear_unlock_timestamp(&lockup_account_id).await?.0;
     assert!(unlock_timestamp > 0, "venear_unlock_timestamp was not set");
 
     let pending = v.get_venear_pending(&lockup_account_id).await?;
@@ -195,7 +219,7 @@ pub async fn test_lockup_recreation() -> Result<(), Box<dyn std::error::Error>> 
         "Pending should be 100 NEAR"
     );
 
-    let unlock_timestamp = v.get_venear_unlock_timestamp(&lockup_id).await?;
+    let unlock_timestamp = v.get_venear_unlock_timestamp(&lockup_id).await?.0;
     assert!(unlock_timestamp > 0, "venear_unlock_timestamp was not set");
 
     v.fast_forward(unlock_timestamp, UNLOCK_DURATION_SECONDS, 10)

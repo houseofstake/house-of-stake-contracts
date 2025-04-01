@@ -89,7 +89,6 @@ impl LockupContract {
 
     /// Called after the given amount was unstaked at the staking pool contract.
     /// This method needs to update staking pool status.
-
     #[private]
     pub fn on_staking_pool_unstake(&mut self, amount: NearToken) -> bool {
         let unstake_succeeded = is_promise_success();
@@ -98,7 +97,6 @@ impl LockupContract {
 
     /// Called after all tokens were unstaked at the staking pool contract
     /// This method needs to update staking pool status.
-
     #[private]
     pub fn on_staking_pool_unstake_all(&mut self) -> bool {
         let unstake_all_succeeded = is_promise_success();
