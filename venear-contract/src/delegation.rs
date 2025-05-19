@@ -9,6 +9,7 @@ impl Contract {
     #[payable]
     pub fn delegate_all(&mut self, receiver_id: AccountId) {
         assert_one_yocto();
+        self.assert_not_paused();
         let predecessor_id = env::predecessor_account_id();
         require!(receiver_id != predecessor_id, "Can't delegate to self");
         let mut account = self.internal_expect_account_updated(&predecessor_id);
@@ -36,6 +37,7 @@ impl Contract {
     #[payable]
     pub fn undelegate(&mut self) {
         assert_one_yocto();
+        self.assert_not_paused();
         let predecessor_id = env::predecessor_account_id();
         let mut account = self.internal_expect_account_updated(&predecessor_id);
         self.internal_undelegate(&mut account);

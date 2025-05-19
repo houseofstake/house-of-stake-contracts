@@ -161,6 +161,35 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
         "Delegated balance should be equal to balance from user A"
     );
 
+    // Undelegate
+    let outcome = user_a
+        .call(v.venear.id(), "undelegate")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Failed to undelegate NEAR: {:#?}",
+        outcome.outcomes()
+    );
+
+    let account_info_a = v.account_info(user_a.id()).await?;
+    assert!(
+        account_info_a["account"]["delegation"].is_null(),
+        "Delegation should be null"
+    );
+    let account_info_b = v.account_info(user_b.id()).await?;
+    let delegated_balance: NearToken = serde_json::from_value(
+        account_info_b["account"]["delegated_balance"]["near_balance"].clone(),
+    )?;
+    assert_eq!(
+        delegated_balance,
+        NearToken::from_yoctonear(0),
+        "Delegated balance should be zero"
+    );
+
     Ok(())
 }
 
@@ -604,6 +633,54 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_value(config["lockup_code_deployers"].clone())?;
     assert_eq!(lockup_code_deployers, new_lockup_code_deployers);
 
+    // Guardians
+
+    let original_guardians: Vec<AccountId> =
+        serde_json::from_value(original_config["guardians"].clone())?;
+    let new_guardian = v.sandbox.dev_create_account().await?;
+
+    let new_guardians: Vec<AccountId> =
+        vec!["new_guardian_1.near".parse()?, new_guardian.id().clone()];
+    assert_ne!(original_guardians, new_guardians);
+
+    // Attempt set_guardians
+    let outcome = user
+        .call(v.venear.id(), "set_guardians")
+        .args_json(json!({
+            "guardians": new_guardians
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to set guardians",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
+    let guardians: Vec<AccountId> = serde_json::from_value(config["guardians"].clone())?;
+    assert_eq!(guardians, original_guardians);
+
+    let outcome = v
+        .venear_owner
+        .call(v.venear.id(), "set_guardians")
+        .args_json(json!({
+            "guardians": new_guardians
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Owner should be able to set guardians",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
+    let guardians: Vec<AccountId> = serde_json::from_value(config["guardians"].clone())?;
+    assert_eq!(guardians, new_guardians);
+
     // set owner_account_id
     let new_owner_account = v.sandbox.dev_create_account().await?;
 
@@ -824,6 +901,245 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(
         contract_version, 2,
         "The lockup contract version should be updated"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_venear_pause() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user = v.create_account_with_lockup().await?;
+    let user_2 = v.sandbox.dev_create_account().await?;
+
+    // Attempt to create user 3 account
+    let storage_balance_bounds: serde_json::Value = v
+        .sandbox
+        .view(v.venear.id(), "storage_balance_bounds")
+        .await?
+        .json()?;
+
+    let storage_balance_bounds_min: u128 =
+        storage_balance_bounds["min"].as_str().unwrap().parse()?;
+
+    let outcome = user_2
+        .call(v.venear.id(), "storage_deposit")
+        .deposit(NearToken::from_yoctonear(storage_balance_bounds_min))
+        .args_json(json!({}))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Failed to do storage_deposit: {:#?}",
+        outcome.outcomes()
+    );
+
+    let account_info = v.account_info(user_2.id()).await?;
+    assert!(!account_info.is_null(), "Account should be registered");
+
+    // delegate_all to user_2
+    let outcome = user
+        .call(v.venear.id(), "delegate_all")
+        .args_json(json!({
+            "receiver_id": user_2.id()
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Failed to delegate_all: {:#?}",
+        outcome.outcomes()
+    );
+
+    // Attempt to pause the contract
+    let outcome = user
+        .call(v.venear.id(), "pause")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to pause the contract",
+    );
+
+    let is_paused: bool = v
+        .sandbox
+        .view(v.venear.id(), "is_paused")
+        .await?
+        .json()
+        .unwrap();
+    assert!(!is_paused, "Contract should not be paused");
+
+    // Pause the contract by the guardian
+    let outcome = v
+        .guardian
+        .call(v.venear.id(), "pause")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Guardian should be able to pause the contract",
+    );
+
+    let is_paused: bool = v
+        .sandbox
+        .view(v.venear.id(), "is_paused")
+        .await?
+        .json()
+        .unwrap();
+    assert!(is_paused, "Contract should be paused");
+
+    // Check if guardian can unpause the contract
+    let outcome = v
+        .guardian
+        .call(v.venear.id(), "unpause")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "Guardian should not be able to unpause the contract",
+    );
+
+    let is_paused: bool = v
+        .sandbox
+        .view(v.venear.id(), "is_paused")
+        .await?
+        .json()
+        .unwrap();
+    assert!(is_paused, "Contract should be paused");
+
+    // Unpause the contract by the owner
+    let outcome = v
+        .venear_owner
+        .call(v.venear.id(), "unpause")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Owner should be able to unpause the contract",
+    );
+
+    let is_paused: bool = v
+        .sandbox
+        .view(v.venear.id(), "is_paused")
+        .await?
+        .json()
+        .unwrap();
+    assert!(!is_paused, "Contract should not be paused");
+
+    // Pause the contract by the owner
+    let outcome = v
+        .venear_owner
+        .call(v.venear.id(), "pause")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Owner should be able to pause the contract",
+    );
+    let is_paused: bool = v
+        .sandbox
+        .view(v.venear.id(), "is_paused")
+        .await?
+        .json()
+        .unwrap();
+
+    assert!(is_paused, "Contract should be paused");
+
+    // Testing paused methods
+    let user_3 = v.sandbox.dev_create_account().await?;
+
+    // Attempt to create user 3 account
+    let outcome = user_3
+        .call(v.venear.id(), "storage_deposit")
+        .deposit(NearToken::from_yoctonear(storage_balance_bounds_min))
+        .args_json(json!({}))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to create an account when the contract is paused",
+    );
+
+    // Attempt to undelegate_all
+    let outcome = user_2
+        .call(v.venear.id(), "undelegate")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to undelegate when the contract is paused",
+    );
+
+    // Attempt to delegate_all
+    let outcome = user_2
+        .call(v.venear.id(), "delegate_all")
+        .args_json(json!({
+            "receiver_id": user.id()
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to delegate when the contract is paused",
+    );
+
+    // Attempt to deploy a new lockup
+    let lockup_cost: NearToken = v
+        .sandbox
+        .view(v.venear.id(), "get_lockup_deployment_cost")
+        .await?
+        .json()?;
+
+    let outcome = user_2
+        .call(v.venear.id(), "deploy_lockup")
+        .args_json(json!({}))
+        .deposit(lockup_cost)
+        .gas(Gas::from_tgas(200))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to deploy a new lockup when the contract is paused",
+    );
+
+    // Attempt to get snapshot
+    assert!(
+        v.sandbox.view(v.venear.id(), "get_snapshot").await.is_err(),
+        "The contract should not be able to get snapshot when paused"
+    );
+
+    // Attempt to get proof
+    assert!(
+        v.sandbox
+            .view(v.venear.id(), "get_proof")
+            .args_json(json!({
+                "account_id": user.id()
+            }))
+            .await
+            .is_err(),
+        "The contract should not be able to get proof when paused"
     );
 
     Ok(())

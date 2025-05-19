@@ -32,6 +32,9 @@ pub struct Config {
 
     /// The account ID that can upgrade the current contract and modify the config.
     pub owner_account_id: AccountId,
+
+    /// The list of account IDs that can pause the contract.
+    pub guardians: Vec<AccountId>,
 }
 
 #[near]

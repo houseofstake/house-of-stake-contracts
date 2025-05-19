@@ -46,6 +46,7 @@ impl Contract {
     /// Requires the caller to already be registered.
     #[payable]
     pub fn deploy_lockup(&mut self) {
+        self.assert_not_paused();
         self.internal_deploy_lockup(env::predecessor_account_id());
     }
 
@@ -310,6 +311,7 @@ impl Contract {
 pub extern "C" fn prepare_lockup_code() {
     env::setup_panic_hook();
     let contract: Contract = env::state_read().unwrap();
+    contract.assert_not_paused();
     let predecessor_id = env::predecessor_account_id();
     require!(
         contract
