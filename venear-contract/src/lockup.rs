@@ -9,6 +9,8 @@ use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
 
 const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(20);
 const ON_LOCKUP_DEPLOYED: Gas = Gas::from_tgas(15);
+const MIN_INTERNAL_DEPLOY_LOCKUP_GAS: Gas =
+    LOCKUP_DEPLOY_MIN_GAS.saturating_add(ON_LOCKUP_DEPLOYED);
 
 #[near(serializers=[json])]
 pub struct LockupInitArgs {
@@ -201,6 +203,11 @@ impl Contract {
     }
 
     pub fn internal_deploy_lockup(&mut self, owner_account_id: AccountId) {
+        let remaining_gas = env::prepaid_gas().saturating_sub(env::used_gas());
+        require!(
+            remaining_gas >= MIN_INTERNAL_DEPLOY_LOCKUP_GAS,
+            "Not enough gas for lockup deployment"
+        );
         let lockup_deposit = env::attached_deposit();
         assert!(
             self.internal_get_account_internal(&owner_account_id)
