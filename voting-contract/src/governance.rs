@@ -74,6 +74,16 @@ impl Contract {
         self.assert_owner();
         self.config.owner_account_id = owner_account_id;
     }
+
+    /// Sets the list of account IDs that can pause the contract.
+    /// Can only be called by the owner.
+    /// Requires 1 yocto NEAR.
+    #[payable]
+    pub fn set_guardians(&mut self, guardians: Vec<AccountId>) {
+        assert_one_yocto();
+        self.assert_owner();
+        self.config.guardians = guardians;
+    }
 }
 
 impl Contract {
@@ -81,6 +91,16 @@ impl Contract {
         require!(
             env::predecessor_account_id() == self.config.owner_account_id,
             "Only the owner can call this method"
+        );
+    }
+
+    /// Asserts that the caller is one of the guardians or the owner.
+    pub fn assert_guardian(&self) {
+        let predecessor = env::predecessor_account_id();
+        require!(
+            self.config.guardians.contains(&predecessor)
+                || predecessor == self.config.owner_account_id,
+            "Only the guardian can call this method"
         );
     }
 }

@@ -143,6 +143,7 @@ impl Contract {
     /// storage and the base proposal fee.
     #[payable]
     pub fn create_proposal(&mut self, metadata: ProposalMetadata) -> ProposalId {
+        self.assert_not_paused();
         let attached_deposit = env::attached_deposit();
         let num_voting_options = metadata.voting_options.len();
 

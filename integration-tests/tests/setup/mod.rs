@@ -38,6 +38,7 @@ pub struct VotingTestWorkspace {
     pub contract: Account,
     pub owner: Account,
     pub reviewer: Account,
+    pub guardian: Account,
 }
 
 #[derive(Clone, Debug)]
@@ -244,6 +245,7 @@ impl VenearTestWorkspaceBuilder {
 
             let reviewer = sandbox.dev_create_account().await?;
             let owner = sandbox.dev_create_account().await?;
+            let guardian = sandbox.dev_create_account().await?;
 
             let args = json!({
                 "config": {
@@ -254,6 +256,7 @@ impl VenearTestWorkspaceBuilder {
                     "max_number_of_voting_options": self.max_number_of_voting_options,
                     "base_proposal_fee": self.base_proposal_fee,
                     "vote_storage_fee": self.vote_storage_fee,
+                    "guardians": &[guardian.id()],
                 },
             });
 
@@ -274,6 +277,7 @@ impl VenearTestWorkspaceBuilder {
                 contract,
                 owner,
                 reviewer,
+                guardian,
             })
         } else {
             None

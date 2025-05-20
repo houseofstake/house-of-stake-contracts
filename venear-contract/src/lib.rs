@@ -37,7 +37,7 @@ pub struct Contract {
     tree: MerkleTree<VAccount, VGlobalState>,
     accounts: LookupMap<AccountId, VAccountInternal>,
     config: Config,
-    /// Whether the contract is paused or not.
+    /// A flag indicating whether the contract is paused.
     /// The paused contract will not create new lockups and new accounts. It will not return
     /// snapshots or proofs (preventing future voting). The accounts can't delegate or undelegate.
     paused: bool,
