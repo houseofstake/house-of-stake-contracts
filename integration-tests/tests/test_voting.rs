@@ -401,7 +401,7 @@ async fn test_voting_governance() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
     let user = v.create_account_with_lockup().await?;
-    let voting_owner = &v.voting.as_ref().unwrap().owner;
+    let voting_owner = v.voting.as_ref().unwrap().owner.clone();
 
     let original_config: serde_json::Value =
         v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
@@ -681,72 +681,152 @@ async fn test_voting_governance() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(guardians, new_guardians);
 
     // Change owner account ID
+    let new_owner_account = v.sandbox.dev_create_account().await?;
     let original_owner_account_id: AccountId =
         serde_json::from_value(original_config["owner_account_id"].clone())?;
-    let new_owner_account = v.sandbox.dev_create_account().await?;
-    let new_owner_account_id = new_owner_account.id();
-    assert_ne!(&original_owner_account_id, new_owner_account_id);
+    let new_owner_account_id: AccountId = new_owner_account.id().clone();
+    assert_ne!(original_owner_account_id, new_owner_account_id);
 
-    // Attempt to change config with a regular user
+    // Attempt propose_new_owner_account_id
     let outcome = user
-        .call(v.voting_id(), "set_owner_account_id")
+        .call(v.voting_id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": new_owner_account_id,
+            "new_owner_account_id": new_owner_account_id
         }))
         .deposit(NearToken::from_yoctonear(1))
-        .gas(Gas::from_tgas(50))
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(
         outcome.is_failure(),
-        "Regular user should not be able to change config: {:#?}",
-        outcome
+        "User should not be able to propose new owner_account_id",
     );
 
-    // Change config with the owner
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
+
     let outcome = voting_owner
-        .call(v.voting_id(), "set_owner_account_id")
+        .call(v.voting_id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": new_owner_account_id,
+            "new_owner_account_id": new_owner_account_id
         }))
         .deposit(NearToken::from_yoctonear(1))
-        .gas(Gas::from_tgas(50))
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(
         outcome.is_success(),
-        "Owner should be able to change config: {:#?}",
-        outcome
+        "Owner should be able to propose new owner_account_id",
     );
 
-    let new_config: serde_json::Value =
-        v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
-    let owner_account_id: AccountId =
-        serde_json::from_value(new_config["owner_account_id"].clone())?;
-    assert_eq!(&owner_account_id, new_owner_account_id);
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
 
-    // Attempt to change config with the old owner
+    // Cancel proposal
     let outcome = voting_owner
-        .call(v.voting_id(), "set_owner_account_id")
+        .call(v.voting_id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": original_owner_account_id,
+            "new_owner_account_id": None::<String>
         }))
         .deposit(NearToken::from_yoctonear(1))
-        .gas(Gas::from_tgas(50))
+        .gas(Gas::from_tgas(100))
         .transact()
         .await?;
-
     assert!(
-        outcome.is_failure(),
-        "Old owner should not be able to change config: {:#?}",
-        outcome
+        outcome.is_success(),
+        "The current owner should be able to cancel the proposal"
     );
 
-    // Attempt to change config with the new owner
-    let outcome = new_owner_account
-        .call(v.voting_id(), "set_owner_account_id")
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
+
+    let outcome = voting_owner
+        .call(v.voting_id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": original_owner_account_id,
+            "new_owner_account_id": new_owner_account_id
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Owner should be able to propose new owner_account_id",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
+
+    // Accept the ownership by different account
+    let outcome = user
+        .call(v.voting_id(), "accept_ownership")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_failure(),
+        "User should not be able to accept the ownership",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
+
+    // Accept ownership by the new owner
+    let outcome = new_owner_account
+        .call(v.voting_id(), "accept_ownership")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "The new owner should be able to accept the ownership",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, new_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
+
+    // Propose a config with the new owner
+    let outcome = new_owner_account
+        .call(v.voting_id(), "propose_new_owner_account_id")
+        .args_json(json!({
+            "new_owner_account_id": original_owner_account_id,
         }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(50))
@@ -762,7 +842,13 @@ async fn test_voting_governance() -> Result<(), Box<dyn std::error::Error>> {
         v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
     let owner_account_id: AccountId =
         serde_json::from_value(new_config["owner_account_id"].clone())?;
-    assert_eq!(owner_account_id, original_owner_account_id);
+    assert_eq!(owner_account_id, new_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(new_config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&original_owner_account_id)
+    );
 
     Ok(())
 }

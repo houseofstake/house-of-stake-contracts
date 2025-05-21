@@ -436,6 +436,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_value(original_config["local_deposit"].clone())?;
     let new_local_deposit = NearToken::from_yoctonear(1000);
     assert_ne!(original_local_deposit, new_local_deposit);
+    let mut venear_owner = v.venear_owner.clone();
 
     // Attempt set_local_deposit
     let outcome = user
@@ -456,8 +457,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     let local_deposit: NearToken = serde_json::from_value(config["local_deposit"].clone())?;
     assert_eq!(local_deposit, original_local_deposit);
 
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_local_deposit")
         .args_json(json!({
             "local_deposit": new_local_deposit
@@ -509,8 +509,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         original_staking_pool_whitelist_account_id
     );
 
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_staking_pool_whitelist_account_id")
         .args_json(json!({
             "staking_pool_whitelist_account_id": new_staking_pool_whitelist_account_id
@@ -561,8 +560,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_value(config["unlock_duration_ns"].clone())?;
     assert_eq!(unlock_duration_ns, original_unlock_duration_ns);
 
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_unlock_duration_sec")
         .args_json(json!({
             "unlock_duration_sec": new_unlock_duration_sec
@@ -613,8 +611,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         serde_json::from_value(config["lockup_code_deployers"].clone())?;
     assert_eq!(lockup_code_deployers, original_lockup_code_deployers);
 
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_lockup_code_deployers")
         .args_json(json!({
             "lockup_code_deployers": new_lockup_code_deployers
@@ -662,8 +659,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     let guardians: Vec<AccountId> = serde_json::from_value(config["guardians"].clone())?;
     assert_eq!(guardians, original_guardians);
 
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_guardians")
         .args_json(json!({
             "guardians": new_guardians
@@ -681,19 +677,18 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     let guardians: Vec<AccountId> = serde_json::from_value(config["guardians"].clone())?;
     assert_eq!(guardians, new_guardians);
 
-    // set owner_account_id
+    // propose_new_owner_account_id
     let new_owner_account = v.sandbox.dev_create_account().await?;
-
     let original_owner_account_id: AccountId =
         serde_json::from_value(original_config["owner_account_id"].clone())?;
     let new_owner_account_id: AccountId = new_owner_account.id().clone();
     assert_ne!(original_owner_account_id, new_owner_account_id);
 
-    // Attempt set_owner_account_id
+    // Attempt propose_new_owner_account_id
     let outcome = user
-        .call(v.venear.id(), "set_owner_account_id")
+        .call(v.venear.id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": new_owner_account_id
+            "new_owner_account_id": new_owner_account_id
         }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
@@ -701,18 +696,20 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     assert!(
         outcome.is_failure(),
-        "User should not be able to set owner_account_id",
+        "User should not be able to propose new owner_account_id",
     );
 
     let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
     let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
     assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
 
-    let outcome = v
-        .venear_owner
-        .call(v.venear.id(), "set_owner_account_id")
+    let outcome = venear_owner
+        .call(v.venear.id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": new_owner_account_id
+            "new_owner_account_id": new_owner_account_id
         }))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
@@ -720,49 +717,109 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     assert!(
         outcome.is_success(),
-        "Owner should be able to set owner_account_id",
+        "Owner should be able to propose new owner_account_id",
     );
 
     let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
     let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
-    assert_eq!(owner_account_id, new_owner_account_id);
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
 
-    // Attempt to set the owner account ID to the current owner account ID
-    let outcome = v
-        .venear_owner
-        .call(v.venear.id(), "set_owner_account_id")
+    // Cancel proposal
+    let outcome = venear_owner
+        .call(v.venear.id(), "propose_new_owner_account_id")
         .args_json(json!({
-            "owner_account_id": original_owner_account_id
+            "new_owner_account_id": None::<String>
         }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "The current owner should be able to cancel the proposal"
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
+
+    let outcome = venear_owner
+        .call(v.venear.id(), "propose_new_owner_account_id")
+        .args_json(json!({
+            "new_owner_account_id": new_owner_account_id
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Owner should be able to propose new owner_account_id",
+    );
+
+    let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
+    let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
+
+    // Accept the ownership by different account
+    let outcome = user
+        .call(v.venear.id(), "accept_ownership")
+        .args_json(json!({}))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(
         outcome.is_failure(),
-        "Owner should not be able to set the owner account ID to the current owner account ID",
+        "User should not be able to accept the ownership",
     );
+
     let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
     let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
-    assert_eq!(owner_account_id, new_owner_account_id);
+    assert_eq!(owner_account_id, original_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert_eq!(
+        proposed_new_owner_account_id.as_ref(),
+        Some(&new_owner_account_id)
+    );
 
-    // Attempt to set the owner account ID to the original owner account ID
+    // Accept ownership by the new owner
     let outcome = new_owner_account
-        .call(v.venear.id(), "set_owner_account_id")
-        .args_json(json!({
-            "owner_account_id": v.venear_owner.id()
-        }))
+        .call(v.venear.id(), "accept_ownership")
+        .args_json(json!({}))
         .deposit(NearToken::from_yoctonear(1))
         .gas(Gas::from_tgas(100))
         .transact()
         .await?;
     assert!(
         outcome.is_success(),
-        "New owner should be able to set the owner account ID to the original owner account ID",
+        "The new owner should be able to accept the ownership",
     );
+
     let config: serde_json::Value = v.sandbox.view(v.venear.id(), "get_config").await?.json()?;
     let owner_account_id: AccountId = serde_json::from_value(config["owner_account_id"].clone())?;
-    assert_eq!(&owner_account_id, v.venear_owner.id());
+    assert_eq!(owner_account_id, new_owner_account_id);
+    let proposed_new_owner_account_id: Option<AccountId> =
+        serde_json::from_value(config["proposed_new_owner_account_id"].clone())?;
+    assert!(proposed_new_owner_account_id.is_none());
+
+    venear_owner = new_owner_account;
 
     // Deploy new lockup
     let new_lockup_wasm = b"yolo".to_vec();
@@ -869,8 +926,7 @@ async fn test_venear_governance() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Change the lockup contract hash by the owner
-    let outcome = v
-        .venear_owner
+    let outcome = venear_owner
         .call(v.venear.id(), "set_lockup_contract")
         .args_json(json!({
             "contract_hash": new_lockup_contract_hash,
