@@ -188,7 +188,7 @@ impl Contract {
             1 => internal_get_hash_and_size(CONTRACT_REGISTER),
             _ => env::abort(),
         };
-        require!(hash == contract_hash);
+        require!(hash == contract_hash, "Invalid contract hash");
         self.config.lockup_contract_config = Some(LockupContractConfig {
             contract_size: size as _,
             contract_version: self
@@ -239,7 +239,7 @@ impl Contract {
             )
         };
         // Safety check
-        require!(res == 1);
+        require!(res == 1, "Contract code is not found");
 
         let promise_id = unsafe {
             sys::promise_batch_create(
