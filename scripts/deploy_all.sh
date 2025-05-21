@@ -93,7 +93,7 @@ near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/v
 echo "Creating account $REVIEWER_ACCOUNT_ID"
 near --quiet account create-account fund-myself $REVIEWER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
-echo "Creating account $VOTING_GUARDIAN_ACCOUNT_ID
+echo "Creating account $VOTING_GUARDIAN_ACCOUNT_ID"
 near --quiet account create-account fund-myself $VOTING_GUARDIAN_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 
