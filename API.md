@@ -387,16 +387,14 @@ pub fn get_staking_pool_account_id(&self) -> Option<AccountId>;
 /// To refresh the amount the owner can call `refresh_staking_pool_balance`.
 pub fn get_known_deposited_balance(&self) -> NearToken;
 
-/// Returns the balance of the account owner. It includes vested and extra tokens that
-/// may have been deposited to this account.
-/// NOTE: Some of this tokens may be deposited to the staking pool.
+/// Returns the balance of the account owner.
+/// Note: This is the same as `get_balance`.
 pub fn get_owners_balance(&self) -> NearToken;
 
 /// Returns total balance of the account including tokens deposited to the staking pool.
 pub fn get_balance(&self) -> NearToken;
 
 /// Returns the amount of tokens the owner can transfer from the account.
-/// Transfers have to be enabled.
 pub fn get_liquid_owners_balance(&self) -> NearToken;
 
 /// Returns the version of the Lockup contract.
@@ -503,7 +501,6 @@ pub fn unstake_all(&mut self) -> Promise;
 /// Requires 1 yoctoNEAR attached
 ///
 /// Transfers the given amount to the given receiver account ID.
-/// This requires transfers to be enabled within the voting contract.
 #[payable]
 pub fn transfer(&mut self, amount: NearToken, receiver_id: AccountId) -> Promise;
 
@@ -597,7 +594,7 @@ pub fn lock_near(&mut self, amount: Option<NearToken>);
 ///
 /// Requires 1 yoctoNEAR attached
 ///
-/// Starts the unlocking process of the in the lockup contract.
+/// Starts the unlocking process of the locked NEAR in the lockup contract.
 /// You specify the amount of near to unlock, or if you don't specify it, all the locked NEAR
 /// will be unlocked.
 /// (works similarly to unstaking from a staking pool).

@@ -135,7 +135,7 @@ impl LockupContract {
         self.staking_information.as_mut().unwrap().deposit_amount = total_balance;
     }
 
-    /// Called after the request to get the current unstaked balance to withdraw everything by th
+    /// Called after the request to get the current unstaked balance to withdraw everything by the
     /// owner.
     #[private]
     pub fn on_get_account_unstaked_balance_to_withdraw_by_owner(

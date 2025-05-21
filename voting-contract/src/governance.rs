@@ -43,18 +43,6 @@ impl Contract {
         self.config.base_proposal_fee = base_proposal_fee;
     }
 
-    /// Updates the storage fee required to store a vote for an active proposal.
-    /// Can only be called by the owner.
-    /// Requires 1 yocto NEAR.
-    /// Will panic if called, because it requires contract upgrade to change the storage fee.
-    #[payable]
-    pub fn set_vote_storage_fee(&mut self, _vote_storage_fee: NearToken) {
-        // The reason for this restriction is that the contract needs to be upgraded to change the
-        // storage fee. Otherwise, the storage for the previous votes will be refunded with the
-        // new storage fee.
-        env::panic_str("Vote storage fee cannot be changed, without contract upgrade");
-    }
-
     /// Updates the maximum number of voting options per proposal.
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.

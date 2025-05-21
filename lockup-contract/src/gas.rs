@@ -54,16 +54,6 @@ pub mod staking_pool {
     pub const GET_ACCOUNT_TOTAL_BALANCE: Gas = super::BASE_GAS;
 }
 
-// TODO: Deprecate
-pub mod transfer_poll {
-    use near_sdk::Gas;
-
-    /// Gas attached to the promise to check whether transfers were enabled on the transfer poll
-    /// contract.
-    /// Requires BASE (no external calls).
-    pub const GET_RESULT: Gas = super::BASE_GAS;
-}
-
 pub mod owner_callbacks {
     use near_sdk::Gas;
 
