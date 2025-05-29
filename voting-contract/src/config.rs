@@ -26,6 +26,12 @@ pub struct Config {
     /// Storage fee required to store a vote for an active proposal. It can be refunded once the
     /// proposal is finalized.
     pub vote_storage_fee: NearToken,
+
+    /// The list of account IDs that can pause the contract.
+    pub guardians: Vec<AccountId>,
+
+    /// Proposed new owner account ID. The account has to accept ownership.
+    pub proposed_new_owner_account_id: Option<AccountId>,
 }
 
 #[near]

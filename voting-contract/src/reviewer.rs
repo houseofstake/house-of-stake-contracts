@@ -20,6 +20,7 @@ impl Contract {
         voting_start_time_sec: Option<u32>,
     ) -> Promise {
         assert_one_yocto();
+        self.assert_not_paused();
         self.assert_called_by_reviewer();
         let proposal = self.internal_expect_proposal_updated(proposal_id);
 
@@ -54,6 +55,7 @@ impl Contract {
     #[payable]
     pub fn reject_proposal(&mut self, proposal_id: ProposalId) {
         assert_one_yocto();
+        self.assert_not_paused();
         self.assert_called_by_reviewer();
         let mut proposal = self.internal_expect_proposal_updated(proposal_id);
 
@@ -84,6 +86,7 @@ impl Contract {
         proposal_id: ProposalId,
         voting_start_time_sec: Option<u32>,
     ) -> ProposalInfo {
+        self.assert_not_paused();
         let mut proposal = self.internal_expect_proposal_updated(proposal_id);
 
         if proposal.status != ProposalStatus::Created {

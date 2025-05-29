@@ -9,6 +9,8 @@ use near_sdk::{env, is_promise_success, Gas, IntoStorageKey, Promise};
 
 const LOCKUP_DEPLOY_MIN_GAS: Gas = Gas::from_tgas(20);
 const ON_LOCKUP_DEPLOYED: Gas = Gas::from_tgas(15);
+const MIN_INTERNAL_DEPLOY_LOCKUP_GAS: Gas =
+    LOCKUP_DEPLOY_MIN_GAS.saturating_add(ON_LOCKUP_DEPLOYED);
 
 #[near(serializers=[json])]
 pub struct LockupInitArgs {
@@ -46,6 +48,7 @@ impl Contract {
     /// Requires the caller to already be registered.
     #[payable]
     pub fn deploy_lockup(&mut self) {
+        self.assert_not_paused();
         self.internal_deploy_lockup(env::predecessor_account_id());
     }
 
@@ -185,7 +188,7 @@ impl Contract {
             1 => internal_get_hash_and_size(CONTRACT_REGISTER),
             _ => env::abort(),
         };
-        require!(hash == contract_hash);
+        require!(hash == contract_hash, "Invalid contract hash");
         self.config.lockup_contract_config = Some(LockupContractConfig {
             contract_size: size as _,
             contract_version: self
@@ -200,6 +203,11 @@ impl Contract {
     }
 
     pub fn internal_deploy_lockup(&mut self, owner_account_id: AccountId) {
+        let remaining_gas = env::prepaid_gas().saturating_sub(env::used_gas());
+        require!(
+            remaining_gas >= MIN_INTERNAL_DEPLOY_LOCKUP_GAS,
+            "Not enough gas for lockup deployment"
+        );
         let lockup_deposit = env::attached_deposit();
         assert!(
             self.internal_get_account_internal(&owner_account_id)
@@ -231,7 +239,7 @@ impl Contract {
             )
         };
         // Safety check
-        require!(res == 1);
+        require!(res == 1, "Contract code is not found");
 
         let promise_id = unsafe {
             sys::promise_batch_create(
@@ -310,6 +318,7 @@ impl Contract {
 pub extern "C" fn prepare_lockup_code() {
     env::setup_panic_hook();
     let contract: Contract = env::state_read().unwrap();
+    contract.assert_not_paused();
     let predecessor_id = env::predecessor_account_id();
     require!(
         contract

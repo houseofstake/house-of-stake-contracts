@@ -33,6 +33,7 @@ impl Contract {
     /// Requires a deposit of at least `storage_balance_bounds().min`.
     #[payable]
     pub fn storage_deposit(&mut self, account_id: Option<AccountId>) -> StorageBalance {
+        self.assert_not_paused();
         let amount = env::attached_deposit();
         let account_id = account_id.unwrap_or_else(env::predecessor_account_id);
         if self.internal_get_account_internal(&account_id).is_some() {

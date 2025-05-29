@@ -248,7 +248,7 @@ impl LockupContract {
     /// Requires 175 TGas (7 * BASE_GAS)
     /// Requires 1 yoctoNEAR attached
     ///
-    /// Tries to withdraws all unstaked balance from the staking pool
+    /// Tries to withdraw all unstaked balance from the staking pool
     #[payable]
     pub fn withdraw_all_from_staking_pool(&mut self) -> Promise {
         self.assert_owner();
@@ -408,7 +408,6 @@ impl LockupContract {
     /// Requires 1 yoctoNEAR attached
     ///
     /// Transfers the given amount to the given receiver account ID.
-    /// This requires transfers to be enabled within the voting contract.
     #[payable]
     pub fn transfer(&mut self, amount: NearToken, receiver_id: AccountId) -> Promise {
         self.assert_owner();

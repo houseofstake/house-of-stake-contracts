@@ -28,6 +28,7 @@ pub struct VenearTestWorkspace {
     pub staking_pool: Account,
     pub lockup_deployer: Account,
     pub venear_owner: Account,
+    pub guardian: Account,
     pub voting: Option<VotingTestWorkspace>,
 }
 
@@ -37,6 +38,7 @@ pub struct VotingTestWorkspace {
     pub contract: Account,
     pub owner: Account,
     pub reviewer: Account,
+    pub guardian: Account,
 }
 
 #[derive(Clone, Debug)]
@@ -135,6 +137,7 @@ impl VenearTestWorkspaceBuilder {
 
         let lockup_deployer = sandbox.dev_create_account().await?;
         let venear_owner = sandbox.dev_create_account().await?;
+        let guardian = sandbox.dev_create_account().await?;
 
         let venear = sandbox.dev_create_account().await?;
         // Need a shorter name, otherwise the lockup hash will not fit into 64 bytes
@@ -155,6 +158,7 @@ impl VenearTestWorkspaceBuilder {
                 "local_deposit": self.local_deposit,
                 "min_lockup_deposit": self.min_lockup_deposit,
                 "owner_account_id": venear_owner.id(),
+                "guardians": &[guardian.id()],
             },
             "venear_growth_config": {
                 "annual_growth_rate_ns": self.annual_growth_rate_ns,
@@ -241,6 +245,7 @@ impl VenearTestWorkspaceBuilder {
 
             let reviewer = sandbox.dev_create_account().await?;
             let owner = sandbox.dev_create_account().await?;
+            let guardian = sandbox.dev_create_account().await?;
 
             let args = json!({
                 "config": {
@@ -251,6 +256,7 @@ impl VenearTestWorkspaceBuilder {
                     "max_number_of_voting_options": self.max_number_of_voting_options,
                     "base_proposal_fee": self.base_proposal_fee,
                     "vote_storage_fee": self.vote_storage_fee,
+                    "guardians": &[guardian.id()],
                 },
             });
 
@@ -271,6 +277,7 @@ impl VenearTestWorkspaceBuilder {
                 contract,
                 owner,
                 reviewer,
+                guardian,
             })
         } else {
             None
@@ -283,6 +290,7 @@ impl VenearTestWorkspaceBuilder {
             staking_pool,
             lockup_deployer,
             venear_owner,
+            guardian,
             voting,
         };
 
@@ -352,7 +360,7 @@ impl VenearTestWorkspace {
         let storage_balance_bounds_min: u128 =
             storage_balance_bounds["min"].as_str().unwrap().parse()?;
 
-        // Attempt to register account with less funding
+        // Attempt to register an account with less funding
         let outcome = user_account
             .call(self.venear.id(), "storage_deposit")
             .deposit(NearToken::from_yoctonear(storage_balance_bounds_min - 1))
