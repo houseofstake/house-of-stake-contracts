@@ -48,6 +48,12 @@ impl Contract {
     /// Initializes the contract with the given configuration.
     #[init]
     pub fn new(config: Config, venear_growth_config: VenearGrowthConfigFixedRate) -> Self {
+        // The denominator must be 10^30 (10^9 for nanoseconds and 10^21 for milliNEAR) to ensure
+        // that the growth rate doesn't introduce rounding errors.
+        require!(
+            venear_growth_config.annual_growth_rate_ns.denominator.0 == 10u128.pow(30),
+            "Denominator must be 10^30"
+        );
         Self {
             tree: MerkleTree::new(
                 StorageKeys::Tree,

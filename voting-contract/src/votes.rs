@@ -52,16 +52,14 @@ impl Contract {
             account_id == &env::predecessor_account_id(),
             "Account ID doesn't match the predecessor account ID"
         );
-        let account_balance = account
-            .venear_balance(
-                timestamp_ns,
-                &proposal
-                    .snapshot_and_state
-                    .as_ref()
-                    .unwrap()
-                    .venear_growth_config,
-            )
-            .total();
+        let account_balance = account.total_balance(
+            timestamp_ns,
+            &proposal
+                .snapshot_and_state
+                .as_ref()
+                .unwrap()
+                .venear_growth_config,
+        );
         require!(!account_balance.is_zero(), "Account has no veNEAR balance");
 
         let previous_vote = self.votes.get(&(account_id.clone(), proposal_id)).cloned();

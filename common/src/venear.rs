@@ -38,13 +38,14 @@ impl VenearGrowthConfig {
         if previous_timestamp == current_timestamp {
             return NearToken::from_yoctonear(0);
         }
+        let truncated_near_balance = truncate_near_to_millis(balance);
         match self {
             VenearGrowthConfig::FixedRate(config) => {
                 let growth_period_ns = current_timestamp.0 - previous_timestamp.0;
                 NearToken::from_yoctonear(
                     config
                         .annual_growth_rate_ns
-                        .u384_mul(growth_period_ns as _, balance.as_yoctonear()),
+                        .u384_mul(growth_period_ns as _, truncated_near_balance.as_yoctonear()),
                 )
             }
         }

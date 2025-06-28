@@ -7,7 +7,7 @@ use crate::*;
 pub struct GlobalState {
     pub update_timestamp: TimestampNs,
 
-    pub total_venear_balance: VenearBalance,
+    pub total_venear_balance: PooledVenearBalance,
 
     pub venear_growth_config: VenearGrowthConfig,
 }
@@ -15,13 +15,14 @@ pub struct GlobalState {
 impl GlobalState {
     pub fn new(timestamp: TimestampNs, venear_growth_config: VenearGrowthConfig) -> Self {
         Self {
-            update_timestamp: timestamp,
-            total_venear_balance: VenearBalance::default(),
+            update_timestamp: truncate_to_seconds(timestamp),
+            total_venear_balance: PooledVenearBalance::default(),
             venear_growth_config,
         }
     }
 
     pub fn update(&mut self, current_timestamp: TimestampNs) {
+        let current_timestamp = truncate_to_seconds(current_timestamp);
         self.total_venear_balance.update(
             self.update_timestamp,
             current_timestamp,

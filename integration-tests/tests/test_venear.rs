@@ -239,8 +239,8 @@ async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
     // Configure the annual growth rate to be 10% per selected period
     let v = VenearTestWorkspaceBuilder::default()
         .annual_growth_rate_ns(Fraction {
-            numerator: 10.into(),
-            denominator: (100 * period).into(),
+            numerator: (10 * 10u128.pow(30) / (100 * period)).into(),
+            denominator: 10u128.pow(30).into(),
         })
         .build()
         .await?;
@@ -287,7 +287,7 @@ async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
     assert_almost_eq(
         balance,
         new_expected_balance,
-        NearToken::from_millinear(100),
+        NearToken::from_millinear(200),
     );
 
     Ok(())
@@ -298,7 +298,7 @@ async fn test_ft_events() -> Result<(), Box<dyn std::error::Error>> {
     let v = VenearTestWorkspaceBuilder::default()
         .annual_growth_rate_ns(Fraction {
             numerator: 0.into(),
-            denominator: 1.into(),
+            denominator: 10u128.pow(30).into(),
         })
         .build()
         .await?;

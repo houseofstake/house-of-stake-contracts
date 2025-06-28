@@ -23,7 +23,9 @@ impl Contract {
         }
 
         let mut delegation_account = self.internal_expect_account_updated(&receiver_id);
-        delegation_account.delegated_balance += account.balance;
+        delegation_account.delegated_balance = delegation_account
+            .delegated_balance
+            .pooled_add(&account.balance);
         self.internal_set_account(receiver_id.clone(), delegation_account);
 
         account.delegation = Some(AccountDelegation {
@@ -49,7 +51,9 @@ impl Contract {
     pub fn internal_undelegate(&mut self, account: &mut Account) {
         let delegation_account_id = account.delegation.take().expect("Not delegated").account_id;
         let mut delegation_account = self.internal_expect_account_updated(&delegation_account_id);
-        delegation_account.delegated_balance -= account.balance;
+        delegation_account.delegated_balance = delegation_account
+            .delegated_balance
+            .pooled_sub(&account.balance);
         self.internal_set_account(delegation_account_id, delegation_account);
     }
 }

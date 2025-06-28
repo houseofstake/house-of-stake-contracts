@@ -162,14 +162,18 @@ impl Contract {
         // Updating balance and also adding internal balance deposit.
         account.balance.near_balance =
             near_add(lockup_update.locked_near_balance, account_internal.deposit);
-        global_state.total_venear_balance -= old_balance;
-        global_state.total_venear_balance += account.balance;
+        global_state.total_venear_balance = global_state
+            .total_venear_balance
+            .pooled_sub(&old_balance)
+            .pooled_add(&account.balance);
 
         if let Some(delegation) = &account.delegation {
             let mut delegation_account =
                 self.internal_expect_account_updated(&delegation.account_id);
-            delegation_account.delegated_balance -= old_balance;
-            delegation_account.delegated_balance += account.balance;
+            delegation_account.delegated_balance = delegation_account
+                .delegated_balance
+                .pooled_sub(&old_balance)
+                .pooled_add(&account.balance);
             self.internal_set_account(delegation.account_id.clone(), delegation_account);
         }
         self.internal_set_account_internal(account_id.clone(), account_internal);

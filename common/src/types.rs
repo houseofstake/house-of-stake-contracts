@@ -1,6 +1,7 @@
 use crate::venear::VenearGrowthConfig;
 use crate::*;
 use near_sdk::json_types::{U128, U64};
+use near_sdk::require;
 use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Mul, Sub, SubAssign};
 
@@ -93,6 +94,56 @@ impl SubAssign<Self> for VenearBalance {
     }
 }
 
+/// Represents balance of NEAR and veNEAR tokens that are pooled together. The `near_balance` is
+/// truncated to milliNEAR for every added `VenearBalance` to avoid rounding errors
+/// during `extra_venear_balance` growth calculations. The truncated `near_balance` is added to
+/// `extra_venear_balance` to ensure that the total balance remains consistent.
+#[derive(Copy, Clone, Default)]
+#[near(serializers=[borsh, json])]
+pub struct PooledVenearBalance(VenearBalance);
+
+impl PooledVenearBalance {
+    pub fn total(&self) -> NearToken {
+        self.0.total()
+    }
+
+    pub fn update(
+        &mut self,
+        previous_timestamp: TimestampNs,
+        current_timestamp: TimestampNs,
+        venear_growth_config: &VenearGrowthConfig,
+    ) {
+        self.0
+            .update(previous_timestamp, current_timestamp, venear_growth_config);
+    }
+}
+
+impl PooledVenearBalance {
+    pub fn pooled_add(&self, other: &VenearBalance) -> Self {
+        let truncated_near_balance = truncate_near_to_millis(other.near_balance);
+        let difference = near_sub(other.near_balance, truncated_near_balance);
+        Self(VenearBalance {
+            near_balance: near_add(self.0.near_balance, truncated_near_balance),
+            extra_venear_balance: near_add(
+                self.0.extra_venear_balance,
+                near_add(other.extra_venear_balance, difference),
+            ),
+        })
+    }
+
+    pub fn pooled_sub(&self, other: &VenearBalance) -> Self {
+        let truncated_near_balance = truncate_near_to_millis(other.near_balance);
+        let difference = near_sub(other.near_balance, truncated_near_balance);
+        Self(VenearBalance {
+            near_balance: near_sub(self.0.near_balance, truncated_near_balance),
+            extra_venear_balance: near_sub(
+                self.0.extra_venear_balance,
+                near_add(other.extra_venear_balance, difference),
+            ),
+        })
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 #[near(serializers=[borsh, json])]
 pub struct Fraction {
@@ -128,6 +179,8 @@ impl Fraction {
     pub fn u384_mul(&self, a: u128, b: u128) -> u128 {
         let numerator = U384::from(self.numerator.0) * U384::from(a) * U384::from(b);
         let denominator = U384::from(self.denominator.0);
+        // Ensure that the multiplication does not introduce rounding errors.
+        require!(numerator % denominator == U384::from(0), "Rounding error");
         (numerator / denominator).as_u128()
     }
 }

@@ -14,7 +14,7 @@ pub struct Account {
     /// veNEAR accumulated over time.
     pub balance: VenearBalance,
     /// The total amount of NEAR and veNEAR that was delegated to this account.
-    pub delegated_balance: VenearBalance,
+    pub delegated_balance: PooledVenearBalance,
     /// The delegation details, in case this account has delegated balance to another account.
     pub delegation: Option<AccountDelegation>,
 }
@@ -50,25 +50,34 @@ impl From<VAccount> for Account {
 
 impl Account {
     /// Returns veNEAR balance of the account without modifications.
-    pub fn venear_balance(
+    pub fn total_balance(
         &self,
         current_timestamp: TimestampNs,
         venear_growth_config: &VenearGrowthConfig,
-    ) -> VenearBalance {
+    ) -> NearToken {
+        let current_timestamp = truncate_to_seconds(current_timestamp);
         require!(
             current_timestamp >= self.update_timestamp,
             "Timestamp must be increasing"
         );
-        let mut total = self.delegated_balance;
-        if self.delegation.is_none() {
-            total += self.balance;
-        }
-        total.update(
+        let mut delegated_balance = self.delegated_balance;
+        delegated_balance.update(
             self.update_timestamp,
             current_timestamp,
             venear_growth_config,
         );
-        total
+        let total = delegated_balance.total();
+        if self.delegation.is_none() {
+            let mut balance = self.balance;
+            balance.update(
+                self.update_timestamp,
+                current_timestamp,
+                venear_growth_config,
+            );
+            near_add(total, balance.total())
+        } else {
+            total
+        }
     }
 
     pub fn update(
@@ -76,6 +85,7 @@ impl Account {
         current_timestamp: TimestampNs,
         venear_growth_config: &VenearGrowthConfig,
     ) {
+        let current_timestamp = truncate_to_seconds(current_timestamp);
         require!(
             current_timestamp >= self.update_timestamp,
             "Timestamp must be increasing"

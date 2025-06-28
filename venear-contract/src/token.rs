@@ -8,12 +8,10 @@ impl Contract {
     pub fn ft_balance_of(&self, account_id: AccountId) -> NearToken {
         self.internal_get_account(&account_id)
             .map(|account| {
-                account
-                    .venear_balance(
-                        env::block_timestamp().into(),
-                        self.internal_get_venear_growth_config(),
-                    )
-                    .total()
+                account.total_balance(
+                    env::block_timestamp().into(),
+                    self.internal_get_venear_growth_config(),
+                )
             })
             .unwrap_or_default()
     }
