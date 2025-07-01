@@ -17,6 +17,7 @@ impl Contract {
         merkle_proof: MerkleProof,
         v_account: VAccount,
     ) {
+        self.assert_not_paused();
         let attached_deposit = env::attached_deposit();
         require!(!attached_deposit.is_zero(), "Requires attached deposit");
 

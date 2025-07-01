@@ -43,18 +43,6 @@ impl Contract {
         self.config.base_proposal_fee = base_proposal_fee;
     }
 
-    /// Updates the storage fee required to store a vote for an active proposal.
-    /// Can only be called by the owner.
-    /// Requires 1 yocto NEAR.
-    /// Will panic if called, because it requires contract upgrade to change the storage fee.
-    #[payable]
-    pub fn set_vote_storage_fee(&mut self, _vote_storage_fee: NearToken) {
-        // The reason for this restriction is that the contract needs to be upgraded to change the
-        // storage fee. Otherwise, the storage for the previous votes will be refunded with the
-        // new storage fee.
-        env::panic_str("Vote storage fee cannot be changed, without contract upgrade");
-    }
-
     /// Updates the maximum number of voting options per proposal.
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
@@ -65,14 +53,39 @@ impl Contract {
         self.config.max_number_of_voting_options = max_number_of_voting_options;
     }
 
-    /// Sets the account ID that can upgrade the current contract and modify the config.
+    /// Proposes the new owner account ID.
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
     #[payable]
-    pub fn set_owner_account_id(&mut self, owner_account_id: AccountId) {
+    pub fn propose_new_owner_account_id(&mut self, new_owner_account_id: Option<AccountId>) {
         assert_one_yocto();
         self.assert_owner();
-        self.config.owner_account_id = owner_account_id;
+        self.config.proposed_new_owner_account_id = new_owner_account_id;
+    }
+
+    /// Accepts the new owner account ID.
+    /// Can only be called by the new owner.
+    /// Requires 1 yocto NEAR.
+    #[payable]
+    pub fn accept_ownership(&mut self) {
+        assert_one_yocto();
+        let predecessor = env::predecessor_account_id();
+        require!(
+            self.config.proposed_new_owner_account_id.as_ref() == Some(&predecessor),
+            "Only the proposed new owner can call this method"
+        );
+        self.config.owner_account_id = predecessor;
+        self.config.proposed_new_owner_account_id = None;
+    }
+
+    /// Sets the list of account IDs that can pause the contract.
+    /// Can only be called by the owner.
+    /// Requires 1 yocto NEAR.
+    #[payable]
+    pub fn set_guardians(&mut self, guardians: Vec<AccountId>) {
+        assert_one_yocto();
+        self.assert_owner();
+        self.config.guardians = guardians;
     }
 
     /// Updates the default quorum percentage required for proposals to pass.
@@ -95,6 +108,16 @@ impl Contract {
         require!(
             env::predecessor_account_id() == self.config.owner_account_id,
             "Only the owner can call this method"
+        );
+    }
+
+    /// Asserts that the caller is one of the guardians or the owner.
+    pub fn assert_guardian(&self) {
+        let predecessor = env::predecessor_account_id();
+        require!(
+            self.config.guardians.contains(&predecessor)
+                || predecessor == self.config.owner_account_id,
+            "Only the guardian can call this method"
         );
     }
 }

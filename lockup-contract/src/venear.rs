@@ -105,7 +105,7 @@ impl LockupContract {
     ///
     /// Requires 1 yoctoNEAR attached
     ///
-    /// Starts the unlocking process of the in the lockup contract.
+    /// Starts the unlocking process of the locked NEAR in the lockup contract.
     /// You specify the amount of near to unlock, or if you don't specify it, all the locked NEAR
     /// will be unlocked.
     /// (works similarly to unstaking from a staking pool).

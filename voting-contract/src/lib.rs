@@ -1,6 +1,7 @@
 mod config;
 mod governance;
 mod metadata;
+mod pause;
 mod proposal;
 mod reviewer;
 mod upgrade;
@@ -34,6 +35,10 @@ pub struct Contract {
     /// A map from the account ID and the proposal ID to the vote option index.
     votes: LookupMap<(AccountId, ProposalId), u8>,
     approved_proposals: Vector<ProposalId>,
+    /// A flag indicating whether the contract is paused.
+    /// The paused contract will not accept new proposals, new votes or updated votes, proposals
+    /// cannot be approved or rejected.
+    paused: bool,
 }
 
 #[near]
@@ -47,6 +52,7 @@ impl Contract {
             proposal_metadata: Vector::new(StorageKeys::ProposalMetadata),
             votes: LookupMap::new(StorageKeys::Votes),
             approved_proposals: Vector::new(StorageKeys::ApprovedProposals),
+            paused: false,
         }
     }
 }

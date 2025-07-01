@@ -30,6 +30,12 @@ pub struct Config {
     /// Default quorum percentage (0-100) of total veNEAR supply required for a proposal to pass.
     /// Can be overridden per proposal.
     pub default_quorum_percentage: u8,
+  
+    /// The list of account IDs that can pause the contract.
+    pub guardians: Vec<AccountId>,
+
+    /// Proposed new owner account ID. The account has to accept ownership.
+    pub proposed_new_owner_account_id: Option<AccountId>,
 }
 
 #[near]

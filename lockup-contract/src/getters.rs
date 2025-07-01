@@ -26,14 +26,10 @@ impl LockupContract {
             .unwrap_or(NearToken::from_yoctonear(0))
     }
 
-    /// Returns the balance of the account owner. It includes vested and extra tokens that
-    /// may have been deposited to this account.
-    /// NOTE: Some of this tokens may be deposited to the staking pool.
+    /// Returns the balance of the account owner.
+    /// Note: This is the same as `get_balance`.
     pub fn get_owners_balance(&self) -> NearToken {
-        NearToken::from_yoctonear(
-            env::account_balance().as_yoctonear()
-                + self.get_known_deposited_balance().as_yoctonear(),
-        )
+        self.get_balance()
     }
 
     /// Returns total balance of the account including tokens deposited to the staking pool.
@@ -45,9 +41,8 @@ impl LockupContract {
     }
 
     /// Returns the amount of tokens the owner can transfer from the account.
-    /// Transfers have to be enabled.
     pub fn get_liquid_owners_balance(&self) -> NearToken {
-        std::cmp::min(self.get_owners_balance(), self.get_account_balance()).into()
+        self.get_account_balance()
     }
 
     /// Returns the version of the Lockup contract.

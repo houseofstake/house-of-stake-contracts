@@ -66,6 +66,12 @@ pub struct Config {
 
     /// The account ID that can upgrade the current contract and modify the config.
     pub owner_account_id: AccountId,
+
+    /// The list of account IDs that can pause the contract.
+    pub guardians: Vec<AccountId>,
+
+    /// Proposed new owner account ID. The account has to accept ownership.
+    pub proposed_new_owner_account_id: Option<AccountId>,
 }
 
 /// Full information about the account
@@ -190,11 +196,17 @@ pub fn set_staking_pool_whitelist_account_id(
     staking_pool_whitelist_account_id: AccountId,
 );
 
-/// Sets the owner account ID.
+/// Proposes the new owner account ID.
 /// Can only be called by the owner.
 /// Requires 1 yocto NEAR.
 #[payable]
-pub fn set_owner_account_id(&mut self, owner_account_id: AccountId);
+pub fn propose_new_owner_account_id(&mut self, new_owner_account_id: Option<AccountId>);
+
+/// Accepts the new owner account ID.
+/// Can only be called by the new owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn accept_ownership(&mut self);
 
 /// Sets the unlock duration in seconds.
 /// Note, this method will only affect new lockups.
@@ -208,6 +220,27 @@ pub fn set_unlock_duration_sec(&mut self, unlock_duration_sec: u32);
 /// Requires 1 yocto NEAR.
 #[payable]
 pub fn set_lockup_code_deployers(&mut self, lockup_code_deployers: Vec<AccountId>);
+
+/// Sets the list of account IDs that can pause the contract.
+/// Can only be called by the owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn set_guardians(&mut self, guardians: Vec<AccountId>);
+
+/// Checks if the contract is paused.
+pub fn is_paused(&self) -> bool;
+
+/// Pauses the contract.
+/// Can only be called by the guardian.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn pause(&mut self);
+
+/// Unpauses the contract.
+/// Can only be called by the owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn unpause(&mut self);
 
 /// Deploys the lockup contract.
 /// If the lockup contract is already deployed, the method will fail after the attempt.
@@ -354,16 +387,14 @@ pub fn get_staking_pool_account_id(&self) -> Option<AccountId>;
 /// To refresh the amount the owner can call `refresh_staking_pool_balance`.
 pub fn get_known_deposited_balance(&self) -> NearToken;
 
-/// Returns the balance of the account owner. It includes vested and extra tokens that
-/// may have been deposited to this account.
-/// NOTE: Some of this tokens may be deposited to the staking pool.
+/// Returns the balance of the account owner.
+/// Note: This is the same as `get_balance`.
 pub fn get_owners_balance(&self) -> NearToken;
 
 /// Returns total balance of the account including tokens deposited to the staking pool.
 pub fn get_balance(&self) -> NearToken;
 
 /// Returns the amount of tokens the owner can transfer from the account.
-/// Transfers have to be enabled.
 pub fn get_liquid_owners_balance(&self) -> NearToken;
 
 /// Returns the version of the Lockup contract.
@@ -470,7 +501,6 @@ pub fn unstake_all(&mut self) -> Promise;
 /// Requires 1 yoctoNEAR attached
 ///
 /// Transfers the given amount to the given receiver account ID.
-/// This requires transfers to be enabled within the voting contract.
 #[payable]
 pub fn transfer(&mut self, amount: NearToken, receiver_id: AccountId) -> Promise;
 
@@ -564,7 +594,7 @@ pub fn lock_near(&mut self, amount: Option<NearToken>);
 ///
 /// Requires 1 yoctoNEAR attached
 ///
-/// Starts the unlocking process of the in the lockup contract.
+/// Starts the unlocking process of the locked NEAR in the lockup contract.
 /// You specify the amount of near to unlock, or if you don't specify it, all the locked NEAR
 /// will be unlocked.
 /// (works similarly to unstaking from a staking pool).
@@ -623,6 +653,12 @@ pub struct Config {
     /// Storage fee required to store a vote for an active proposal. It can be refunded once the
     /// proposal is finalized.
     pub vote_storage_fee: NearToken,
+
+    /// The list of account IDs that can pause the contract.
+    pub guardians: Vec<AccountId>,
+
+    /// Proposed new owner account ID. The account has to accept ownership.
+    pub proposed_new_owner_account_id: Option<AccountId>,
 }
 
 /// Metadata for a proposal.
@@ -759,11 +795,38 @@ pub fn set_vote_storage_fee(&mut self, _vote_storage_fee: NearToken);
 #[payable]
 pub fn set_max_number_of_voting_options(&mut self, max_number_of_voting_options: u8);
 
-/// Sets the account ID that can upgrade the current contract and modify the config.
+/// Proposes the new owner account ID.
 /// Can only be called by the owner.
 /// Requires 1 yocto NEAR.
 #[payable]
-pub fn set_owner_account_id(&mut self, owner_account_id: AccountId);
+pub fn propose_new_owner_account_id(&mut self, new_owner_account_id: Option<AccountId>);
+
+/// Accepts the new owner account ID.
+/// Can only be called by the new owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn accept_ownership(&mut self);
+
+/// Sets the list of account IDs that can pause the contract.
+/// Can only be called by the owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn set_guardians(&mut self, guardians: Vec<AccountId>);
+
+/// Checks if the contract is paused.
+pub fn is_paused(&self) -> bool;
+
+/// Pauses the contract.
+/// Can only be called by the guardian.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn pause(&mut self);
+
+/// Unpauses the contract.
+/// Can only be called by the owner.
+/// Requires 1 yocto NEAR.
+#[payable]
+pub fn unpause(&mut self);
 
 /// Creates a new proposal with the given metadata.
 /// The proposal is created by the predecessor account and requires a deposit to cover the
