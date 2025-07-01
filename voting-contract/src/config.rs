@@ -26,6 +26,10 @@ pub struct Config {
     /// Storage fee required to store a vote for an active proposal. It can be refunded once the
     /// proposal is finalized.
     pub vote_storage_fee: NearToken,
+
+    /// Default quorum percentage (0-100) of total veNEAR supply required for a proposal to pass.
+    /// Can be overridden per proposal.
+    pub default_quorum_percentage: u8,
 }
 
 #[near]

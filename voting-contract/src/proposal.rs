@@ -52,6 +52,8 @@ pub struct Proposal {
     pub total_votes: VoteStats,
     /// The status of the proposal. It's optional and can be computed from the proposal itself.
     pub status: ProposalStatus,
+    /// The quorum percentage (0-100) required for this proposal.
+    pub quorum_percentage: u8,
 }
 
 /// The proposal information structure that contains the proposal and its metadata.
@@ -78,6 +80,8 @@ pub enum ProposalStatus {
     Voting,
     /// The proposal voting is finished and the results are available.
     Finished,
+    /// The proposal voting is finished but quorum was not met.
+    QuorumNotMet,
 }
 
 /// The snapshot of the Merkle tree and the global state at the moment when the proposal was
@@ -122,12 +126,23 @@ impl VoteStats {
 impl Proposal {
     pub fn update(&mut self, timestamp: TimestampNs) {
         match self.status {
-            ProposalStatus::Created | ProposalStatus::Rejected | ProposalStatus::Finished => {
+            ProposalStatus::Created | ProposalStatus::Rejected | ProposalStatus::Finished | ProposalStatus::QuorumNotMet => {
                 return;
             }
             ProposalStatus::Approved | ProposalStatus::Voting => {
                 if timestamp.0 >= self.voting_start_time_ns.unwrap().0 + self.voting_duration_ns.0 {
-                    self.status = ProposalStatus::Finished;
+                    // Check if quorum is met
+                    if let Some(snapshot_and_state) = &self.snapshot_and_state {
+                        let required_venear = snapshot_and_state.total_venear.as_yoctonear() * self.quorum_percentage as u128 / 100;
+                        if self.total_votes.total_venear.as_yoctonear() >= required_venear {
+                            self.status = ProposalStatus::Finished;
+                        } else {
+                            self.status = ProposalStatus::QuorumNotMet;
+                        }
+                    } else {
+                        // Should not happen, but fallback to finished
+                        self.status = ProposalStatus::Finished;
+                    }
                 } else if timestamp >= self.voting_start_time_ns.unwrap() {
                     self.status = ProposalStatus::Voting;
                 }
@@ -159,6 +174,14 @@ impl Contract {
             )
         );
 
+        // Validate quorum percentage if provided
+        if let Some(quorum_pct) = metadata.quorum_percentage {
+            require!(
+                quorum_pct <= 100,
+                "Quorum percentage must be between 0 and 100"
+            );
+        }
+
         let proposer_id = env::predecessor_account_id();
         let proposal_id = self.proposals.len();
 
@@ -184,6 +207,7 @@ impl Contract {
             votes: vec![VoteStats::default(); num_voting_options],
             total_votes: VoteStats::default(),
             status: ProposalStatus::Created,
+            quorum_percentage: metadata.quorum_percentage.unwrap_or(self.config.default_quorum_percentage),
         };
         let storage_usage = env::storage_usage();
         self.proposals.push(proposal.into());
