@@ -13,8 +13,9 @@ pub enum VenearGrowthConfig {
 #[derive(Clone)]
 #[near(serializers=[json, borsh])]
 pub struct VenearGrowthConfigFixedRate {
-    /// The growth rate of veNEAR tokens per nanosecond. E.g. 6 / (100 * NUM_SEC_IN_YEAR * 10**9)
+    /// The growth rate of veNEAR tokens per nanosecond. E.g. `6 / (100 * NUM_SEC_IN_YEAR * 10**9)`
     /// means 6% annual growth rate.
+    /// Note, the denominator has to be `10**30` to avoid precision issues.
     pub annual_growth_rate_ns: Fraction,
 }
 
@@ -34,6 +35,14 @@ impl VenearGrowthConfig {
         require!(
             current_timestamp >= previous_timestamp,
             "Timestamp must be increasing"
+        );
+        require!(
+            current_timestamp == truncate_to_seconds(current_timestamp),
+            "Current timestamp must be truncated to seconds"
+        );
+        require!(
+            previous_timestamp == truncate_to_seconds(previous_timestamp),
+            "Previous timestamp must be truncated to seconds"
         );
         if previous_timestamp == current_timestamp {
             return NearToken::from_yoctonear(0);
