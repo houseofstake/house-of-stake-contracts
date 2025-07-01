@@ -33,6 +33,9 @@ impl Contract {
             ProposalStatus::Finished => {
                 env::panic_str("Voting is finished");
             }
+            ProposalStatus::QuorumNotMet => {
+                env::panic_str("Voting is finished and quorum was not met");
+            }
         }
 
         // Validate merkle proof

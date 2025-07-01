@@ -74,6 +74,20 @@ impl Contract {
         self.assert_owner();
         self.config.owner_account_id = owner_account_id;
     }
+
+    /// Updates the default quorum percentage required for proposals to pass.
+    /// Can only be called by the owner.
+    /// Requires 1 yocto NEAR.
+    #[payable]
+    pub fn set_default_quorum_percentage(&mut self, default_quorum_percentage: u8) {
+        assert_one_yocto();
+        self.assert_owner();
+        require!(
+            default_quorum_percentage <= 100,
+            "Quorum percentage must be between 0 and 100"
+        );
+        self.config.default_quorum_percentage = default_quorum_percentage;
+    }
 }
 
 impl Contract {
