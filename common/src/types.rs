@@ -116,9 +116,7 @@ impl PooledVenearBalance {
         self.0
             .update(previous_timestamp, current_timestamp, venear_growth_config);
     }
-}
 
-impl PooledVenearBalance {
     pub fn pooled_add(&self, other: &VenearBalance) -> Self {
         let truncated_near_balance = truncate_near_to_millis(other.near_balance);
         let difference = near_sub(other.near_balance, truncated_near_balance);
