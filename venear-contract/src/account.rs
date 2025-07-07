@@ -1,5 +1,5 @@
 use crate::*;
-use common::{events, VenearBalance, Version};
+use common::{events, near_add, truncate_to_seconds, VenearBalance, Version};
 use near_sdk::json_types::U64;
 
 /// Full information about the account
@@ -118,12 +118,14 @@ impl Contract {
         let mut global_state: GlobalState = self.internal_global_state_updated();
         let account = Account {
             account_id: account_id.clone(),
-            update_timestamp: env::block_timestamp().into(),
+            update_timestamp: truncate_to_seconds(env::block_timestamp().into()),
             balance: VenearBalance::from_near(deposit),
             delegated_balance: Default::default(),
             delegation: None,
         };
-        global_state.total_venear_balance += account.balance;
+        global_state.total_venear_balance = global_state
+            .total_venear_balance
+            .pooled_add(&account.balance);
         self.internal_set_account(account_id.clone(), account);
         self.internal_set_global_state(global_state);
     }
@@ -166,19 +168,18 @@ impl Contract {
         let old_balance = self
             .internal_get_account(&account_id)
             .map(|account| {
-                let mut total = account.delegated_balance;
+                let mut total = account.delegated_balance.total();
                 if account.delegation.is_none() {
-                    total += account.balance;
+                    total = near_add(total, account.balance.total());
                 }
-                total.total()
+                total
             })
             .unwrap_or_default();
         // New balance
-        let mut new_balance = account.delegated_balance;
+        let mut new_balance = account.delegated_balance.total();
         if account.delegation.is_none() {
-            new_balance += account.balance;
+            new_balance = near_add(new_balance, account.balance.total());
         }
-        let new_balance = new_balance.total();
         if new_balance > old_balance {
             events::emit::ft_mint(&account_id, new_balance.checked_sub(old_balance).unwrap());
         } else if new_balance < old_balance {

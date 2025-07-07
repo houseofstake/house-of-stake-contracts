@@ -193,6 +193,83 @@ async fn test_delegate() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_delegate_rounding() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user_a = v.create_account_with_lockup().await?;
+    let user_b = v.create_account_with_lockup().await?;
+
+    let outcome = user_a
+        .call(v.venear.id(), "delegate_all")
+        .args_json(json!({
+            "receiver_id": user_b.id()
+        }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(
+        outcome.is_success(),
+        "Failed to delegate NEAR: {:#?}",
+        outcome.outcomes()
+    );
+
+    // Now we are affecting the growth calculation of user_b multiple times. This may introduce
+    // rounding errors while calculating extra venear in delegated balance.
+
+    let lockup_id_b = v.get_lockup_account_id(user_b.id()).await?;
+
+    for i in 1..=10 {
+        let outcome = user_b
+            .call(&lockup_id_b, "lock_near")
+            .args_json(json!({
+                "amount": NearToken::from_millinear(i)
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .gas(Gas::from_tgas(100))
+            .transact()
+            .await?;
+
+        assert!(
+            outcome.is_success(),
+            "Failed to lock NEAR: {:#?}",
+            outcome.outcomes()
+        );
+    }
+
+    // Undelegate
+    let outcome = user_a
+        .call(v.venear.id(), "undelegate")
+        .args_json(json!({}))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+    assert!(
+        outcome.is_success(),
+        "Failed to undelegate NEAR: {:#?}",
+        outcome.outcomes()
+    );
+
+    let account_info_a = v.account_info(user_a.id()).await?;
+    assert!(
+        account_info_a["account"]["delegation"].is_null(),
+        "Delegation should be null"
+    );
+    let account_info_b = v.account_info(user_b.id()).await?;
+    let delegated_balance: NearToken = serde_json::from_value(
+        account_info_b["account"]["delegated_balance"]["near_balance"].clone(),
+    )?;
+    assert_eq!(
+        delegated_balance,
+        NearToken::from_yoctonear(0),
+        "Delegated balance should be zero"
+    );
+
+    Ok(())
+}
+
 async fn attempt_venear_upgrade(
     user: &near_workspaces::Account,
     v: &VenearTestWorkspace,
@@ -239,8 +316,8 @@ async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
     // Configure the annual growth rate to be 10% per selected period
     let v = VenearTestWorkspaceBuilder::default()
         .annual_growth_rate_ns(Fraction {
-            numerator: 10.into(),
-            denominator: (100 * period).into(),
+            numerator: (10 * 10u128.pow(30) / (100 * period)).into(),
+            denominator: 10u128.pow(30).into(),
         })
         .build()
         .await?;
@@ -287,7 +364,7 @@ async fn test_venear_growth() -> Result<(), Box<dyn std::error::Error>> {
     assert_almost_eq(
         balance,
         new_expected_balance,
-        NearToken::from_millinear(100),
+        NearToken::from_millinear(200),
     );
 
     Ok(())
@@ -298,7 +375,7 @@ async fn test_ft_events() -> Result<(), Box<dyn std::error::Error>> {
     let v = VenearTestWorkspaceBuilder::default()
         .annual_growth_rate_ns(Fraction {
             numerator: 0.into(),
-            denominator: 1.into(),
+            denominator: 10u128.pow(30).into(),
         })
         .build()
         .await?;

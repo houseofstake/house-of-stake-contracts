@@ -9,8 +9,9 @@ The API documentation for the contracts.
 /// Note, the growth rate can be changed in the future through the upgrade mechanism, by introducing
 /// timepoints when the growth rate changes.
 pub struct VenearGrowthConfigFixedRate {
-    /// The growth rate of veNEAR tokens per nanosecond. E.g. 6 / (100 * NUM_SEC_IN_YEAR * 10**9)
+    /// The growth rate of veNEAR tokens per nanosecond. E.g. `6 / (100 * NUM_SEC_IN_YEAR * 10**9)`
     /// means 6% annual growth rate.
+    /// Note, the denominator has to be `10**30` to avoid precision issues.
     pub annual_growth_rate_ns: Fraction,
 }
 

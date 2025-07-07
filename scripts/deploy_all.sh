@@ -57,10 +57,10 @@ export VOTING_GUARDIAN_ACCOUNT_ID="voting-guardian.$ROOT_ACCOUNT_ID"
 export LOCKUP_DEPLOYER_ACCOUNT_ID="lockup-deployer.$ROOT_ACCOUNT_ID"
 
 echo "Creating account $VENEAR_ACCOUNT_ID"
-near --quiet account create-account fund-myself $VENEAR_ACCOUNT_ID '2.3 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
+near --quiet account create-account fund-myself $VENEAR_ACCOUNT_ID '2.4 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Creating account $VOTING_ACCOUNT_ID"
-near --quiet account create-account fund-myself $VOTING_ACCOUNT_ID '2.2 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
+near --quiet account create-account fund-myself $VOTING_ACCOUNT_ID '2.3 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
 
 echo "Creating account $OWNER_ACCOUNT_ID"
 near --quiet account create-account fund-myself $OWNER_ACCOUNT_ID '0.1 NEAR' autogenerate-new-keypair save-to-keychain sign-as $ROOT_ACCOUNT_ID network-config $CHAIN_ID sign-with-keychain send
@@ -84,8 +84,8 @@ near --quiet contract deploy $VENEAR_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/v
   },
   "venear_growth_config": {
     "annual_growth_rate_ns": {
-      "numerator": "6",
-      "denominator": "3153600000000000000"
+      "numerator": "1902587519026",
+      "denominator": "1000000000000000000000000000000"
     }
   }
 }' prepaid-gas '10.0 Tgas' attached-deposit '0 NEAR' network-config $CHAIN_ID sign-with-keychain send

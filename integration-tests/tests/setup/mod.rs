@@ -60,9 +60,13 @@ impl Default for VenearTestWorkspaceBuilder {
             unlock_duration_ns: UNLOCK_DURATION_SECONDS * 1_000_000_000,
             local_deposit: NearToken::from_millinear(100),
             min_lockup_deposit: NearToken::from_millinear(2000),
+            // 6% annual growth rate, expressed as a fraction per nanosecond
+            // 6 / (100 * 365 * 24 * 60 * 60 * 10**9)
+            // The denominator is set to 10**30 to avoid precision issues with large numbers.
+            // So the numerator is rounded to the closest integer 1902587519025.8752
             annual_growth_rate_ns: Fraction {
-                numerator: 6.into(),
-                denominator: (100u128 * 365 * 24 * 60 * 60 * 10u128.pow(9)).into(),
+                numerator: 1902587519026.into(),
+                denominator: 10u128.pow(30).into(),
             },
             deploy_voting: false,
             voting_duration_ns: VOTING_DURATION_SECONDS * 1_000_000_000,
