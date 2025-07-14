@@ -1,6 +1,8 @@
 mod setup;
 
-use crate::setup::{VenearTestWorkspace, VenearTestWorkspaceBuilder, VOTING_WASM_FILEPATH, VOTING_DURATION_SECONDS};
+use crate::setup::{
+    VenearTestWorkspace, VenearTestWorkspaceBuilder, VOTING_DURATION_SECONDS, VOTING_WASM_FILEPATH,
+};
 use near_sdk::json_types::U64;
 use near_sdk::{Gas, NearToken};
 use near_workspaces::AccountId;
@@ -1088,28 +1090,33 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .with_voting()
         .build()
         .await?;
-    
+
     // Create multiple users with different lockup amounts
     let user_a = v.create_account_with_lockup().await?;
     let user_b = v.create_account_with_lockup().await?;
     let user_c = v.create_account_with_lockup().await?;
     let user_d = v.create_account_with_lockup().await?;
-    
+
     // Lock NEAR for each user with different amounts
     // We need this to be able to test the quorum unlike the votes
     // above that vote with 1 yoctoNEAR
-    v.transfer_and_lock(&user_a, NearToken::from_near(1000)).await?;
-    v.transfer_and_lock(&user_b, NearToken::from_near(500)).await?;
-    v.transfer_and_lock(&user_c, NearToken::from_near(200)).await?;
-    v.transfer_and_lock(&user_d, NearToken::from_near(100)).await?;
-    
+    v.transfer_and_lock(&user_a, NearToken::from_near(1000))
+        .await?;
+    v.transfer_and_lock(&user_b, NearToken::from_near(500))
+        .await?;
+    v.transfer_and_lock(&user_c, NearToken::from_near(200))
+        .await?;
+    v.transfer_and_lock(&user_d, NearToken::from_near(100))
+        .await?;
+
     // Fast forward to ensure lockups are active
     let current_timestamp = v.sandbox.view_block().await?.timestamp();
-    v.fast_forward(current_timestamp + 5_000_000_000, 10, 20).await?;
+    v.fast_forward(current_timestamp + 5_000_000_000, 10, 20)
+        .await?;
 
     // Test Case 1: Create proposal with default quorum (30%)
     let proposal_id_default = create_proposal(&v, &user_a).await?;
-    
+
     // Test Case 2: Create proposal with custom quorum (50%)
     let outcome = user_b
         .call(v.voting_id(), "create_proposal")
@@ -1125,9 +1132,12 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .gas(Gas::from_tgas(50))
         .transact()
         .await?;
-    assert!(outcome.is_success(), "Failed to create proposal with custom quorum");
+    assert!(
+        outcome.is_success(),
+        "Failed to create proposal with custom quorum"
+    );
     let proposal_id_custom: u32 = outcome.json().unwrap();
-    
+
     // Test Case 3: Create proposal with invalid quorum (>100%)
     let outcome = user_c
         .call(v.voting_id(), "create_proposal")
@@ -1143,33 +1153,43 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .gas(Gas::from_tgas(50))
         .transact()
         .await?;
-    assert!(outcome.is_failure(), "Should fail with invalid quorum percentage");
-    
+    assert!(
+        outcome.is_failure(),
+        "Should fail with invalid quorum percentage"
+    );
+
     // Approve both proposals as the reviewer
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id_default).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id_default,
+    )
+    .await?;
     approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id_custom).await?;
-    
+
     // Check proposal details
     let proposal_default = v.get_proposal(proposal_id_default).await?;
-    
+
     // Confirm the default quorum percentage is 30%
     assert_eq!(proposal_default["quorum_percentage"].as_u64().unwrap(), 30);
     assert_eq!(proposal_default["status"].as_str().unwrap(), "Voting");
-    
+
     // Confirm the custom quorum percentage is 50%
     let proposal_custom = v.get_proposal(proposal_id_custom).await?;
     assert_eq!(proposal_custom["quorum_percentage"].as_u64().unwrap(), 50);
 
     // Get merkle proofs for voting
     let (user_a_merkle_proof, user_a_v_account) = v.get_proof(user_a.id()).await?;
-        
+
     let (user_b_merkle_proof, user_b_v_account) = v.get_proof(user_b.id()).await?;
 
     // Get total veNEAR supply from snapshot (after approval when snapshot exists)
     let proposal_default_data = v.get_proposal(proposal_id_default).await?;
-    let total_venear_str = proposal_default_data["snapshot_and_state"]["total_venear"].as_str().unwrap();
+    let total_venear_str = proposal_default_data["snapshot_and_state"]["total_venear"]
+        .as_str()
+        .unwrap();
     let total_venear: u128 = total_venear_str.parse().unwrap();
-    
+
     // Test scenario 1: Vote on default quorum proposal with only 20% participation (below 30% quorum)
     let outcome = user_c
         .call(v.voting_id(), "vote")
@@ -1192,7 +1212,7 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .transact()
         .await?;
     assert!(outcome.is_success(), "Failed to vote");
-    
+
     // Test scenario 2: Vote on custom quorum proposal with sufficient participation
     // Vote with user_a and user_b (1500 NEAR out of ~1800 total = ~83% > 50% quorum)
     let outcome = user_a
@@ -1207,8 +1227,12 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .gas(Gas::from_tgas(50))
         .transact()
         .await?;
-    assert!(outcome.is_success(), "user_a failed to vote: {:#?}", outcome.failures());
-    
+    assert!(
+        outcome.is_success(),
+        "user_a failed to vote: {:#?}",
+        outcome.failures()
+    );
+
     let outcome = user_b
         .call(v.voting_id(), "vote")
         .args_json(json!({
@@ -1222,25 +1246,37 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .transact()
         .await?;
     assert!(outcome.is_success(), "user_b failed to vote");
-    
+
     // Check voting progress
     let proposal_custom = v.get_proposal(proposal_id_custom).await?;
-    let total_voted = proposal_custom["total_votes"]["total_venear"].as_str().unwrap().parse::<u128>().unwrap();
+    let total_voted = proposal_custom["total_votes"]["total_venear"]
+        .as_str()
+        .unwrap()
+        .parse::<u128>()
+        .unwrap();
     let quorum_required = total_venear * 50 / 100;
-    assert!(total_voted >= quorum_required, "Should have enough votes for quorum");
-    
+    assert!(
+        total_voted >= quorum_required,
+        "Should have enough votes for quorum"
+    );
+
     // Fast forward past voting period
     let current_timestamp = v.sandbox.view_block().await?.timestamp();
-    v.fast_forward(current_timestamp + VOTING_DURATION_SECONDS * 1_000_000_000 + 1_000_000_000, 10, 20).await?;
-    
+    v.fast_forward(
+        current_timestamp + VOTING_DURATION_SECONDS * 1_000_000_000 + 1_000_000_000,
+        10,
+        20,
+    )
+    .await?;
+
     // Check that proposal failed due to quorum not met
     let proposal_default = v.get_proposal(proposal_id_default).await?;
     assert_eq!(proposal_default["status"].as_str().unwrap(), "QuorumNotMet");
-    
+
     // Check that proposal passed with quorum met
     let proposal_custom = v.get_proposal(proposal_id_custom).await?;
     assert_eq!(proposal_custom["status"].as_str().unwrap(), "Finished");
-    
+
     // Test governance: Update default quorum percentage
     let voting_owner = &v.voting.as_ref().unwrap().owner;
     let outcome = voting_owner
@@ -1252,12 +1288,15 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .gas(Gas::from_tgas(50))
         .transact()
         .await?;
-    assert!(outcome.is_success(), "Failed to update default quorum percentage");
-    
+    assert!(
+        outcome.is_success(),
+        "Failed to update default quorum percentage"
+    );
+
     // Verify the config was updated
     let config: serde_json::Value = v.sandbox.view(v.voting_id(), "get_config").await?.json()?;
     assert_eq!(config["default_quorum_percentage"].as_u64().unwrap(), 40);
-    
+
     // Test that regular user cannot update quorum
     let outcome = user_a
         .call(v.voting_id(), "set_default_quorum_percentage")
@@ -1268,7 +1307,10 @@ async fn test_voting_quorum() -> Result<(), Box<dyn std::error::Error>> {
         .gas(Gas::from_tgas(50))
         .transact()
         .await?;
-    assert!(outcome.is_failure(), "Regular user should not be able to update quorum");
+    assert!(
+        outcome.is_failure(),
+        "Regular user should not be able to update quorum"
+    );
 
     Ok(())
 }

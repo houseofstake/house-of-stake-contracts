@@ -126,22 +126,28 @@ impl VoteStats {
 impl Proposal {
     pub fn update(&mut self, timestamp: TimestampNs) {
         match self.status {
-            ProposalStatus::Created | ProposalStatus::Rejected | ProposalStatus::Finished | ProposalStatus::QuorumNotMet => {
+            ProposalStatus::Created
+            | ProposalStatus::Rejected
+            | ProposalStatus::Finished
+            | ProposalStatus::QuorumNotMet => {
                 return;
             }
             ProposalStatus::Approved | ProposalStatus::Voting => {
                 if timestamp.0 >= self.voting_start_time_ns.unwrap().0 + self.voting_duration_ns.0 {
+                    self.snapshot_and_state
+                        .as_ref()
+                        .expect(format!("Proposal {} does not have a snapshot", self.id).as_str());
+
                     // Check if quorum is met
                     if let Some(snapshot_and_state) = &self.snapshot_and_state {
-                        let required_venear = snapshot_and_state.total_venear.as_yoctonear() * self.quorum_percentage as u128 / 100;
+                        let required_venear = snapshot_and_state.total_venear.as_yoctonear()
+                            * self.quorum_percentage as u128
+                            / 100;
                         if self.total_votes.total_venear.as_yoctonear() >= required_venear {
                             self.status = ProposalStatus::Finished;
                         } else {
                             self.status = ProposalStatus::QuorumNotMet;
                         }
-                    } else {
-                        // Should not happen, but fallback to finished
-                        self.status = ProposalStatus::Finished;
                     }
                 } else if timestamp >= self.voting_start_time_ns.unwrap() {
                     self.status = ProposalStatus::Voting;
@@ -208,7 +214,9 @@ impl Contract {
             votes: vec![VoteStats::default(); num_voting_options],
             total_votes: VoteStats::default(),
             status: ProposalStatus::Created,
-            quorum_percentage: metadata.quorum_percentage.unwrap_or(self.config.default_quorum_percentage),
+            quorum_percentage: metadata
+                .quorum_percentage
+                .unwrap_or(self.config.default_quorum_percentage),
         };
         let storage_usage = env::storage_usage();
         self.proposals.push(proposal.into());
