@@ -45,6 +45,8 @@ VOTING_DURATION_NS="${VOTING_DURATION_SEC}000000000"
 : ${BASE_PROPOSAL_FEE:="100000000000000000000000"}
 # 0.00125 NEAR (we probably need less)
 : ${VOTE_STORAGE_FEE:="1250000000000000000000"}
+# Represented in percent (X%)
+DEFAULT_QUORUM_PERCENTAGE="30"
 
 # Shorter name, so we can fit more
 export ROOT_ACCOUNT_ID="$ROOT_ACCOUNT_ID"
@@ -107,6 +109,7 @@ near --quiet contract deploy $VOTING_ACCOUNT_ID use-file res/$CONTRACTS_SOURCE/v
     "max_number_of_voting_options": 16,
     "base_proposal_fee": "'$BASE_PROPOSAL_FEE'",
     "vote_storage_fee": "'$VOTE_STORAGE_FEE'",
+    "default_quorum_percentage": "'$DEFAULT_QUORUM_PERCENTAGE'",
     "guardians": ["'$GUARDIAN_ACCOUNT_ID'"]
   }
 }' prepaid-gas '10.0 Tgas' attached-deposit '0 NEAR' network-config $CHAIN_ID sign-with-keychain send
