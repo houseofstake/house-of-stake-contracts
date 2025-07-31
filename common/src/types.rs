@@ -24,10 +24,10 @@ pub type Version = u64;
 #[derive(Copy, Clone, Default)]
 #[near(serializers=[borsh, json])]
 pub struct VenearBalance {
-    /// The balance in NEAR tokens. This balance grows over time.
+    /// The balance in NEAR tokens. This balance doesn't grow over time.
     pub near_balance: NearToken,
 
-    /// The balance in veNEAR tokens. This balance doesn't grow over time.
+    /// The balance in veNEAR tokens. This balance does grow over time.
     pub extra_venear_balance: NearToken,
 }
 
