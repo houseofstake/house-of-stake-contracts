@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.0.3"
+version = "1.0.0"
 authors = ["Fastnear Inc <hello@fastnear.com>"]
 edition = "2021"
 repository = "https://github.com/fastnear/house-of-stake-contracts"
