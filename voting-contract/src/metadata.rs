@@ -35,4 +35,9 @@ pub struct ProposalMetadata {
 
     /// The voting options for the proposal.
     pub voting_options: Vec<String>,
+
+    /// Optional quorum percentage (0-100) for this proposal.
+    /// If not provided, uses the default from config.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quorum_percentage: Option<u8>,
 }

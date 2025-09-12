@@ -27,6 +27,10 @@ pub struct Config {
     /// proposal is finalized.
     pub vote_storage_fee: NearToken,
 
+    /// Default quorum percentage (0-100) of total veNEAR supply required for a proposal to pass.
+    /// Can be overridden per proposal.
+    pub default_quorum_percentage: u8,
+  
     /// The list of account IDs that can pause the contract.
     pub guardians: Vec<AccountId>,
 

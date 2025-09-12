@@ -52,6 +52,7 @@ pub struct VenearTestWorkspaceBuilder {
     pub max_number_of_voting_options: u8,
     pub base_proposal_fee: NearToken,
     pub vote_storage_fee: NearToken,
+    pub default_quorum_percentage: u8,
 }
 
 impl Default for VenearTestWorkspaceBuilder {
@@ -73,6 +74,7 @@ impl Default for VenearTestWorkspaceBuilder {
             max_number_of_voting_options: 16,
             base_proposal_fee: NearToken::from_millinear(100),
             vote_storage_fee: NearToken::from_yoctonear(125 * 10u128.pow(19)),
+            default_quorum_percentage: 30, // 30% default quorum
         }
     }
 }
@@ -260,6 +262,7 @@ impl VenearTestWorkspaceBuilder {
                     "max_number_of_voting_options": self.max_number_of_voting_options,
                     "base_proposal_fee": self.base_proposal_fee,
                     "vote_storage_fee": self.vote_storage_fee,
+                    "default_quorum_percentage": self.default_quorum_percentage,
                     "guardians": &[guardian.id()],
                 },
             });
@@ -574,6 +577,18 @@ impl VenearTestWorkspace {
 
     pub fn voting_id(&self) -> &AccountId {
         self.voting.as_ref().unwrap().contract.id()
+    }
+
+    pub async fn get_proof(
+        &self,
+        account_id: &AccountId,
+    ) -> Result<(serde_json::Value, serde_json::Value), Box<dyn std::error::Error>> {
+        Ok(self
+            .sandbox
+            .view(self.venear.id(), "get_proof")
+            .args_json(json!({ "account_id": account_id }))
+            .await?
+            .json()?)
     }
 }
 
