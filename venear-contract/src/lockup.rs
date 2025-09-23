@@ -87,16 +87,6 @@ impl Contract {
             }
         }
     }
-    /// Called by one of the LST tokens after ft_transfer_call
-    pub fn ft_on_transfer(&mut self, sender_id: String, _amount: String, _msg: String) -> String {
-        if sender_id == self.config.staking_pool_whitelist_account_id {
-            NearToken::from_yoctonear(0).to_string()
-        } else {
-            let sender_account: AccountId = sender_id.parse().unwrap();
-            let account: Account = self.internal_expect_account_updated(&sender_account);
-            account.balance.near_balance.to_string()
-        }
-    }
 
     /// Callback after the attempt to deploy the lockup contract.
     /// Returns the lockup contract account ID if the deployment was successful.

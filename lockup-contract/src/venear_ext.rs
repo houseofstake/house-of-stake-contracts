@@ -13,6 +13,4 @@ trait ExtVenear {
         owner_account_id: AccountId,
         update: VLockupUpdate,
     );
-
-    fn ft_on_transfer(&mut self, sender_id: String, amount: String, msg: String) -> String;
 }
