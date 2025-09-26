@@ -1,7 +1,7 @@
 //! A smart contract that allows tokens to be locked up.
 
 pub use crate::types::*;
-use near_sdk::json_types::U64;
+use near_sdk::json_types::{U64, U128};
 use near_sdk::{env, ext_contract, near, require, AccountId, PanicOnDefault};
 use near_sdk::{Gas, NearToken};
 
@@ -157,7 +157,7 @@ impl LockupContract {
     }
 
     /// Called by one of the LST tokens after `ft_transfer_call`
-    pub fn ft_on_transfer(&mut self, _sender_id: String, _amount: String, _msg: String) -> String {
+    pub fn ft_on_transfer(&mut self, _sender_id: AccountId, _amount: U128, _msg: String) -> U128 {
         require!(
             Some(&env::predecessor_account_id())
                 == self
@@ -166,7 +166,7 @@ impl LockupContract {
                     .map(|s| &s.staking_pool_account_id),
             "Only currently selected LST is accepted"
         );
-        NearToken::from_yoctonear(0).to_string()
+        U128(NearToken::from_yoctonear(0).as_yoctonear())
     }
 }
 
