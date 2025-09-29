@@ -166,7 +166,7 @@ impl LockupContract {
                     .map(|s| &s.staking_pool_account_id),
             "Only currently selected LST is accepted"
         );
-        U128(NearToken::from_yoctonear(0).as_yoctonear())
+        0.into()
     }
 }
 
