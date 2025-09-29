@@ -157,7 +157,8 @@ impl LockupContract {
     }
 
     /// Called by one of the LST tokens after `ft_transfer_call`
-    pub fn ft_on_transfer(&mut self, _sender_id: AccountId, _amount: U128, _msg: String) -> U128 {
+    #[allow(unused_variables)]
+    pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> U128 {
         require!(
             Some(&env::predecessor_account_id())
                 == self
