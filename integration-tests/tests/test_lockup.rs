@@ -4,6 +4,7 @@ use crate::setup::{
     assert_almost_eq, outcome_check, VenearTestWorkspace, VenearTestWorkspaceBuilder,
     UNLOCK_DURATION_SECONDS,
 };
+use near_sdk::json_types::U128;
 use near_sdk::Gas;
 use near_workspaces::types::NearToken;
 use near_workspaces::{Account, AccountId};
@@ -989,6 +990,80 @@ pub async fn test_lockup_delete_after_staking() -> Result<(), Box<dyn std::error
         v.sandbox.view_account(&lockup_id).await.is_err(),
         "Lockup account should be deleted"
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+pub async fn test_ft_on_transfer_error() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user = v.create_account_with_lockup().await?;
+    let root = v.sandbox.root_account().unwrap();
+    let lockup_id = v.get_lockup_account_id(user.id()).await?;
+
+    let outcome = user
+        .call(&lockup_id, "ft_on_transfer")
+        .args_json(json!({ "sender_id": lockup_id, "amount": "1".to_string(), "msg": "Lorem ipsum".to_string() }))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(
+        outcome.is_failure(),
+        "Only staking pool account id can call this method"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+pub async fn test_ft_on_transfer_success() -> Result<(), Box<dyn std::error::Error>> {
+    let v = VenearTestWorkspaceBuilder::default().build().await?;
+    let user = v.create_account_with_lockup().await?;
+    let root = v.sandbox.root_account().unwrap();
+    let lockup_id = v.get_lockup_account_id(user.id()).await?;
+
+    let staking_pool = v.sandbox.dev_create_account().await?;
+
+    // Whitelist the staking pool account
+    let pool_add = v
+        .staking_pool_whitelist_account
+        .call(v.staking_pool_whitelist_account.id(), "sandbox_whitelist")
+        .args_json(json!({
+            "staking_pool_account_id": staking_pool.id(),
+        }))
+        .transact()
+        .await?;
+    assert!(
+        pool_add.is_success(),
+        "Failed to whitelist staking_pool: {:#?}",
+        pool_add.outcomes()
+    );
+
+    // Attempt to select non-whitelisted staking pool
+    let select_pool = user
+        .call(&lockup_id, "select_staking_pool")
+        .args_json(json!({ "staking_pool_account_id": staking_pool.id() }))
+        .deposit(NearToken::from_yoctonear(1))
+        .gas(Gas::from_tgas(200))
+        .transact()
+        .await?;
+    assert!(
+        select_pool.is_success(),
+        "Selecting whitelisted staking pool should succeed"
+    );
+
+    let outcome = staking_pool
+        .call(&lockup_id, "ft_on_transfer")
+        .args_json(json!({ "sender_id": lockup_id, "amount": "1".to_string(), "msg": "Lorem ipsum".to_string() }))
+        .gas(Gas::from_tgas(100))
+        .transact()
+        .await?;
+
+    assert!(outcome.is_success(), "Lockup contract can call this method");
+
+    let amt: Option<U128> = outcome.json()?;
+    assert_eq!(amt.unwrap(), 0u128.into());
 
     Ok(())
 }
