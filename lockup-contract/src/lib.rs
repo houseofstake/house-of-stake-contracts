@@ -7,6 +7,7 @@ use near_sdk::{Gas, NearToken};
 
 pub mod gas;
 pub mod owner_callbacks;
+pub mod transfer;
 pub mod types;
 
 pub mod getters;
@@ -154,19 +155,6 @@ impl LockupContract {
             version,
             min_lockup_deposit,
         }
-    }
-
-    /// Called by one of the LST tokens after `ft_transfer_call`
-    pub fn ft_on_transfer(&mut self) -> NearToken {
-        require!(
-            Some(&env::predecessor_account_id())
-                == self
-                    .staking_information
-                    .as_ref()
-                    .map(|s| &s.staking_pool_account_id),
-            "Only currently selected LST is accepted"
-        );
-        NearToken::from_yoctonear(0)
     }
 }
 
