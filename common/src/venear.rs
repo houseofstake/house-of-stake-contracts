@@ -67,7 +67,7 @@ mod tests {
     use near_sdk::NearToken;
 
     #[test]
-    fn test_50_percent_apy_linear_growth_calculation() {
+    fn test_calculate_function() {
         // Test using the actual VenearGrowthConfig::calculate() function
         let config = VenearGrowthConfig::FixedRate(Box::new(VenearGrowthConfigFixedRate {
             annual_growth_rate_ns: Fraction {
@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_incremental_growth_like_real_contract() {
+    fn test_incremental_growth_is_linear_not_compound() {
         // Test incremental growth like the real contract does
         let config = VenearGrowthConfig::FixedRate(Box::new(VenearGrowthConfigFixedRate {
             annual_growth_rate_ns: Fraction {
