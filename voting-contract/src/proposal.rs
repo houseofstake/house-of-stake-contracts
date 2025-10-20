@@ -168,7 +168,6 @@ impl Contract {
             &proposer_id,
             proposal_id,
             &metadata.title,
-            &metadata.description,
             &metadata.link,
             &metadata.voting_options,
         );

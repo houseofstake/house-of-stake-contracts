@@ -39,7 +39,6 @@ pub mod emit {
         pub(crate) proposer_id: &'a AccountId,
         pub(crate) proposal_id: u32,
         pub(crate) title: &'a Option<String>,
-        pub(crate) description: &'a Option<String>,
         pub(crate) link: &'a Option<String>,
         pub(crate) voting_options: &'a Vec<String>,
     }
@@ -147,7 +146,6 @@ pub mod emit {
         proposer_id: &AccountId,
         proposal_id: u32,
         title: &Option<String>,
-        description: &Option<String>,
         link: &Option<String>,
         voting_options: &Vec<String>,
     ) {
@@ -158,7 +156,6 @@ pub mod emit {
                 proposer_id,
                 proposal_id,
                 title,
-                description,
                 link,
                 voting_options,
             },
