@@ -163,14 +163,7 @@ impl Contract {
         let proposer_id = env::predecessor_account_id();
         let proposal_id = self.proposals.len();
 
-        events::emit::create_proposal_action(
-            "create_proposal",
-            &proposer_id,
-            proposal_id,
-            &metadata.title,
-            &metadata.link,
-            &metadata.voting_options,
-        );
+        events::emit::create_proposal_action("create_proposal", &proposer_id, proposal_id);
 
         let proposal = Proposal {
             id: proposal_id,

@@ -38,9 +38,6 @@ pub mod emit {
     pub(crate) struct ProposalData<'a> {
         pub(crate) proposer_id: &'a AccountId,
         pub(crate) proposal_id: u32,
-        pub(crate) title: &'a Option<String>,
-        pub(crate) link: &'a Option<String>,
-        pub(crate) voting_options: &'a Vec<String>,
     }
 
     #[derive(Serialize)]
@@ -141,23 +138,13 @@ pub mod emit {
         );
     }
 
-    pub fn create_proposal_action(
-        action: &str,
-        proposer_id: &AccountId,
-        proposal_id: u32,
-        title: &Option<String>,
-        link: &Option<String>,
-        voting_options: &Vec<String>,
-    ) {
+    pub fn create_proposal_action(action: &str, proposer_id: &AccountId, proposal_id: u32) {
         log_event(
             "venear",
             action,
             ProposalData {
                 proposer_id,
                 proposal_id,
-                title,
-                link,
-                voting_options,
             },
         );
     }
