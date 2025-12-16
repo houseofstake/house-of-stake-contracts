@@ -125,3 +125,14 @@ scripts/test_all.sh
 export ROOT_ACCOUNT_ID=hos01.testnet
 env CONTRACTS_SOURCE=release CHAIN_ID=testnet VOTING_DURATION_SEC=604800 scripts/deploy_all.sh $ROOT_ACCOUNT_ID
 ```
+
+### Building release candidate
+
+Check the release tags for [latest](https://github.com/houseofstake/house-of-stake-contracts/releases/tag/0.0.4)
+
+Before building or verifying code hashes run:
+```
+git fetch --tags
+git checkout v0.0.4
+./build_release.sh
+```
