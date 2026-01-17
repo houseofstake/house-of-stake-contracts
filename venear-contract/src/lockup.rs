@@ -75,15 +75,7 @@ impl Contract {
 
         match update {
             VLockupUpdate::V1(lockup_update) => {
-                events::emit::lockup_action(
-                    "lockup_update",
-                    &owner_account_id,
-                    version,
-                    &Some(lockup_update.lockup_update_nonce),
-                    &Some(lockup_update.timestamp),
-                    &Some(lockup_update.locked_near_balance),
-                );
-                self.internal_lockup_update(owner_account_id, account_internal, lockup_update);
+                self.internal_lockup_update(owner_account_id, account_internal, lockup_update, version);
             }
         }
     }
@@ -116,6 +108,8 @@ impl Contract {
                 &None,
                 &None,
                 &None,
+                &None,
+                &None,
             );
 
             self.internal_set_account_internal(account_id.clone(), account_internal);
@@ -145,12 +139,16 @@ impl Contract {
         account_id: AccountId,
         mut account_internal: AccountInternal,
         lockup_update: LockupUpdateV1,
+        version: Version,
     ) {
         require!(
             lockup_update.lockup_update_nonce > account_internal.lockup_update_nonce,
             "Invalid nonce"
         );
         account_internal.lockup_update_nonce = lockup_update.lockup_update_nonce;
+
+        // Capture the timestamp used for reward calculation (this is what internal_expect_account_updated uses)
+        let rewards_calculated_at = env::block_timestamp();
 
         let mut account: Account = self.internal_expect_account_updated(&account_id);
         let old_balance = account.balance;
@@ -162,6 +160,19 @@ impl Contract {
         // Updating balance and also adding internal balance deposit.
         account.balance.near_balance =
             near_add(lockup_update.locked_near_balance, account_internal.deposit);
+
+        // Emit event after balance is computed so extra_venear_balance is available
+        events::emit::lockup_action(
+            "lockup_update",
+            &account_id,
+            version,
+            &Some(lockup_update.lockup_update_nonce),
+            &Some(lockup_update.timestamp),
+            &Some(lockup_update.locked_near_balance),
+            &Some(account.balance.extra_venear_balance),
+            &Some(rewards_calculated_at.into()),
+        );
+
         global_state.total_venear_balance = global_state
             .total_venear_balance
             .pooled_sub(&old_balance)

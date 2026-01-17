@@ -14,6 +14,9 @@ pub mod emit {
         pub(crate) timestamp: &'a Option<TimestampNs>,
         pub(crate) lockup_update_nonce: &'a Option<U64>,
         pub(crate) locked_near_balance: &'a Option<NearToken>,
+        pub(crate) extra_venear_balance: &'a Option<NearToken>,
+        /// The timestamp used for calculating extra_venear_balance (rewards accrued up to this point)
+        pub(crate) rewards_calculated_at: &'a Option<TimestampNs>,
     }
 
     #[derive(Serialize)]
@@ -88,6 +91,8 @@ pub mod emit {
         lockup_update_nonce: &Option<U64>,
         timestamp: &Option<TimestampNs>,
         locked_near_balance: &Option<NearToken>,
+        extra_venear_balance: &Option<NearToken>,
+        rewards_calculated_at: &Option<TimestampNs>,
     ) {
         log_event(
             "venear",
@@ -98,6 +103,8 @@ pub mod emit {
                 lockup_update_nonce,
                 timestamp,
                 locked_near_balance,
+                extra_venear_balance,
+                rewards_calculated_at,
             },
         );
     }
@@ -230,18 +237,22 @@ mod tests {
         let balance = Some(NearToken::from_yoctonear(1000000000000000000000000));
         let version: u64 = 1;
 
+        let extra_venear = Some(NearToken::from_yoctonear(500000000000000000000000));
+        let rewards_calculated_at = Some(U64(123456790)); // Slightly after timestamp
         let test_data = emit::LockupUpdateData {
             account_id: &account_id,
             lockup_version: version,
             timestamp: &timestamp,
             lockup_update_nonce: &nonce,
             locked_near_balance: &balance,
+            extra_venear_balance: &extra_venear,
+            rewards_calculated_at: &rewards_calculated_at,
         };
 
         let json = serde_json::to_string(&test_data).unwrap();
         assert_eq!(
             json,
-            r#"{"account_id":"test.near","lockup_version":1,"timestamp":"123456789","lockup_update_nonce":"42","locked_near_balance":"1000000000000000000000000"}"#
+            r#"{"account_id":"test.near","lockup_version":1,"timestamp":"123456789","lockup_update_nonce":"42","locked_near_balance":"1000000000000000000000000","extra_venear_balance":"500000000000000000000000","rewards_calculated_at":"123456790"}"#
         );
 
         // Test with None values
@@ -251,12 +262,14 @@ mod tests {
             timestamp: &None,
             lockup_update_nonce: &None,
             locked_near_balance: &None,
+            extra_venear_balance: &None,
+            rewards_calculated_at: &None,
         };
 
         let json = serde_json::to_string(&test_data).unwrap();
         assert_eq!(
             json,
-            r#"{"account_id":"test.near","lockup_version":1,"timestamp":null,"lockup_update_nonce":null,"locked_near_balance":null}"#
+            r#"{"account_id":"test.near","lockup_version":1,"timestamp":null,"lockup_update_nonce":null,"locked_near_balance":null,"extra_venear_balance":null,"rewards_calculated_at":null}"#
         );
     }
 
@@ -268,6 +281,8 @@ mod tests {
         let balance = Some(NearToken::from_yoctonear(5555555555555555555));
         let version: u64 = 1;
 
+        let extra_venear = Some(NearToken::from_yoctonear(1111111111111111111));
+        let rewards_calculated_at = Some(U64(987654321987654322));
         emit::lockup_action(
             "test_event",
             &account_id,
@@ -275,12 +290,14 @@ mod tests {
             &nonce,
             &timestamp,
             &balance,
+            &extra_venear,
+            &rewards_calculated_at,
         );
 
         // The actual log would need to be captured and verified
         // This is just a format check example
         let _expected_log = format!(
-            r#"EVENT_JSON:{{"standard":"venear","version":"1.0.0","event":"test_event","data":[{{"account_id":"event_test.near","lockup_version":1,"timestamp":"987654321","lockup_update_nonce":"777","locked_near_balance":"5555555555555555555"}}]}}"#
+            r#"EVENT_JSON:{{"standard":"venear","version":"1.0.0","event":"test_event","data":[{{"account_id":"event_test.near","lockup_version":1,"timestamp":"987654321","lockup_update_nonce":"777","locked_near_balance":"5555555555555555555","extra_venear_balance":"1111111111111111111","rewards_calculated_at":"987654321987654322"}}]}}"#
         );
         // Normally you would check the actual logs here
     }
