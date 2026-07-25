@@ -24,22 +24,24 @@ pub mod callbacks {
     //
     // Chain overview:
     // 0) promise_validator_per_epoch_settlement_then
-    //    -> ON_EPOCH_SETTLEMENT_AFTER_POOL_ACCOUNT (24 * BASE)
-    //       -> (optional) ON_GET_UNSTAKED_FOR_WITHDRAW (17 * BASE)
+    //    -> ON_EPOCH_SETTLEMENT_AFTER_POOL_ACCOUNT (26 * BASE)
+    //       -> (optional) ON_GET_UNSTAKED_FOR_WITHDRAW (19 * BASE)
     //          -> ON_WITHDRAW_TRANSFER (2 * BASE)
-    //          -> ON_EPOCH_SETTLEMENT_DISPATCH (10 * BASE)
+    //          -> ON_EPOCH_SETTLEMENT_DISPATCH (12 * BASE)
     //                -> one of Pipeline-5 tails (8 * BASE):
     //                   ON_LOCK_FINALLY_MINT | ON_UNLOCK_TAIL_AFTER_PRE_USER
     //                   | ON_WITHDRAW_TAIL_AFTER_PRE_USER | ON_SUBSCRIPTION_UPDATE_AFTER_SETTLE
+    //                   | ON_FARM_STAKE_AFTER_SETTLE | ON_FARM_UNSTAKE_AFTER_SETTLE
     //                -> release callback:
     //                   ON_EPOCH_PIPELINE_TERMINAL_RELEASE (1 * BASE)
     //                   or ON_EPOCH_PIPELINE_RELEASE_WITH_LOCK_ID (2 * BASE)
     //                   or ON_EPOCH_PIPELINE_RELEASE_WITH_SUBSCRIPTION_UPDATE_OUTCOME (2 * BASE)
+    //                   or ON_EPOCH_PIPELINE_RELEASE_WITH_FARM_POSITION (2 * BASE)
     //
     // Fast path:
     // 0) promise_validator_per_epoch_settlement_then
-    //    -> ON_EPOCH_SETTLEMENT_DISPATCH (10 * BASE)
-    //       -> Pipeline-5 tail (8 * BASE) -> Pipeline-6 release (1 * BASE)
+    //    -> ON_EPOCH_SETTLEMENT_DISPATCH (12 * BASE)
+    //       -> Pipeline-5 tail (8 * BASE) -> Pipeline-6 release (up to 2 * BASE)
     //
     // Gas budgeting rule used here:
     // If function A attaches gas for function B, budget A >= (gas attached to B) + A's own execution overhead.
@@ -49,8 +51,8 @@ pub mod callbacks {
     /// After pool `withdraw`: continue into settlement `try_epoch_stake_or_unstake` + dispatch.
     ///
     /// Worst case in this callback is routing through `try_epoch_stake_or_unstake`, which may attach:
-    /// `3 * BASE (pool settle)` + `1 * BASE (pool callback)` + `10 * BASE (dispatch)` + callback overhead.
-    pub const ON_GET_UNSTAKED_FOR_WITHDRAW: Gas = Gas::from_gas(BASE_GAS.as_gas() * 17);
+    /// `3 * BASE (pool settle)` + `1 * BASE (pool callback)` + `12 * BASE (dispatch)` + callback overhead.
+    pub const ON_GET_UNSTAKED_FOR_WITHDRAW: Gas = Gas::from_gas(BASE_GAS.as_gas() * 19);
     pub const ON_WITHDRAW_TRANSFER: Gas = Gas::from_gas(BASE_GAS.as_gas() * 2);
     pub const ON_TOTAL_BALANCE: Gas = BASE_GAS;
     /// Balance refresh then catalog mint, usage bumps, subscription index, and `try_epoch_stake_or_unstake`.
@@ -60,16 +62,16 @@ pub mod callbacks {
     /// Tail dispatch after shared per-epoch settlement (`UserAction`).
     ///
     /// This callback fans out into Pipeline 5 tails (currently `8 * BASE_GAS`) and then chains
-    /// Pipeline 6 release (`1 * BASE_GAS`), plus its own execution overhead.
+    /// Pipeline 6 release (up to `2 * BASE_GAS`), plus its own execution overhead.
     ///
-    /// Budget formula: `8 * BASE (tail) + 1 * BASE (release) + 1 * BASE (dispatch overhead)`.
-    pub const ON_EPOCH_SETTLEMENT_DISPATCH: Gas = Gas::from_gas(BASE_GAS.as_gas() * 10);
+    /// Budget formula: `8 * BASE (tail) + 2 * BASE (release) + 2 * BASE (dispatch overhead)`.
+    pub const ON_EPOCH_SETTLEMENT_DISPATCH: Gas = Gas::from_gas(BASE_GAS.as_gas() * 12);
     /// After pool `get_account` during shared settlement (balance refresh + withdraw-if-ready).
     ///
     /// Worst case branch here schedules:
     /// `3 * BASE (pool withdraw)` + `2 * BASE (withdraw transfer callback)` +
-    /// `17 * BASE (post-withdraw settle callback)` + callback overhead.
-    pub const ON_EPOCH_SETTLEMENT_AFTER_POOL_ACCOUNT: Gas = Gas::from_gas(BASE_GAS.as_gas() * 24);
+    /// `19 * BASE (post-withdraw settle callback)` + callback overhead.
+    pub const ON_EPOCH_SETTLEMENT_AFTER_POOL_ACCOUNT: Gas = Gas::from_gas(BASE_GAS.as_gas() * 26);
     /// Mint lock after shared pre-user settlement pipeline.
     pub const ON_LOCK_FINALLY_MINT: Gas = Gas::from_gas(BASE_GAS.as_gas() * 8);
     /// Unlock tail after pre-user settlement.
@@ -99,6 +101,38 @@ impl Contract {
         require!(
             env::prepaid_gas() >= EPOCH_SETTLEMENT_MIN_GAS,
             "Insufficient gas"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::callbacks;
+
+    #[test]
+    fn epoch_dispatch_budget_leaves_margin_after_value_returning_tail_and_release() {
+        let max_value_returning_tail = [
+            callbacks::ON_LOCK_FINALLY_MINT,
+            callbacks::ON_SUBSCRIPTION_UPDATE_AFTER_SETTLE,
+            callbacks::ON_FARM_STAKE_AFTER_SETTLE,
+        ]
+        .into_iter()
+        .max_by_key(|gas| gas.as_gas())
+        .expect("at least one value-returning tail budget");
+        let max_value_returning_release = [
+            callbacks::ON_EPOCH_PIPELINE_RELEASE_WITH_LOCK_ID,
+            callbacks::ON_EPOCH_PIPELINE_RELEASE_WITH_SUBSCRIPTION_UPDATE_OUTCOME,
+            callbacks::ON_EPOCH_PIPELINE_RELEASE_WITH_FARM_POSITION,
+        ]
+        .into_iter()
+        .max_by_key(|gas| gas.as_gas())
+        .expect("at least one value-returning release budget");
+
+        let scheduled_child_gas =
+            max_value_returning_tail.as_gas() + max_value_returning_release.as_gas();
+        assert!(
+            callbacks::ON_EPOCH_SETTLEMENT_DISPATCH.as_gas() > scheduled_child_gas,
+            "dispatch callback needs explicit execution margin after scheduling value-returning tail and release"
         );
     }
 }
