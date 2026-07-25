@@ -144,8 +144,6 @@ pub struct Validator {
     pub pending_to_withdraw: NearToken,
     /// NEAR already moved from pool into this contract and now claimable by users.
     pub pending_to_claim: NearToken,
-    /// Accounts that currently have at least one non-empty tranche in **`user_pending_unstake`** for this pool.
-    pub accounts_with_pending_unstake: Vec<AccountId>,
 
     /// At most one in-flight cross-contract **mutating** pool pipeline for this validator (`Idle` vs `Busy`).
     pub tx_status: TransactionStatus,
@@ -185,7 +183,6 @@ impl From<ValidatorV0> for Validator {
             last_settlement_epoch: value.last_settlement_epoch,
             pending_to_withdraw: value.pending_to_withdraw,
             pending_to_claim: value.pending_to_claim,
-            accounts_with_pending_unstake: value.accounts_with_pending_unstake,
             tx_status: value.tx_status,
         }
     }
@@ -769,6 +766,15 @@ impl From<VValidator> for Validator {
     }
 }
 
+impl VValidator {
+    pub(crate) fn legacy_accounts_with_pending_unstake(&self) -> &[AccountId] {
+        match self {
+            VValidator::V0(inner) => &inner.accounts_with_pending_unstake,
+            VValidator::V1(_) => &[],
+        }
+    }
+}
+
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VProduct {
@@ -1018,6 +1024,43 @@ mod tests {
         }
     }
 
+    fn validator() -> Validator {
+        Validator {
+            validator_id: "pool.near".parse().unwrap(),
+            catalog_manager_account_ids: vec!["manager.near".parse().unwrap()],
+            status: ValidatorStatus::Active,
+            total_shares: U128(10),
+            total_staked_balance: NearToken::from_near(10),
+            last_balance_refresh_ns: U64(1),
+            pending_to_stake: NearToken::from_near(2),
+            pending_to_unstake: NearToken::from_near(3),
+            last_unstake_epoch: 4,
+            last_settlement_epoch: 5,
+            pending_to_withdraw: NearToken::from_near(6),
+            pending_to_claim: NearToken::from_near(7),
+            tx_status: TransactionStatus::Idle,
+        }
+    }
+
+    fn validator_v0_with_pending_account() -> ValidatorV0 {
+        let current = validator();
+        ValidatorV0 {
+            validator_id: current.validator_id,
+            status: current.status,
+            total_shares: current.total_shares,
+            total_staked_balance: current.total_staked_balance,
+            last_balance_refresh_ns: current.last_balance_refresh_ns,
+            pending_to_stake: current.pending_to_stake,
+            pending_to_unstake: current.pending_to_unstake,
+            last_unstake_epoch: current.last_unstake_epoch,
+            last_settlement_epoch: current.last_settlement_epoch,
+            pending_to_withdraw: current.pending_to_withdraw,
+            pending_to_claim: current.pending_to_claim,
+            accounts_with_pending_unstake: vec!["buyer.near".parse().unwrap()],
+            tx_status: current.tx_status,
+        }
+    }
+
     #[test]
     fn vprice_reads_price_v0_metadata_as_farm_reward_none() {
         let mut bytes = vec![0u8];
@@ -1057,6 +1100,35 @@ mod tests {
             decoded.metadata.as_ref().unwrap().farm_reward_rate,
             Some(U128(7))
         );
+    }
+
+    #[test]
+    fn vvalidator_writes_new_validators_as_variant_one_without_pending_account_vector() {
+        let mut bytes = Vec::new();
+        VValidator::from(validator()).serialize(&mut bytes).unwrap();
+
+        assert_eq!(bytes.first().copied(), Some(1));
+        let decoded = VValidator::try_from_slice(&bytes).unwrap();
+        assert!(decoded.legacy_accounts_with_pending_unstake().is_empty());
+        let decoded: Validator = decoded.into();
+        assert_eq!(decoded.validator_id.as_str(), "pool.near");
+    }
+
+    #[test]
+    fn vvalidator_reads_legacy_variant_zero_pending_account_vector() {
+        let mut bytes = Vec::new();
+        VValidator::V0(validator_v0_with_pending_account())
+            .serialize(&mut bytes)
+            .unwrap();
+
+        let decoded = VValidator::try_from_slice(&bytes).unwrap();
+        assert_eq!(
+            decoded.legacy_accounts_with_pending_unstake(),
+            &["buyer.near".parse::<AccountId>().unwrap()]
+        );
+        let decoded: Validator = decoded.into();
+        assert_eq!(decoded.validator_id.as_str(), "pool.near");
+        assert!(decoded.catalog_manager_account_ids.is_empty());
     }
 }
 

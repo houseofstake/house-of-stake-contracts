@@ -57,7 +57,6 @@ impl Contract {
             last_settlement_epoch: 0,
             pending_to_withdraw: NearToken::from_near(0),
             pending_to_claim: NearToken::from_near(0),
-            accounts_with_pending_unstake: Vec::new(),
             tx_status: TransactionStatus::Idle,
         };
         self.internal_set_validator(validator_id.clone(), new_validator);
@@ -441,16 +440,6 @@ impl Contract {
             account_validator_shares_key,
             pending_unstake_tranches,
         );
-
-        // Validator-level index of accounts that still have queued or claimable exit NEAR.
-        if !validator
-            .accounts_with_pending_unstake
-            .contains(&account_id)
-        {
-            validator
-                .accounts_with_pending_unstake
-                .push(account_id.clone());
-        }
 
         self.internal_set_validator(validator_id, validator);
         near_amt

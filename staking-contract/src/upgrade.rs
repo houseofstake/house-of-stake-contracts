@@ -60,14 +60,13 @@ impl From<ContractV1_0_1> for Contract {
             LookupMap::new(StorageKeys::UserPendingUnstakeValidatorCount);
         for validator_id in old.validator_ids.iter() {
             if let Some(validator) = old.validators.get(validator_id) {
-                let validator: Validator = validator.clone().into();
-                for account_id in validator.accounts_with_pending_unstake {
+                for account_id in validator.legacy_accounts_with_pending_unstake() {
                     let next = user_pending_unstake_validator_count
-                        .get(&account_id)
+                        .get(account_id)
                         .copied()
                         .unwrap_or(0u32)
                         .saturating_add(1);
-                    user_pending_unstake_validator_count.insert(account_id, next);
+                    user_pending_unstake_validator_count.insert(account_id.clone(), next);
                 }
             }
         }

@@ -41,18 +41,7 @@ impl Contract {
             "You have no unlocked NEAR waiting to claim for this validator"
         );
 
-        let mut validator = self.require_validator_idle(&validator_id);
-        // `accounts_with_pending_unstake` is the validator-side index used by epoch / withdraw scheduling;
-        // ensure this account is listed whenever they still carry tranches (idempotent if already present).
-        if !validator
-            .accounts_with_pending_unstake
-            .contains(&account_id)
-        {
-            validator
-                .accounts_with_pending_unstake
-                .push(account_id.clone());
-        }
-        self.internal_set_validator(validator_id.clone(), validator);
+        self.require_validator_idle(&validator_id);
 
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -208,7 +197,7 @@ impl Contract {
             "No NEAR is claimable yet; wait until unstaked funds are withdrawn from the pool into this contract, then retry"
         );
         let eh = epoch_height();
-        let (credit_yocto, user_done) = self.remove_claimable_tranches(&account_validator_key, eh);
+        let (credit_yocto, _) = self.remove_claimable_tranches(&account_validator_key, eh);
         require!(
             credit_yocto > 0,
             "Nothing to claim yet: wait until `epoch_height >=` your tranche's available epoch height"
@@ -222,12 +211,6 @@ impl Contract {
             .pending_to_claim
             .checked_sub(NearToken::from_yoctonear(credit_yocto))
             .expect("pending_to_claim accounting mismatch; contact the contract maintainers");
-        if user_done {
-            validator
-                .accounts_with_pending_unstake
-                .retain(|a| *a != account_id);
-        }
-
         let credit = NearToken::from_yoctonear(credit_yocto);
 
         self.internal_set_validator(validator_id.clone(), validator);
