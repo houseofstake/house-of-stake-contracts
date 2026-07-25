@@ -80,9 +80,10 @@ impl Contract {
             );
         }
         let product_id = sub.product_id.clone();
+        let price_id = sub.price_id.clone();
         sub.cancel_at_period_end = true;
-        self.internal_set_subscription(subscription_id, sub.clone());
-        crate::events::log_subscription_cancel(&buyer, &product_id);
+        self.internal_set_subscription(subscription_id.clone(), sub.clone());
+        crate::events::log_subscription_cancel(&buyer, &subscription_id, &product_id, &price_id);
     }
 
     /// Undo [`Contract::cancel_subscription`] before the current billing period ends: clear `cancel_at_period_end`
@@ -94,6 +95,7 @@ impl Contract {
         let buyer = env::predecessor_account_id();
         let mut sub = self.require_subscription_owned_by_id(&buyer, &subscription_id);
         let product_id = sub.product_id.clone();
+        let price_id = sub.price_id.clone();
         Self::assert_subscription_active(&sub);
         require!(
             sub.cancel_at_period_end,
@@ -104,8 +106,8 @@ impl Contract {
             "Current billing period has ended; subscribe again with lock instead"
         );
         sub.cancel_at_period_end = false;
-        self.internal_set_subscription(subscription_id, sub.clone());
-        crate::events::log_subscription_resume(&buyer, &product_id);
+        self.internal_set_subscription(subscription_id.clone(), sub.clone());
+        crate::events::log_subscription_resume(&buyer, &subscription_id, &product_id, &price_id);
     }
 
     /// Update a subscription to a target recurring tier and explicit target stake amount.
@@ -626,6 +628,7 @@ impl Contract {
                 &new_product_id,
             );
         }
+        let final_product_id = updated.product_id.clone();
         let final_price_id = updated.price_id.clone();
         let last_lock_id = updated.last_lock_id.clone();
         self.internal_set_subscription(subscription_id.clone(), updated);
@@ -639,7 +642,14 @@ impl Contract {
             .internal_get_lock(&last_lock_id)
             .map(|lock| lock.amount_near.as_yoctonear())
             .unwrap_or_default();
-        crate::events::log_subscription_update(&buyer, &final_price_id, lock_amount);
+        crate::events::log_subscription_update(
+            &buyer,
+            subscription_id,
+            &final_product_id,
+            &final_price_id,
+            lock_amount,
+            "applied_pending_update",
+        );
         true
     }
 
@@ -1001,17 +1011,25 @@ impl Contract {
             );
         }
         self.internal_set_subscription(subscription_id.clone(), sub);
+        let target_product_id = target_product.product_id.clone();
         if decision.immediate_plan_change {
             self.internal_set_price(target_price.price_id.clone(), target_price);
             self.internal_set_product(target_product.product_id.clone(), target_product);
         }
 
-        crate::events::log_subscription_update(&buyer, &target_price_id, target_amount.0);
+        let kind = Self::subscription_update_kind(&decision);
+        crate::events::log_subscription_update(
+            &buyer,
+            &subscription_id,
+            &target_product_id,
+            &target_price_id,
+            target_amount.0,
+            kind,
+        );
         if let Some(lock_id) = lock_id_out.as_ref() {
             crate::events::log_lock(lock_id.as_str(), &buyer);
         }
 
-        let kind = Self::subscription_update_kind(&decision);
         Self::subscription_update_outcome(
             kind,
             subscription_id,
@@ -1071,9 +1089,17 @@ impl Contract {
         if lock.shares.0 == 0 {
             lock.status = LockStatus::UnlockRequested;
         }
+        let lock_id = lock.lock_id.clone();
         self.internal_set_lock(lock.lock_id.clone(), lock);
 
-        crate::events::log_subscription_downgrade_prorate(buyer, &sub.product_id, near_amt);
+        crate::events::log_subscription_downgrade_prorate(
+            buyer,
+            &sub.subscription_id,
+            &sub.product_id,
+            &sub.price_id,
+            &lock_id,
+            near_amt,
+        );
     }
 
     pub(crate) fn project_subscription_view_now(&self, mut sub: Subscription) -> Subscription {

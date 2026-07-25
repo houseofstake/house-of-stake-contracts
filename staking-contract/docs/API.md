@@ -268,7 +268,20 @@ Pipeline steps and callbacks: [features/lazy-epoch-pipeline.md](features/lazy-ep
 - **`Validator`** — [`../src/validators.rs`](../src/validators.rs): **`validator_id`** (pool contract account), accounting fields, pending buckets, **`tx_status`** (`Idle` \| `Busy`).
 - **`Product`**, **`Price`**, **`PriceMetadata`**, **`Subscription`**, **`PendingSubscriptionUpdate`**, **`SubscriptionPlanChangeOutcome`**, **`Lock`**, **`Purchase`**, **`FarmPool`**, **`FarmPosition`**, **`FarmPositionView`**, **`FarmAccount`**, **`FarmAccountView`**, **`Account`**, **`StorageBalance`**, **`StorageBalanceBounds`** — [`../src/types.rs`](../src/types.rs), [`../src/accounts.rs`](../src/accounts.rs). **`Account`** is prepaid **`storage_deposit`** only (unlocked stake exits transfer directly to the user via **`withdraw`**).
 
-For EVENT_JSON shapes and naming, see [`../src/events.rs`](../src/events.rs).
+## Events
+
+All events are emitted as `EVENT_JSON` with `standard: "stake.dao"`, `version: "1.0.0"`, an `event` name, and a JSON `data` object.
+
+Subscription lifecycle event payloads:
+
+| Event | Data fields |
+|-------|-------------|
+| `subscription_cancel` | `account_id`, `subscription_id`, `product_id`, `price_id` |
+| `subscription_resume` | `account_id`, `subscription_id`, `product_id`, `price_id` |
+| `subscription_update` | `account_id`, `subscription_id`, `product_id`, `target_price_id`, `target_amount`, `update_kind` |
+| `subscription_downgrade_prorate` | `account_id`, `subscription_id`, `product_id`, `price_id`, `lock_id`, `near_yocto` |
+
+For other EVENT_JSON shapes and naming, see [`../src/events.rs`](../src/events.rs).
 
 ---
 

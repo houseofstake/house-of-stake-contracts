@@ -1,6 +1,6 @@
 //! `EVENT_JSON` logs for indexers (NEP-297-style payload; standard `stake.dao`).
 
-use crate::{PriceId, ProductId, ValidatorId};
+use crate::{PriceId, ProductId, SubscriptionId, ValidatorId};
 use near_sdk::{AccountId, log};
 
 fn emit(event: &str, data: serde_json::Value) {
@@ -58,43 +58,77 @@ pub fn log_product_created(product_id: &str, validator_id: &ValidatorId) {
     );
 }
 
-pub fn log_subscription_cancel(account: &AccountId, product_id: &str) {
+pub fn log_subscription_cancel(
+    account: &AccountId,
+    subscription_id: &SubscriptionId,
+    product_id: &ProductId,
+    price_id: &PriceId,
+) {
     emit(
         "subscription_cancel",
         serde_json::json!({
             "account_id": account.to_string(),
+            "subscription_id": subscription_id,
             "product_id": product_id,
+            "price_id": price_id,
         }),
     );
 }
 
-pub fn log_subscription_resume(account: &AccountId, product_id: &str) {
+pub fn log_subscription_resume(
+    account: &AccountId,
+    subscription_id: &SubscriptionId,
+    product_id: &ProductId,
+    price_id: &PriceId,
+) {
     emit(
         "subscription_resume",
         serde_json::json!({
             "account_id": account.to_string(),
+            "subscription_id": subscription_id,
             "product_id": product_id,
+            "price_id": price_id,
         }),
     );
 }
 
-pub fn log_subscription_update(account: &AccountId, target_price_id: &str, target_amount: u128) {
+pub fn log_subscription_update(
+    account: &AccountId,
+    subscription_id: &SubscriptionId,
+    product_id: &ProductId,
+    target_price_id: &PriceId,
+    target_amount: u128,
+    update_kind: &str,
+) {
     emit(
         "subscription_update",
         serde_json::json!({
             "account_id": account.to_string(),
+            "subscription_id": subscription_id,
+            "product_id": product_id,
             "target_price_id": target_price_id,
             "target_amount": target_amount.to_string(),
+            "update_kind": update_kind,
         }),
     );
 }
 
-pub fn log_subscription_downgrade_prorate(account: &AccountId, product_id: &str, near_yocto: u128) {
+pub fn log_subscription_downgrade_prorate(
+    account: &AccountId,
+    subscription_id: &SubscriptionId,
+    product_id: &ProductId,
+    price_id: &PriceId,
+    lock_id: &str,
+    near_yocto: u128,
+) {
     emit(
         "subscription_downgrade_prorate",
         serde_json::json!({
             "account_id": account.to_string(),
+            "subscription_id": subscription_id,
             "product_id": product_id,
+            "price_id": price_id,
+            "lock_id": lock_id,
             "near_yocto": near_yocto.to_string(),
         }),
     );

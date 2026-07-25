@@ -5,8 +5,8 @@ mod common;
 use common::{
     BUYER, POOL, VALIDATOR_OWNER_ACCOUNT, acct, add_subscription_price,
     add_subscription_price_with_metadata, add_subscription_product, ctx, ctx_ts, deploy,
-    register_buyer, setup_catalog_near_subscription, subscription_id_for_product,
-    testing_env_catalog_callback, unwrap_sync_lock_id,
+    event_json, event_json_values, register_buyer, setup_catalog_near_subscription,
+    subscription_id_for_product, testing_env_catalog_callback, unwrap_sync_lock_id,
 };
 use near_sdk::NearToken;
 use near_sdk::PromiseOrValue;
@@ -30,7 +30,19 @@ fn cancel_then_renew_after_period_opens_fresh_subscription() {
 
     testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
     let subscription_id = subscription_id_for_product(&c, acct(BUYER), product_id.clone());
-    c.cancel_subscription(subscription_id);
+    c.cancel_subscription(subscription_id.clone());
+
+    let event = event_json("subscription_cancel");
+    assert_eq!(event["data"]["account_id"].as_str(), Some(BUYER));
+    assert_eq!(
+        event["data"]["subscription_id"].as_str(),
+        Some(subscription_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["product_id"].as_str(),
+        Some(product_id.as_str())
+    );
+    assert_eq!(event["data"]["price_id"].as_str(), Some(price_id.as_str()));
 
     let sub = c
         .get_subscription_for_product(acct(BUYER), product_id.clone())
@@ -128,7 +140,19 @@ fn resume_subscription_clears_cancel_before_period_end() {
     let period_end_before = sub_cancelled.end_ns.0;
 
     testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
-    c.resume_subscription(subscription_id);
+    c.resume_subscription(subscription_id.clone());
+
+    let event = event_json("subscription_resume");
+    assert_eq!(event["data"]["account_id"].as_str(), Some(BUYER));
+    assert_eq!(
+        event["data"]["subscription_id"].as_str(),
+        Some(subscription_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["product_id"].as_str(),
+        Some(product_id.as_str())
+    );
+    assert_eq!(event["data"]["price_id"].as_str(), Some(price_id.as_str()));
 
     let sub_resumed = c
         .get_subscription_for_product(acct(BUYER), product_id)
@@ -206,12 +230,35 @@ fn update_subscription_updates_tier_and_lock_amount() {
     let sub_before = c
         .get_subscription_for_product(acct(BUYER), product_id.clone())
         .expect("subscription");
+    let subscription_id = sub_before.subscription_id.clone();
     let target_amount = NearToken::from_near(90).as_yoctonear();
     testing_env!(ctx(acct(BUYER), NearToken::from_near(40)));
     let outcome = c.update_subscription(
-        sub_before.subscription_id,
+        subscription_id.clone(),
         price_high.clone(),
         U128(target_amount),
+    );
+    let event = event_json("subscription_update");
+    assert_eq!(event["data"]["account_id"].as_str(), Some(BUYER));
+    assert_eq!(
+        event["data"]["subscription_id"].as_str(),
+        Some(subscription_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["product_id"].as_str(),
+        Some(product_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["target_price_id"].as_str(),
+        Some(price_high.as_str())
+    );
+    assert_eq!(
+        event["data"]["target_amount"].as_str(),
+        Some(target_amount.to_string().as_str())
+    );
+    assert_eq!(
+        event["data"]["update_kind"].as_str(),
+        Some("changed_immediately")
     );
 
     let sub = c
@@ -994,15 +1041,16 @@ fn same_plan_stake_decrease_schedules_amount_only() {
     register_buyer(&mut c);
 
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
-    let _ = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, None));
+    let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, None));
     let sub = c
-        .get_subscription_for_product(acct(BUYER), product_id)
+        .get_subscription_for_product(acct(BUYER), product_id.clone())
         .expect("subscription");
+    let subscription_id = sub.subscription_id.clone();
 
     testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
     let outcome = c.update_subscription(
-        sub.subscription_id,
-        price_id,
+        subscription_id.clone(),
+        price_id.clone(),
         U128(NearToken::from_near(25).as_yoctonear()),
     );
     let PromiseOrValue::Value(outcome) = outcome else {
@@ -1013,6 +1061,60 @@ fn same_plan_stake_decrease_schedules_amount_only() {
     assert_eq!(
         outcome.pending_stake_decrease,
         Some(U128(NearToken::from_near(25).as_yoctonear()))
+    );
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_yoctonear(1),
+        sub.end_ns.0.saturating_add(1),
+    ));
+    let _ = c.update_subscription(
+        subscription_id.clone(),
+        price_id.clone(),
+        U128(NearToken::from_near(25).as_yoctonear()),
+    );
+
+    let event = event_json_values("subscription_update")
+        .into_iter()
+        .find(|event| event["data"]["update_kind"].as_str() == Some("applied_pending_update"))
+        .expect("applied pending update event");
+    assert_eq!(event["data"]["account_id"].as_str(), Some(BUYER));
+    assert_eq!(
+        event["data"]["subscription_id"].as_str(),
+        Some(subscription_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["product_id"].as_str(),
+        Some(product_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["target_price_id"].as_str(),
+        Some(price_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["target_amount"].as_str(),
+        Some(NearToken::from_near(25).as_yoctonear().to_string().as_str())
+    );
+    assert_eq!(
+        event["data"]["update_kind"].as_str(),
+        Some("applied_pending_update")
+    );
+
+    let event = event_json("subscription_downgrade_prorate");
+    assert_eq!(event["data"]["account_id"].as_str(), Some(BUYER));
+    assert_eq!(
+        event["data"]["subscription_id"].as_str(),
+        Some(subscription_id.as_str())
+    );
+    assert_eq!(
+        event["data"]["product_id"].as_str(),
+        Some(product_id.as_str())
+    );
+    assert_eq!(event["data"]["price_id"].as_str(), Some(price_id.as_str()));
+    assert_eq!(event["data"]["lock_id"].as_str(), Some(lock_id.as_str()));
+    assert_eq!(
+        event["data"]["near_yocto"].as_str(),
+        Some(NearToken::from_near(25).as_yoctonear().to_string().as_str())
     );
 }
 

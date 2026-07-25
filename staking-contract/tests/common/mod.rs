@@ -3,7 +3,7 @@
 #![allow(dead_code)]
 
 use near_sdk::json_types::{U64, U128};
-use near_sdk::test_utils::VMContextBuilder;
+use near_sdk::test_utils::{VMContextBuilder, get_logs};
 use near_sdk::{
     AccountId, NearToken, PromiseOrValue, PromiseResult, RuntimeFeesConfig, VMContext, serde_json,
     test_vm_config, testing_env,
@@ -18,6 +18,22 @@ use std::str::FromStr;
 
 pub fn acct(s: &str) -> AccountId {
     AccountId::from_str(s).expect("valid account id")
+}
+
+pub fn event_json(event_name: &str) -> serde_json::Value {
+    event_json_values(event_name)
+        .into_iter()
+        .next_back()
+        .unwrap_or_else(|| panic!("missing EVENT_JSON event {event_name}"))
+}
+
+pub fn event_json_values(event_name: &str) -> Vec<serde_json::Value> {
+    get_logs()
+        .into_iter()
+        .filter_map(|log| log.strip_prefix("EVENT_JSON:").map(str::to_owned))
+        .filter_map(|payload| serde_json::from_str::<serde_json::Value>(&payload).ok())
+        .filter(|event| event["event"] == event_name)
+        .collect()
 }
 
 pub const STAKING: &str = "staking.test.near";
