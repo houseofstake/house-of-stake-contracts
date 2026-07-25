@@ -109,6 +109,8 @@ impl Default for Account {
 pub struct Validator {
     /// Staking pool contract account (= catalog `validator_id` / lock `validator_id`).
     pub validator_id: ValidatorId,
+    /// Optional bounded list of catalog managers allowed to manage products and prices for this validator.
+    pub catalog_manager_account_ids: Vec<AccountId>,
     /// Whether new locks are allowed (**`Active`**) or blocked (**`Paused`**), or this pool is **`Removed`**.
     pub status: ValidatorStatus,
 
@@ -147,6 +149,46 @@ pub struct Validator {
 
     /// At most one in-flight cross-contract **mutating** pool pipeline for this validator (`Idle` vs `Busy`).
     pub tx_status: TransactionStatus,
+}
+
+/// Validator layout before catalog manager support.
+#[derive(Clone)]
+#[near(serializers = [borsh])]
+pub struct ValidatorV0 {
+    pub validator_id: ValidatorId,
+    pub status: ValidatorStatus,
+    pub total_shares: U128,
+    pub total_staked_balance: NearToken,
+    pub last_balance_refresh_ns: U64,
+    pub pending_to_stake: NearToken,
+    pub pending_to_unstake: NearToken,
+    pub last_unstake_epoch: u64,
+    pub last_settlement_epoch: u64,
+    pub pending_to_withdraw: NearToken,
+    pub pending_to_claim: NearToken,
+    pub accounts_with_pending_unstake: Vec<AccountId>,
+    pub tx_status: TransactionStatus,
+}
+
+impl From<ValidatorV0> for Validator {
+    fn from(value: ValidatorV0) -> Self {
+        Self {
+            validator_id: value.validator_id,
+            catalog_manager_account_ids: Vec::new(),
+            status: value.status,
+            total_shares: value.total_shares,
+            total_staked_balance: value.total_staked_balance,
+            last_balance_refresh_ns: value.last_balance_refresh_ns,
+            pending_to_stake: value.pending_to_stake,
+            pending_to_unstake: value.pending_to_unstake,
+            last_unstake_epoch: value.last_unstake_epoch,
+            last_settlement_epoch: value.last_settlement_epoch,
+            pending_to_withdraw: value.pending_to_withdraw,
+            pending_to_claim: value.pending_to_claim,
+            accounts_with_pending_unstake: value.accounts_with_pending_unstake,
+            tx_status: value.tx_status,
+        }
+    }
 }
 
 impl Validator {
@@ -708,19 +750,21 @@ impl AsMut<Config> for VConfig {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VValidator {
-    V0(Validator),
+    V0(ValidatorV0),
+    V1(Validator),
 }
 
 impl From<Validator> for VValidator {
     fn from(value: Validator) -> Self {
-        Self::V0(value)
+        Self::V1(value)
     }
 }
 
 impl From<VValidator> for Validator {
     fn from(value: VValidator) -> Self {
         match value {
-            VValidator::V0(inner) => inner,
+            VValidator::V0(inner) => inner.into(),
+            VValidator::V1(inner) => inner,
         }
     }
 }

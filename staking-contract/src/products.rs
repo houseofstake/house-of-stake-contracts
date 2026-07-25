@@ -1,5 +1,5 @@
 //! Catalog products: CRUD, pagination, and default-price binding.
-//! Mutating RPCs are pool-owner gated via `get_owner_id` + [`Contract::assert_validator_owner`].
+//! Mutating RPCs are gated via `get_owner_id` plus validator owner-or-catalog-manager authorization.
 //! Prices live in [`crate::prices`]; this module owns product records and product->price links.
 
 use crate::gas::callbacks;
@@ -71,7 +71,7 @@ impl Contract {
     // Public catalog admin (pool-owner auth via promise chain)
     // -------------------------------------------------------------------------
 
-    /// Register a sellable product on an allowlisted validator pool. Pool owner only; attach 1 yocto.
+    /// Register a sellable product on an allowlisted validator pool. Validator owner or catalog manager; attach 1 yocto.
     #[payable]
     pub fn create_product(
         &mut self,
@@ -158,7 +158,7 @@ impl Contract {
         description: String,
         expected_caller: AccountId,
     ) -> ProductId {
-        self.assert_validator_owner(pool_owner, &expected_caller);
+        self.assert_validator_catalog_admin(pool_owner, &validator_id, &expected_caller);
 
         let id = next_unique_product_id(self);
         let product = Product {
@@ -187,8 +187,8 @@ impl Contract {
         description: String,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         product.name = name;
         product.description = description;
         self.internal_set_product(product_id, product);
@@ -201,8 +201,8 @@ impl Contract {
         product_id: ProductId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         self.assert_no_pending_update_references_product(&product_id);
         // Archived products cannot serve as default; clear so lock-by-product fails fast.
         product.default_price_id = None;
@@ -217,8 +217,8 @@ impl Contract {
         product_id: ProductId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             product.usage_count == 0,
             "Cannot delete this product while it is in use"
@@ -239,8 +239,8 @@ impl Contract {
         product_id: ProductId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             product.status == CatalogStatus::Archived,
             "Product is not archived"
@@ -257,8 +257,8 @@ impl Contract {
         price_id: Option<PriceId>,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             product.status == CatalogStatus::Active,
             "This product is archived or inactive"

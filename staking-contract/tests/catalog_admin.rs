@@ -3,7 +3,7 @@
 mod common;
 
 use common::{
-    VALIDATOR_OWNER_ACCOUNT, acct, add_validator_allowlisted, ctx, deploy,
+    CATALOG_MANAGER, VALIDATOR_OWNER_ACCOUNT, acct, add_validator_allowlisted, ctx, deploy,
     setup_catalog_near_oneoff, testing_env_catalog_callback,
 };
 use near_sdk::json_types::U128;
@@ -100,5 +100,136 @@ fn create_price_rejects_max_amount_below_amount() {
             farm_reward_rate: None,
         }),
         acct(VALIDATOR_OWNER_ACCOUNT),
+    );
+}
+
+#[test]
+fn validator_catalog_manager_can_manage_products_and_prices() {
+    let mut c = deploy();
+    add_validator_allowlisted(&mut c);
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.add_validator_catalog_manager_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        acct(common::POOL),
+        acct(CATALOG_MANAGER),
+        acct(VALIDATOR_OWNER_ACCOUNT),
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    let product_id = c.create_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        acct(common::POOL),
+        "Plan".into(),
+        "Desc".into(),
+        acct(CATALOG_MANAGER),
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    let price_id = c.create_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        "Price".into(),
+        "".into(),
+        U128(10),
+        PriceType::OneOff,
+        None,
+        U128(LOCK_FACTOR_DENOM),
+        None,
+        acct(CATALOG_MANAGER),
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.edit_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        "Edited plan".into(),
+        "Edited desc".into(),
+        acct(CATALOG_MANAGER),
+    );
+    assert_eq!(
+        c.get_product(product_id.clone()).expect("product").name,
+        "Edited plan"
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.edit_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        price_id.clone(),
+        Some("Edited price".into()),
+        None,
+        None,
+        acct(CATALOG_MANAGER),
+    );
+    assert_eq!(
+        c.get_price(price_id.clone()).expect("price").name,
+        "Edited price"
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.set_product_default_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        Some(price_id.clone()),
+        acct(CATALOG_MANAGER),
+    );
+    assert_eq!(
+        c.get_product_default_price(product_id.clone()),
+        Some(price_id.clone())
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.archive_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        price_id.clone(),
+        acct(CATALOG_MANAGER),
+    );
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.unarchive_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        price_id.clone(),
+        acct(CATALOG_MANAGER),
+    );
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.archive_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        acct(CATALOG_MANAGER),
+    );
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.unarchive_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        acct(CATALOG_MANAGER),
+    );
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.delete_price_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        price_id,
+        acct(CATALOG_MANAGER),
+    );
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.delete_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        product_id.clone(),
+        acct(CATALOG_MANAGER),
+    );
+    assert!(c.get_product(product_id).is_none());
+}
+
+#[test]
+#[should_panic(expected = "Only the validator owner or catalog manager can call this method")]
+fn unrelated_account_cannot_manage_catalog() {
+    let mut c = deploy();
+    add_validator_allowlisted(&mut c);
+
+    testing_env_catalog_callback(acct(VALIDATOR_OWNER_ACCOUNT));
+    c.create_product_after_get_owner(
+        acct(VALIDATOR_OWNER_ACCOUNT),
+        acct(common::POOL),
+        "Plan".into(),
+        "Desc".into(),
+        acct("stranger.near"),
     );
 }

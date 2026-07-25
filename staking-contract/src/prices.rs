@@ -1,5 +1,5 @@
 //! Catalog prices: CRUD + archive lifecycle for product tiers.
-//! Mutating RPCs are pool-owner gated via `get_owner_id` + [`Contract::assert_validator_owner`].
+//! Mutating RPCs are gated via `get_owner_id` plus validator owner-or-catalog-manager authorization.
 //! Archiving/deleting a default tier clears [`Product::default_price_id`] through product helpers.
 
 use crate::gas::callbacks;
@@ -69,7 +69,7 @@ impl Contract {
     // Public catalog admin (pool-owner auth via promise chain)
     // -------------------------------------------------------------------------
 
-    /// Add a price tier under an active product. Pool owner only; attach 1 yocto.
+    /// Add a price tier under an active product. Validator owner or catalog manager; attach 1 yocto.
     #[payable]
     pub fn create_price(
         &mut self,
@@ -162,8 +162,8 @@ impl Contract {
         metadata: Option<PriceMetadata>,
         expected_caller: AccountId,
     ) -> PriceId {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut product = self.require_product(&product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             product.status == CatalogStatus::Active,
             "This product is archived or inactive"
@@ -223,8 +223,9 @@ impl Contract {
         metadata: Option<PriceMetadata>,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut price = self.require_price(&price_id);
+        let product = self.require_product(&price.product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
 
         if let Some(name) = name {
             price.name = name;
@@ -284,8 +285,9 @@ impl Contract {
         price_id: PriceId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut price = self.require_price(&price_id);
+        let product = self.require_product(&price.product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         self.assert_no_pending_update_references_price(&price_id);
         if price.price_type == PriceType::Farm {
             let pool = self.require_farm_pool(&price_id);
@@ -308,8 +310,9 @@ impl Contract {
         price_id: PriceId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let price = self.require_price(&price_id);
+        let mut product = self.require_product(&price.product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             price.usage_count == 0,
             "Cannot delete this price while it is in use"
@@ -325,7 +328,6 @@ impl Contract {
         }
         self.assert_no_pending_update_references_price(&price_id);
         let product_id = price.product_id.clone();
-        let mut product = self.require_product(&price.product_id);
         product.price_ids.retain(|x| x != &price_id);
         self.internal_set_product(price.product_id.clone(), product);
         self.prices.remove(&price_id);
@@ -339,14 +341,14 @@ impl Contract {
         price_id: PriceId,
         expected_caller: AccountId,
     ) {
-        self.assert_validator_owner(pool_owner, &expected_caller);
         let mut price = self.require_price(&price_id);
+        let product = self.require_product(&price.product_id);
+        self.assert_validator_catalog_admin(pool_owner, &product.validator_id, &expected_caller);
         require!(
             price.status == CatalogStatus::Archived,
             "Price is not archived"
         );
         if price.price_type == PriceType::Farm {
-            let product = self.require_product(&price.product_id);
             self.require_no_active_farm_price_for_product(&product);
         }
         price.status = CatalogStatus::Active;

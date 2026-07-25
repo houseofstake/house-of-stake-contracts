@@ -28,8 +28,8 @@ pub const VALIDATOR_OWNER_ACCOUNT: &str = "vowner.near";
 pub const BUYER: &str = "buyer.near";
 pub const NEW_OWNER: &str = "newowner.near";
 pub const GUARDIAN: &str = "guardian.near";
-/// Account used in removed operator ACL tests; kept for catalog owner simulations.
-pub const OPERATOR: &str = "operator.near";
+/// Account used in catalog manager delegation tests; kept for catalog owner simulations.
+pub const CATALOG_MANAGER: &str = "manager.near";
 
 #[inline]
 pub fn one_yocto() -> NearToken {
