@@ -22,5 +22,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # `integration-tests` depends on `near-workspaces` sandbox support;
+      # test coverage for it runs in the dedicated test workflow.
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets --all-features --exclude integration-tests
