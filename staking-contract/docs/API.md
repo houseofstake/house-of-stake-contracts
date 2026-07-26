@@ -156,7 +156,7 @@ Public **`epoch_stake` / `epoch_unstake` / `epoch_withdraw` / `refresh_validator
 **Per allowlisted pool (`validator_id` = pool contract account):**
 
 - **`tx_status`**: **`Idle`** / **`Busy`** — one orchestrated pipeline at a time; **`Busy`** from entry until **`on_epoch_pipeline_terminal_release`** (**6**).
-- **Per NEAR `epoch_height`**: at most **one** successful pool **`deposit_and_stake`** **or** **`unstake`** (or inline net-zero clear); updates **`last_settlement_epoch`**.
+- **Per NEAR `epoch_height`**: at most **one** successful pool **`deposit_and_stake`** **or** **`unstake`** (or inline net-zero clear); updates **`last_settlement_epoch`**. Fresh-epoch no-pending and unstake-waiting settlement decisions also update **`last_settlement_epoch`**. A failed pool **`withdraw`** skips stake/unstake settlement and leaves the epoch retryable.
 - **Fast path**: when **`last_settlement_epoch >= epoch_height`**, skip pool **`get_account`**, withdraw-if-ready, and net settle; jump to user tail (**4**) using cached **`total_staked_balance`**.
 - **Full path**: pool **`get_account`** → optional withdraw (**2a–2c**) → **`try_epoch_stake_or_unstake`** on **existing** pending → user tail (**4**).
 - **Unstake spacing**: another pool **`unstake`** requires **`validator_unstake_waiting_finished`** (`last_unstake_epoch` + **`epoch_unstake_settle_epochs`**).

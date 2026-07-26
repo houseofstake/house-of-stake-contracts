@@ -135,9 +135,10 @@ pub struct Validator {
     /// **sync** `total_staked_balance` from the pool (at most once per epoch for catalog flows), **withdraw**
     /// from the pool when eligible, then at most one **net** pool `deposit_and_stake` / `unstake` / net-zero
     /// clearance for that epoch (same mutex the staking pool enforces per account). Successful callbacks
-    /// on stake, unstake, and net-zero settlement set this to `env::epoch_height()`. When this equals the
-    /// current epoch, user flows **skip** another pool `get_account` refresh for this validator until the
-    /// next NEAR epoch.
+    /// on stake, unstake, net-zero settlement, no-pending settlement, and unstake-waiting
+    /// settlement decisions set this to `env::epoch_height()`. When this equals the current epoch,
+    /// user flows **skip** another pool `get_account` refresh for this validator until the next
+    /// NEAR epoch.
     pub last_settlement_epoch: u64,
     /// NEAR that has been unstaked on the pool side and is expected to be moved by pool `withdraw`
     /// into this contract.
