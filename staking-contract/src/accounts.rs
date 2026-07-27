@@ -59,7 +59,7 @@ impl Contract {
 
         let refund_yocto = attached.as_yoctonear().saturating_sub(accepted_yocto);
         if refund_yocto > 0 {
-            Promise::new(predecessor).transfer(NearToken::from_yoctonear(refund_yocto));
+            let _ = Promise::new(predecessor).transfer(NearToken::from_yoctonear(refund_yocto));
         }
 
         self.internal_storage_balance_of(&account_id)
@@ -105,7 +105,8 @@ impl Contract {
             .expect("Internal error: storage withdraw amount was not bounded correctly");
         self.internal_set_account(account_id.clone(), account);
 
-        Promise::new(account_id.clone()).transfer(NearToken::from_yoctonear(withdraw_yocto));
+        let _ =
+            Promise::new(account_id.clone()).transfer(NearToken::from_yoctonear(withdraw_yocto));
 
         self.internal_storage_balance_of(&account_id)
             .expect("Registered account must have a storage balance")
@@ -131,14 +132,43 @@ impl Contract {
         }
 
         self.accounts.remove(&account_id);
+        self.account_ids.remove(&account_id);
         if account.storage_deposit.as_yoctonear() > 0 {
-            Promise::new(account_id).transfer(account.storage_deposit);
+            let _ = Promise::new(account_id).transfer(account.storage_deposit);
         }
         true
     }
 
     pub fn get_account(&self, account_id: AccountId) -> Option<Account> {
         self.internal_get_account(&account_id)
+    }
+
+    pub fn get_account_ids(&self, from_index: u64, limit: u64) -> Vec<AccountId> {
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        self.account_ids
+            .iter()
+            .skip(skip)
+            .take(take)
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_accounts(&self, from_index: u64, limit: u64) -> Vec<AccountView> {
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        self.account_ids
+            .iter()
+            .skip(skip)
+            .take(take)
+            .filter_map(|account_id| {
+                let account = self.internal_get_account(account_id)?;
+                Some(AccountView {
+                    account_id: account_id.clone(),
+                    storage_deposit: account.storage_deposit,
+                })
+            })
+            .collect()
     }
 }
 
@@ -148,7 +178,8 @@ impl Contract {
     }
 
     pub(crate) fn internal_set_account(&mut self, id: AccountId, account: Account) {
-        self.accounts.insert(id, account.into());
+        self.accounts.insert(id.clone(), account.into());
+        self.account_ids.insert(id);
     }
 
     fn internal_storage_balance_of(&self, account_id: &AccountId) -> Option<StorageBalance> {

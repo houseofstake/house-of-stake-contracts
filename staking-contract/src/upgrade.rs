@@ -1,6 +1,6 @@
 use crate::*;
 use near_sdk::env;
-use near_sdk::store::{IterableMap, LookupMap, Vector};
+use near_sdk::store::{IterableMap, IterableSet, LookupMap, Vector};
 
 #[cfg(target_arch = "wasm32")]
 use near_sdk::{Gas, sys};
@@ -15,7 +15,7 @@ impl Contract {
     #[private]
     #[init(ignore_state)]
     pub fn migrate_state() -> Self {
-        let old: ContractV1_0_1 = env::state_read().unwrap();
+        let old: ContractV1_1_1 = env::state_read().unwrap();
         old.into()
     }
 
@@ -26,7 +26,7 @@ impl Contract {
 
 #[allow(non_camel_case_types)]
 #[near(serializers = [borsh])]
-struct ContractV1_0_1 {
+struct ContractV1_1_1 {
     pub config: VConfig,
     pub paused: bool,
     pub validators: LookupMap<ValidatorId, VValidator>,
@@ -39,72 +39,65 @@ struct ContractV1_0_1 {
     pub locks: LookupMap<LockId, VLock>,
     pub user_validator_shares: LookupMap<(AccountId, ValidatorId), u128>,
     pub user_pending_unstake: LookupMap<(AccountId, ValidatorId), Vec<PendingUnstakeTranche>>,
+    pub user_pending_unstake_validator_count: LookupMap<AccountId, u32>,
     pub user_lock_count: LookupMap<AccountId, u32>,
     pub purchases: LookupMap<PurchaseId, VPurchase>,
     pub purchase_ids: Vector<PurchaseId>,
-    pub purchases_by_account: LookupMap<AccountId, Vec<PurchaseId>>,
-    pub purchases_by_product: LookupMap<ProductId, Vec<PurchaseId>>,
+    pub purchases_by_account: LookupMap<AccountId, Vector<PurchaseId>>,
+    pub purchases_by_product: LookupMap<ProductId, Vector<PurchaseId>>,
     pub user_purchase_count: LookupMap<AccountId, u32>,
     pub revenue_by_validator: LookupMap<ValidatorId, NearToken>,
+    pub farm_pools: LookupMap<PriceId, VFarmPool>,
+    pub farm_positions: LookupMap<(AccountId, ProductId), VFarmPosition>,
+    pub farm_position_products_by_account: LookupMap<AccountId, Vec<ProductId>>,
+    pub user_farm_position_count: LookupMap<AccountId, u32>,
+    pub farm_accounts: LookupMap<AccountId, VFarmAccount>,
     pub subscription_by_account_product: LookupMap<(AccountId, ProductId), SubscriptionId>,
     pub subscriptions_by_account: LookupMap<AccountId, Vec<SubscriptionId>>,
-    pub subscription_ids: Vector<SubscriptionId>,
+    pub subscription_ids: IterableMap<SubscriptionId, ()>,
     pub pending_update_target_price_counts: LookupMap<PriceId, u32>,
     pub pending_update_target_product_counts: LookupMap<ProductId, u32>,
     pub id_nonce: u64,
 }
 
-impl From<ContractV1_0_1> for Contract {
-    fn from(old: ContractV1_0_1) -> Self {
-        let mut user_pending_unstake_validator_count =
-            LookupMap::new(StorageKeys::UserPendingUnstakeValidatorCount);
-        for validator_id in old.validator_ids.iter() {
-            if let Some(validator) = old.validators.get(validator_id) {
-                for account_id in validator.legacy_accounts_with_pending_unstake() {
-                    let next = user_pending_unstake_validator_count
-                        .get(account_id)
-                        .copied()
-                        .unwrap_or(0u32)
-                        .saturating_add(1);
-                    user_pending_unstake_validator_count.insert(account_id.clone(), next);
-                }
+impl From<ContractV1_1_1> for Contract {
+    fn from(old: ContractV1_1_1) -> Self {
+        let mut account_ids = IterableSet::new(StorageKeys::AccountIds);
+        let mut subscriptions_by_product = LookupMap::new(StorageKeys::SubscriptionsByProduct);
+
+        for (subscription_id, _) in old.subscription_ids.iter() {
+            if let Some(subscription) = old.subscriptions.get(subscription_id) {
+                let subscription: Subscription = subscription.clone().into();
+                index_account_if_registered(
+                    &mut account_ids,
+                    &old.accounts,
+                    &subscription.account_id,
+                );
+                add_subscription_to_product_index_for_migration(
+                    &mut subscriptions_by_product,
+                    &subscription.product_id,
+                    subscription_id,
+                );
             }
         }
 
-        let mut subscription_ids = IterableMap::new(StorageKeys::SubscriptionIds);
-        for subscription_id in old.subscription_ids.iter() {
-            subscription_ids.insert(subscription_id.clone(), ());
-        }
-
-        let mut purchases_by_account: LookupMap<AccountId, Vector<PurchaseId>> =
-            LookupMap::new(StorageKeys::PurchasesByAccount);
-        let mut purchases_by_product: LookupMap<ProductId, Vector<PurchaseId>> =
-            LookupMap::new(StorageKeys::PurchasesByProduct);
         for purchase_id in old.purchase_ids.iter() {
             if let Some(purchase) = old.purchases.get(purchase_id) {
                 let purchase: Purchase = purchase.clone().into();
-                if let Some(ids) = purchases_by_account.get_mut(&purchase.account_id) {
-                    ids.push(purchase_id.clone());
-                } else {
-                    let mut ids =
-                        Vector::new(Self::purchases_by_account_vector_key(&purchase.account_id));
-                    ids.push(purchase_id.clone());
-                    purchases_by_account.insert(purchase.account_id.clone(), ids);
-                }
+                index_account_if_registered(&mut account_ids, &old.accounts, &purchase.account_id);
+            }
+        }
 
-                if let Some(ids) = purchases_by_product.get_mut(&purchase.product_id) {
-                    ids.push(purchase_id.clone());
-                } else {
-                    let mut ids =
-                        Vector::new(Self::purchases_by_product_vector_key(&purchase.product_id));
-                    ids.push(purchase_id.clone());
-                    purchases_by_product.insert(purchase.product_id.clone(), ids);
+        for validator_id in old.validator_ids.iter() {
+            if let Some(validator) = old.validators.get(validator_id) {
+                for account_id in validator.legacy_accounts_with_pending_unstake() {
+                    index_account_if_registered(&mut account_ids, &old.accounts, account_id);
                 }
             }
         }
 
         Self {
-            config: Config::from(old.config).into(),
+            config: old.config,
             paused: old.paused,
             validators: old.validators,
             validator_ids: old.validator_ids,
@@ -112,33 +105,58 @@ impl From<ContractV1_0_1> for Contract {
             products: old.products,
             prices: old.prices,
             accounts: old.accounts,
+            account_ids,
             subscriptions: old.subscriptions,
             locks: old.locks,
             user_validator_shares: old.user_validator_shares,
             user_pending_unstake: old.user_pending_unstake,
-            user_pending_unstake_validator_count,
+            user_pending_unstake_validator_count: old.user_pending_unstake_validator_count,
             user_lock_count: old.user_lock_count,
-            user_farm_position_count: LookupMap::new(StorageKeys::UserFarmPositionCount),
             purchases: old.purchases,
             purchase_ids: old.purchase_ids,
-            purchases_by_account,
-            purchases_by_product,
+            purchases_by_account: old.purchases_by_account,
+            purchases_by_product: old.purchases_by_product,
             user_purchase_count: old.user_purchase_count,
             revenue_by_validator: old.revenue_by_validator,
-            farm_pools: LookupMap::new(StorageKeys::FarmPools),
-            farm_positions: LookupMap::new(StorageKeys::FarmPositions),
-            farm_position_products_by_account: LookupMap::new(
-                StorageKeys::FarmPositionProductsByAccount,
-            ),
-            farm_accounts: LookupMap::new(StorageKeys::FarmAccounts),
+            farm_pools: old.farm_pools,
+            farm_positions: old.farm_positions,
+            farm_position_products_by_account: old.farm_position_products_by_account,
+            user_farm_position_count: old.user_farm_position_count,
+            farm_accounts: old.farm_accounts,
             subscription_by_account_product: old.subscription_by_account_product,
             subscriptions_by_account: old.subscriptions_by_account,
-            subscription_ids,
+            subscriptions_by_product,
+            subscription_ids: old.subscription_ids,
             pending_update_target_price_counts: old.pending_update_target_price_counts,
             pending_update_target_product_counts: old.pending_update_target_product_counts,
             id_nonce: old.id_nonce,
         }
     }
+}
+
+fn index_account_if_registered(
+    account_ids: &mut IterableSet<AccountId>,
+    old_accounts: &LookupMap<AccountId, VAccount>,
+    account_id: &AccountId,
+) {
+    if old_accounts.get(account_id).is_some() {
+        account_ids.insert(account_id.clone());
+    }
+}
+
+fn add_subscription_to_product_index_for_migration(
+    subscriptions_by_product: &mut LookupMap<ProductId, IterableSet<SubscriptionId>>,
+    product_id: &ProductId,
+    subscription_id: &SubscriptionId,
+) {
+    if let Some(ids) = subscriptions_by_product.get_mut(product_id) {
+        ids.insert(subscription_id.clone());
+        return;
+    }
+
+    let mut ids = IterableSet::new(Contract::subscriptions_by_product_set_key(product_id));
+    ids.insert(subscription_id.clone());
+    subscriptions_by_product.insert(product_id.clone(), ids);
 }
 
 #[cfg(target_arch = "wasm32")]

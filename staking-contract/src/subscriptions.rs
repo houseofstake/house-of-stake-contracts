@@ -7,7 +7,7 @@ use crate::*;
 use common::U256;
 use near_sdk::borsh::BorshSerialize;
 use near_sdk::json_types::{U64, U128};
-use near_sdk::store::LookupMap;
+use near_sdk::store::{IterableSet, LookupMap};
 use near_sdk::{AccountId, NearToken, PromiseOrValue, assert_one_yocto, env, near, require};
 
 #[cfg(feature = "test")]
@@ -208,6 +208,37 @@ impl Contract {
                 .map(|sub| self.project_subscription_view_now(sub))
         })
     }
+
+    pub fn get_subscriptions(&self, from_index: u64, limit: u64) -> Vec<Subscription> {
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        self.subscription_ids
+            .keys()
+            .skip(skip)
+            .take(take)
+            .filter_map(|id| self.internal_get_subscription(id))
+            .map(|sub| self.project_subscription_view_now(sub))
+            .collect()
+    }
+
+    pub fn get_subscriptions_for_product(
+        &self,
+        product_id: ProductId,
+        from_index: u64,
+        limit: u64,
+    ) -> Vec<Subscription> {
+        let Some(ids) = self.subscriptions_by_product.get(&product_id) else {
+            return Vec::new();
+        };
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        ids.iter()
+            .skip(skip)
+            .take(take)
+            .filter_map(|id| self.internal_get_subscription(id))
+            .map(|sub| self.project_subscription_view_now(sub))
+            .collect()
+    }
 }
 
 // Epoch pipeline: subscription update tail callback.
@@ -340,6 +371,7 @@ impl Contract {
         ids.push(subscription_id.clone());
         self.subscriptions_by_account
             .insert(account_id.clone(), ids);
+        self.add_subscription_to_product_index(account_id, subscription_id);
 
         if add_global {
             self.subscription_ids.insert(subscription_id.clone(), ());
@@ -367,12 +399,82 @@ impl Contract {
             self.subscriptions_by_account
                 .insert(account_id.clone(), ids);
         }
+        self.remove_subscription_from_product_index(subscription_id);
 
         if !remove_global {
             return;
         }
 
         self.subscription_ids.remove(subscription_id);
+    }
+
+    fn add_subscription_to_product_index(
+        &mut self,
+        account_id: &AccountId,
+        subscription_id: &SubscriptionId,
+    ) {
+        let Some(subscription) = self.internal_get_subscription(subscription_id) else {
+            return;
+        };
+        // The caller supplies the account index owner; verify it matches the
+        // stored subscription before mirroring that subscription into a product index.
+        if subscription.account_id != *account_id {
+            return;
+        }
+
+        self.add_subscription_to_product_index_for_product(
+            &subscription.product_id,
+            subscription_id,
+        );
+    }
+
+    fn add_subscription_to_product_index_for_product(
+        &mut self,
+        product_id: &ProductId,
+        subscription_id: &SubscriptionId,
+    ) {
+        if let Some(ids) = self.subscriptions_by_product.get_mut(product_id) {
+            ids.insert(subscription_id.clone());
+            return;
+        }
+
+        let mut ids = IterableSet::new(Self::subscriptions_by_product_set_key(product_id));
+        ids.insert(subscription_id.clone());
+        self.subscriptions_by_product
+            .insert(product_id.clone(), ids);
+    }
+
+    fn remove_subscription_from_product_index(&mut self, subscription_id: &SubscriptionId) {
+        let Some(subscription) = self.internal_get_subscription(subscription_id) else {
+            return;
+        };
+        self.remove_subscription_from_product_index_for_product(
+            &subscription.product_id,
+            subscription_id,
+        );
+    }
+
+    fn remove_subscription_from_product_index_for_product(
+        &mut self,
+        product_id: &ProductId,
+        subscription_id: &SubscriptionId,
+    ) {
+        let should_remove_product = {
+            let Some(ids) = self.subscriptions_by_product.get_mut(product_id) else {
+                return;
+            };
+            ids.remove(subscription_id);
+            ids.is_empty()
+        };
+        if should_remove_product {
+            self.subscriptions_by_product.remove(product_id);
+        }
+    }
+
+    pub(crate) fn subscriptions_by_product_set_key(product_id: &ProductId) -> StorageKeys {
+        StorageKeys::SubscriptionsByProductSet {
+            product_hash: env::sha256(product_id.as_bytes()),
+        }
     }
 
     pub(crate) fn assert_no_pending_update_references_price(&self, price_id: &PriceId) {
@@ -471,6 +573,8 @@ impl Contract {
                 self.subscription_by_account_product.remove(&old_key);
             }
         }
+        self.remove_subscription_from_product_index_for_product(old_product_id, subscription_id);
+        self.add_subscription_to_product_index_for_product(new_product_id, subscription_id);
     }
 
     pub(crate) fn require_subscription_by_id(

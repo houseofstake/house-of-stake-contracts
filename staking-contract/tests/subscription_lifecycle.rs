@@ -121,6 +121,36 @@ fn active_renewal_reuses_subscription_indexes() {
 }
 
 #[test]
+fn subscription_listing_views_return_projected_records() {
+    let mut c = deploy();
+    let (product_id, price_id) = setup_catalog_near_subscription(&mut c);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
+    let _lock_id = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, None));
+
+    let subscription = c
+        .get_subscription_for_product(acct(BUYER), product_id.clone())
+        .expect("subscription");
+    let all_subscriptions = c.get_subscriptions(0, 10);
+    assert_eq!(all_subscriptions.len(), 1);
+    assert_eq!(
+        all_subscriptions[0].subscription_id,
+        subscription.subscription_id
+    );
+    let product_subscriptions = c.get_subscriptions_for_product(product_id.clone(), 0, 10);
+    assert_eq!(product_subscriptions.len(), 1);
+    assert_eq!(
+        product_subscriptions[0].subscription_id,
+        subscription.subscription_id
+    );
+    assert!(
+        c.get_subscriptions_for_product(product_id, 1, 10)
+            .is_empty()
+    );
+}
+
+#[test]
 fn resume_subscription_clears_cancel_before_period_end() {
     let mut c = deploy();
     let (product_id, price_id) = setup_catalog_near_subscription(&mut c);

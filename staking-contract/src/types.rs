@@ -95,6 +95,13 @@ pub struct Account {
     pub storage_deposit: NearToken,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[near(serializers = [json])]
+pub struct AccountView {
+    pub account_id: AccountId,
+    pub storage_deposit: NearToken,
+}
+
 impl Default for Account {
     fn default() -> Self {
         Self {

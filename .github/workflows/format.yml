@@ -2,9 +2,9 @@ name: Format
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feat/stake-v1]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, feat/stake-v1]
   workflow_dispatch:
 
 env:
