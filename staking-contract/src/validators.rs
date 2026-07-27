@@ -299,7 +299,7 @@ impl Contract {
     /// NEAR `epoch_height` from which a new [`PendingUnstakeTranche`] may participate in
     /// [`crate::Contract::withdraw`] (when `env::epoch_height() >=` this value).
     ///
-    /// 1. `unstake_start_epoch = max(current_epoch_height, last_unstake_epoch + epoch_unstake_settle_epochs)`
+    /// 1. `unstake_start_epoch = max(current_epoch_height + 1, last_unstake_epoch + epoch_unstake_settle_epochs)`
     /// 2. `available_epoch_height = unstake_start_epoch + epoch_unstake_settle_epochs`
     ///
     /// Uses [`crate::config::Config::epoch_unstake_settle_epochs`].
@@ -309,8 +309,9 @@ impl Contract {
     ) -> u64 {
         let current_epoch_height = epoch_height();
         let settle = self.internal_get_config().epoch_unstake_settle_epochs;
+        let next_epoch_height = current_epoch_height.saturating_add(1);
         let unstake_start_epoch =
-            current_epoch_height.max(validator.last_unstake_epoch.saturating_add(settle));
+            next_epoch_height.max(validator.last_unstake_epoch.saturating_add(settle));
         unstake_start_epoch.saturating_add(settle)
     }
 
@@ -477,6 +478,87 @@ impl Contract {
         require!(
             validator.catalog_manager_account_ids.contains(caller),
             "Only the validator owner or catalog manager can call this method"
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use near_sdk::json_types::U64;
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::testing_env;
+
+    fn account(id: &str) -> AccountId {
+        id.parse().expect("valid account id")
+    }
+
+    fn contract_with_settle_epochs(settle_epochs: u64) -> Contract {
+        Contract::new(Config {
+            owner_account_id: account("owner.near"),
+            proposed_new_owner_account_id: None,
+            guardians: vec![],
+            min_lock_duration_ns: U64(1),
+            max_lock_duration_ns: U64(u64::MAX / 8),
+            epoch_unstake_settle_epochs: settle_epochs,
+            min_storage_deposit: NearToken::from_millinear(100),
+            per_lock_storage_stake: NearToken::from_near(0),
+            per_farm_position_storage_stake: NearToken::from_near(0),
+            per_purchase_storage_stake: NearToken::from_near(0),
+            min_lock_amount: NearToken::from_near(1),
+        })
+    }
+
+    fn validator_with_last_unstake_epoch(last_unstake_epoch: u64) -> Validator {
+        Validator {
+            validator_id: account("pool.near"),
+            catalog_manager_account_ids: Vec::new(),
+            status: ValidatorStatus::Active,
+            total_shares: U128(0),
+            total_staked_balance: NearToken::from_near(0),
+            last_balance_refresh_ns: U64(0),
+            pending_to_stake: NearToken::from_near(0),
+            pending_to_unstake: NearToken::from_near(0),
+            last_unstake_epoch,
+            last_settlement_epoch: 0,
+            pending_to_withdraw: NearToken::from_near(0),
+            pending_to_claim: NearToken::from_near(0),
+            tx_status: TransactionStatus::Idle,
+        }
+    }
+
+    fn set_epoch(epoch_height: u64) {
+        testing_env!(
+            VMContextBuilder::new()
+                .current_account_id(account("staking.near"))
+                .predecessor_account_id(account("buyer.near"))
+                .signer_account_id(account("buyer.near"))
+                .epoch_height(epoch_height)
+                .build()
+        );
+    }
+
+    #[test]
+    fn pending_unstake_tranche_waits_for_next_epoch_pool_unstake() {
+        set_epoch(100);
+        let contract = contract_with_settle_epochs(4);
+        let validator = validator_with_last_unstake_epoch(0);
+
+        assert_eq!(
+            contract.pending_unstake_tranche_available_epoch_height(&validator),
+            105
+        );
+    }
+
+    #[test]
+    fn pending_unstake_tranche_honors_prior_pool_unstake_spacing() {
+        set_epoch(100);
+        let contract = contract_with_settle_epochs(4);
+        let validator = validator_with_last_unstake_epoch(103);
+
+        assert_eq!(
+            contract.pending_unstake_tranche_available_epoch_height(&validator),
+            111
         );
     }
 }
