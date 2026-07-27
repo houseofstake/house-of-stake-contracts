@@ -18,6 +18,44 @@ use staking_contract::types::{LockStatus, OrderRef, SubscriptionStatus};
 use staking_contract::utils::AVG_MONTH_NS;
 
 const BASE_TS: u64 = 1_700_000_000_000_000_000;
+const JAN_31_2026_10_UTC_NS: u64 = 1_769_853_600_000_000_000;
+const FEB_28_2026_10_UTC_NS: u64 = 1_772_272_800_000_000_000;
+
+#[test]
+fn recurring_lock_uses_calendar_month_window_and_utc_anchor() {
+    let mut c = deploy();
+    let (product_id, price_id) = setup_catalog_near_subscription(&mut c);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_near(50),
+        JAN_31_2026_10_UTC_NS
+    ));
+    let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, None));
+
+    let sub = c
+        .get_subscription_for_product(acct(BUYER), product_id)
+        .expect("subscription");
+    assert_eq!(sub.start_ns.0, JAN_31_2026_10_UTC_NS);
+    assert_eq!(sub.end_ns.0, FEB_28_2026_10_UTC_NS);
+    assert_eq!(sub.anchor_day, 31);
+
+    let lock = c.get_lock(lock_id).expect("lock");
+    assert_eq!(lock.start_ns, sub.start_ns);
+    assert_eq!(lock.end_ns, sub.end_ns);
+    match lock.order {
+        OrderRef::Subscription {
+            period_start_ns,
+            period_end_ns,
+            ..
+        } => {
+            assert_eq!(period_start_ns, sub.start_ns);
+            assert_eq!(period_end_ns, sub.end_ns);
+        }
+        OrderRef::ProductPurchase { .. } => panic!("expected subscription order"),
+    }
+}
 
 #[test]
 fn cancel_then_renew_after_period_opens_fresh_subscription() {

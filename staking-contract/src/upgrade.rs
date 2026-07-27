@@ -61,13 +61,16 @@ struct ContractV1_1_1 {
 }
 
 impl From<ContractV1_1_1> for Contract {
-    fn from(old: ContractV1_1_1) -> Self {
+    fn from(mut old: ContractV1_1_1) -> Self {
         let mut account_ids = IterableSet::new(StorageKeys::AccountIds);
         let mut subscriptions_by_product = LookupMap::new(StorageKeys::SubscriptionsByProduct);
 
         for (subscription_id, _) in old.subscription_ids.iter() {
             if let Some(subscription) = old.subscriptions.get(subscription_id) {
-                let subscription: Subscription = subscription.clone().into();
+                let mut subscription: Subscription = subscription.clone().into();
+                normalize_subscription_anchor_day_for_migration(&mut subscription);
+                old.subscriptions
+                    .insert(subscription_id.clone(), subscription.clone().into());
                 index_account_if_registered(
                     &mut account_ids,
                     &old.accounts,
@@ -134,6 +137,11 @@ impl From<ContractV1_1_1> for Contract {
     }
 }
 
+fn normalize_subscription_anchor_day_for_migration(subscription: &mut Subscription) {
+    subscription.anchor_day =
+        crate::subscriptions::billing_anchor_day_from_timestamp(subscription.start_ns.0);
+}
+
 fn index_account_if_registered(
     account_ids: &mut IterableSet<AccountId>,
     old_accounts: &LookupMap<AccountId, VAccount>,
@@ -198,5 +206,160 @@ pub extern "C" fn upgrade() {
             GET_CONFIG_GAS.as_gas(),
         );
         sys::promise_return(promise_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use near_sdk::json_types::U64;
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::{AccountId, NearToken, testing_env};
+
+    const JUL_28_2026_063128_629578_NS: u64 = 1_785_220_288_629_578_000;
+    const AUG_01_2026_000000_000000_NS: u64 = 1_785_542_400_000_000_000;
+    const AUG_28_2026_063128_629578_NS: u64 = 1_787_898_688_629_578_000;
+
+    fn acct(s: &str) -> AccountId {
+        s.parse().expect("valid account id")
+    }
+
+    fn test_config() -> Config {
+        Config {
+            owner_account_id: acct("owner.near"),
+            proposed_new_owner_account_id: None,
+            guardians: vec![],
+            min_lock_duration_ns: U64(1),
+            max_lock_duration_ns: U64(u64::MAX / 8),
+            epoch_unstake_settle_epochs: 4,
+            min_storage_deposit: NearToken::from_millinear(100),
+            per_lock_storage_stake: NearToken::from_near(0),
+            per_farm_position_storage_stake: NearToken::from_near(0),
+            per_purchase_storage_stake: NearToken::from_near(0),
+            min_lock_amount: NearToken::from_near(1),
+        }
+    }
+
+    fn test_context(block_timestamp_ns: u64) {
+        let account_id = acct("staking.near");
+        testing_env!(
+            VMContextBuilder::new()
+                .current_account_id(account_id.clone())
+                .predecessor_account_id(account_id.clone())
+                .signer_account_id(account_id)
+                .block_timestamp(block_timestamp_ns)
+                .build()
+        );
+    }
+
+    fn contract_v1_1_1_from_current(contract: Contract) -> ContractV1_1_1 {
+        let Contract {
+            config,
+            paused,
+            validators,
+            validator_ids,
+            product_ids,
+            products,
+            prices,
+            accounts,
+            account_ids: _,
+            subscriptions,
+            locks,
+            user_validator_shares,
+            user_pending_unstake,
+            user_pending_unstake_validator_count,
+            user_lock_count,
+            purchases,
+            purchase_ids,
+            purchases_by_account,
+            purchases_by_product,
+            user_purchase_count,
+            revenue_by_validator,
+            farm_pools,
+            farm_positions,
+            farm_position_products_by_account,
+            user_farm_position_count,
+            farm_accounts,
+            subscription_by_account_product,
+            subscriptions_by_account,
+            subscriptions_by_product: _,
+            subscription_ids,
+            pending_update_target_price_counts,
+            pending_update_target_product_counts,
+            id_nonce,
+        } = contract;
+
+        ContractV1_1_1 {
+            config,
+            paused,
+            validators,
+            validator_ids,
+            product_ids,
+            products,
+            prices,
+            accounts,
+            subscriptions,
+            locks,
+            user_validator_shares,
+            user_pending_unstake,
+            user_pending_unstake_validator_count,
+            user_lock_count,
+            purchases,
+            purchase_ids,
+            purchases_by_account,
+            purchases_by_product,
+            user_purchase_count,
+            revenue_by_validator,
+            farm_pools,
+            farm_positions,
+            farm_position_products_by_account,
+            user_farm_position_count,
+            farm_accounts,
+            subscription_by_account_product,
+            subscriptions_by_account,
+            subscription_ids,
+            pending_update_target_price_counts,
+            pending_update_target_product_counts,
+            id_nonce,
+        }
+    }
+
+    #[test]
+    fn migration_recomputes_legacy_subscription_anchor_day() {
+        test_context(AUG_01_2026_000000_000000_NS);
+        let mut current = Contract::new(test_config());
+        let subscription_id = "sub_legacy".to_string();
+        let subscription = Subscription {
+            subscription_id: subscription_id.clone(),
+            account_id: acct("buyer.near"),
+            product_id: "prod_legacy".to_string(),
+            price_id: "price_legacy".to_string(),
+            start_ns: U64(JUL_28_2026_063128_629578_NS),
+            end_ns: U64(AUG_28_2026_063128_629578_NS),
+            anchor_day: 17,
+            last_lock_id: "lock_legacy".to_string(),
+            status: SubscriptionStatus::Active,
+            cancel_at_period_end: false,
+            pending_update: None,
+        };
+        current
+            .subscriptions
+            .insert(subscription_id.clone(), subscription.into());
+        current.subscription_ids.insert(subscription_id.clone(), ());
+
+        let old = contract_v1_1_1_from_current(current);
+        let migrated: Contract = old.into();
+        let stored: Subscription = migrated
+            .subscriptions
+            .get(&subscription_id)
+            .expect("subscription migrated")
+            .clone()
+            .into();
+
+        assert_eq!(stored.anchor_day, 28);
+        assert_eq!(
+            migrated.project_subscription_view_now(stored).end_ns.0,
+            AUG_28_2026_063128_629578_NS
+        );
     }
 }

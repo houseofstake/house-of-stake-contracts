@@ -1,14 +1,7 @@
-use crate::utils::{NS_PER_DAY_TIMESTAMP, block_timestamp, check_near_price_lock};
+use crate::utils::{block_timestamp, check_near_price_lock};
 use crate::*;
 use near_sdk::json_types::{U64, U128};
 use near_sdk::{AccountId, NearToken, PromiseOrValue, env, near, require};
-
-/// Stripe-style **billing anchor day** (1–31). Not the real UTC calendar day-of-month; it is a stable
-/// fingerprint from block time until civil-calendar billing is implemented.
-fn anchor_day_from_timestamp(ts: u64) -> u8 {
-    let d = (ts / NS_PER_DAY_TIMESTAMP) % 31;
-    (d as u8 + 1).min(31)
-}
 
 #[near]
 impl Contract {
@@ -344,7 +337,7 @@ impl Contract {
         price_id: &PriceId,
         start_ns: u64,
     ) -> (SubscriptionId, Subscription) {
-        let anchor = anchor_day_from_timestamp(start_ns);
+        let anchor = crate::subscriptions::billing_anchor_day_from_timestamp(start_ns);
         let end_ns = crate::subscriptions::add_months_stripe_style(anchor, 1, start_ns);
         let subscription_id = crate::ids::next_subscription_id(&mut self.id_nonce);
         let subscription = Subscription {

@@ -1,8 +1,10 @@
-//! Subscription billing helpers (Stripe-style linear months) and subscription **lifecycle** RPCs
+//! Subscription billing helpers (Stripe-style calendar months) and subscription **lifecycle** RPCs
 //! (`cancel_subscription`, `update_subscription`, …). Subscription **locking** (`lock`)
 //! stays in [`crate::lock`] because it shares the pool refresh / mint pipeline with product locks.
 
-use crate::utils::{AVG_MONTH_NS, block_timestamp, check_near_price_lock, near_from_shares};
+use crate::utils::{
+    AVG_MONTH_NS, NS_PER_DAY_TIMESTAMP, block_timestamp, check_near_price_lock, near_from_shares,
+};
 use crate::*;
 use common::U256;
 use near_sdk::borsh::BorshSerialize;
@@ -13,13 +15,72 @@ use near_sdk::{AccountId, NearToken, PromiseOrValue, assert_one_yocto, env, near
 #[cfg(feature = "test")]
 const TEST_SUBSCRIPTION_TIMESTAMP_PREFIX: &[u8] = b"_test_subscription_timestamp_";
 
-/// Extend `from_ns` by `months` × average Gregorian months (linear approximation).
-/// `anchor_day` is validated but not yet applied.
+/// Extend `from_ns` by UTC calendar months, preserving time of day.
+///
+/// The target day is the billing anchor clamped to the last valid day of the target month.
 pub fn add_months_stripe_style(anchor_day: u8, months: u32, from_ns: u64) -> u64 {
-    let _anchor_day = anchor_day.clamp(1, 31);
-    let add_ns = (months as u128).saturating_mul(AVG_MONTH_NS);
-    let add_u64 = u64::try_from(add_ns).unwrap_or(u64::MAX);
-    from_ns.saturating_add(add_u64)
+    if months == 0 {
+        return from_ns;
+    }
+
+    let anchor_day = u32::from(anchor_day.clamp(1, 31));
+    let days = from_ns / NS_PER_DAY_TIMESTAMP;
+    let time_of_day_ns = from_ns % NS_PER_DAY_TIMESTAMP;
+    let (year, month, _day) = civil_from_days(days as i64);
+
+    let target_month_index = i128::from(year) * 12 + i128::from(month - 1) + i128::from(months);
+    let target_year = target_month_index.div_euclid(12);
+    let target_month = u32::try_from(target_month_index.rem_euclid(12) + 1).unwrap_or(12);
+    let target_day = anchor_day.min(last_day_of_month(target_year, target_month));
+    let target_days = days_from_civil(target_year, target_month, target_day);
+    let target_ns = target_days * i128::from(NS_PER_DAY_TIMESTAMP) + i128::from(time_of_day_ns);
+
+    u64::try_from(target_ns).unwrap_or(u64::MAX)
+}
+
+pub(crate) fn billing_anchor_day_from_timestamp(ts: u64) -> u8 {
+    let days = ts / NS_PER_DAY_TIMESTAMP;
+    let (_year, _month, day) = civil_from_days(days as i64);
+    day as u8
+}
+
+fn civil_from_days(days_since_unix_epoch: i64) -> (i64, u32, u32) {
+    let z = days_since_unix_epoch + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    year += if month <= 2 { 1 } else { 0 };
+    (year, month as u32, day as u32)
+}
+
+fn days_from_civil(year: i128, month: u32, day: u32) -> i128 {
+    let year = year - if month <= 2 { 1 } else { 0 };
+    let era = year.div_euclid(400);
+    let year_of_era = year - era * 400;
+    let month_prime = i128::from(month) + if month > 2 { -3 } else { 9 };
+    let day_of_year = (153 * month_prime + 2) / 5 + i128::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
+fn last_day_of_month(year: i128, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_leap_year(year) => 29,
+        2 => 28,
+        _ => 31,
+    }
+}
+
+fn is_leap_year(year: i128) -> bool {
+    year.rem_euclid(4) == 0 && year.rem_euclid(100) != 0 || year.rem_euclid(400) == 0
 }
 
 struct SubscriptionUpdateInputs {
@@ -1360,9 +1421,65 @@ impl Contract {
 mod tests {
     use super::*;
 
+    const JUL_28_2026_063128_629578_NS: u64 = 1_785_220_288_629_578_000;
+    const AUG_28_2026_063128_629578_NS: u64 = 1_787_898_688_629_578_000;
+
+    fn ns_for_utc(
+        year: i128,
+        month: u32,
+        day: u32,
+        hour: u32,
+        minute: u32,
+        second: u32,
+        nanosecond: u32,
+    ) -> u64 {
+        let days_ns = days_from_civil(year, month, day) * i128::from(NS_PER_DAY_TIMESTAMP);
+        let time_ns = u64::from(hour) * 3_600_000_000_000
+            + u64::from(minute) * 60_000_000_000
+            + u64::from(second) * 1_000_000_000
+            + u64::from(nanosecond);
+        u64::try_from(days_ns + i128::from(time_ns)).expect("test timestamp fits u64")
+    }
+
     #[test]
-    fn linear_month_stack() {
-        let out = add_months_stripe_style(15, 2, 100);
-        assert_eq!(out, 100 + (2u128 * AVG_MONTH_NS) as u64);
+    fn calendar_month_preserves_day_and_time_of_day() {
+        assert_eq!(
+            add_months_stripe_style(28, 1, JUL_28_2026_063128_629578_NS),
+            AUG_28_2026_063128_629578_NS
+        );
+    }
+
+    #[test]
+    fn calendar_month_clamps_end_of_month() {
+        let start = ns_for_utc(2026, 1, 31, 10, 0, 0, 0);
+        let feb_end = ns_for_utc(2026, 2, 28, 10, 0, 0, 0);
+        let mar_end = ns_for_utc(2026, 3, 31, 10, 0, 0, 0);
+
+        assert_eq!(add_months_stripe_style(31, 1, start), feb_end);
+        assert_eq!(add_months_stripe_style(31, 1, feb_end), mar_end);
+    }
+
+    #[test]
+    fn calendar_month_clamps_leap_year_february() {
+        let start = ns_for_utc(2028, 1, 31, 10, 0, 0, 0);
+        let expected = ns_for_utc(2028, 2, 29, 10, 0, 0, 0);
+
+        assert_eq!(add_months_stripe_style(31, 1, start), expected);
+    }
+
+    #[test]
+    fn calendar_month_multi_month_add_preserves_anchor_and_time() {
+        let start = ns_for_utc(2026, 1, 15, 23, 59, 59, 123);
+        let expected = ns_for_utc(2027, 3, 15, 23, 59, 59, 123);
+
+        assert_eq!(add_months_stripe_style(15, 14, start), expected);
+    }
+
+    #[test]
+    fn billing_anchor_day_uses_utc_day_of_month() {
+        assert_eq!(
+            billing_anchor_day_from_timestamp(JUL_28_2026_063128_629578_NS),
+            28
+        );
     }
 }
