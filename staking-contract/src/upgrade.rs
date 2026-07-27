@@ -26,6 +26,7 @@ impl Contract {
 
 #[allow(non_camel_case_types)]
 #[near(serializers = [borsh])]
+// Source layout after the #119 upgrade: purchase indexes already use V2 prefixes.
 struct ContractV1_1_1 {
     pub config: VConfig,
     pub paused: bool,
