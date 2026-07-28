@@ -2,9 +2,10 @@
 
 use crate::config::Config;
 pub use near_contract_standards::storage_management::{StorageBalance, StorageBalanceBounds};
-use near_sdk::borsh::{BorshDeserialize, BorshSerialize, io};
+#[cfg(test)]
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{U64, U128};
-use near_sdk::{AccountId, NearToken, env, near};
+use near_sdk::{AccountId, NearToken, near};
 
 /// Stripe-style string IDs (generated in [`crate::ids`]).
 pub type ProductId = String;
@@ -157,45 +158,6 @@ pub struct Validator {
     pub tx_status: TransactionStatus,
 }
 
-/// Validator layout before catalog manager support.
-#[derive(Clone)]
-#[near(serializers = [borsh])]
-pub struct ValidatorV0 {
-    pub validator_id: ValidatorId,
-    pub status: ValidatorStatus,
-    pub total_shares: U128,
-    pub total_staked_balance: NearToken,
-    pub last_balance_refresh_ns: U64,
-    pub pending_to_stake: NearToken,
-    pub pending_to_unstake: NearToken,
-    pub last_unstake_epoch: u64,
-    pub last_settlement_epoch: u64,
-    pub pending_to_withdraw: NearToken,
-    pub pending_to_claim: NearToken,
-    pub accounts_with_pending_unstake: Vec<AccountId>,
-    pub tx_status: TransactionStatus,
-}
-
-impl From<ValidatorV0> for Validator {
-    fn from(value: ValidatorV0) -> Self {
-        Self {
-            validator_id: value.validator_id,
-            catalog_manager_account_ids: Vec::new(),
-            status: value.status,
-            total_shares: value.total_shares,
-            total_staked_balance: value.total_staked_balance,
-            last_balance_refresh_ns: value.last_balance_refresh_ns,
-            pending_to_stake: value.pending_to_stake,
-            pending_to_unstake: value.pending_to_unstake,
-            last_unstake_epoch: value.last_unstake_epoch,
-            last_settlement_epoch: value.last_settlement_epoch,
-            pending_to_withdraw: value.pending_to_withdraw,
-            pending_to_claim: value.pending_to_claim,
-            tx_status: value.tx_status,
-        }
-    }
-}
-
 impl Validator {
     /// Total user-exit liability across all buckets.
     pub fn pending_user_liability_yocto(&self) -> u128 {
@@ -338,21 +300,6 @@ pub struct PriceMetadata {
 }
 
 #[derive(Clone)]
-#[near(serializers = [borsh])]
-struct PriceMetadataV0 {
-    max_amount: Option<U128>,
-}
-
-impl From<PriceMetadataV0> for PriceMetadata {
-    fn from(value: PriceMetadataV0) -> Self {
-        Self {
-            max_amount: value.max_amount,
-            farm_reward_rate: None,
-        }
-    }
-}
-
-#[derive(Clone)]
 #[near(serializers = [borsh, json])]
 pub struct Price {
     pub price_id: PriceId,
@@ -370,40 +317,6 @@ pub struct Price {
     pub metadata: Option<PriceMetadata>,
     pub status: CatalogStatus,
     pub usage_count: u64,
-}
-
-#[derive(Clone)]
-#[near(serializers = [borsh])]
-struct PriceV0 {
-    price_id: PriceId,
-    product_id: ProductId,
-    name: String,
-    description: String,
-    amount: U128,
-    price_type: PriceType,
-    billing_period: Option<BillingPeriod>,
-    lock_factor_near_months: U128,
-    metadata: Option<PriceMetadataV0>,
-    status: CatalogStatus,
-    usage_count: u64,
-}
-
-impl From<PriceV0> for Price {
-    fn from(value: PriceV0) -> Self {
-        Self {
-            price_id: value.price_id,
-            product_id: value.product_id,
-            name: value.name,
-            description: value.description,
-            amount: value.amount,
-            price_type: value.price_type,
-            billing_period: value.billing_period,
-            lock_factor_near_months: value.lock_factor_near_months,
-            metadata: value.metadata.map(Into::into),
-            status: value.status,
-            usage_count: value.usage_count,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -670,66 +583,32 @@ impl UserAction {
 }
 
 // -----------------------------------------------------------------------------
-// Versioned borsh wrappers (`LookupMap` values and `Contract.config`)
+// Launch borsh wrappers (`LookupMap` values and `Contract.config`)
 //
-// Append new variants at the end when layouts change (do not reorder). See [`upgrade.rs`](upgrade.rs)
-// for migration patterns (compare [`voting-contract`](../voting-contract/src/proposal.rs) `VProposal`).
+// These wrappers keep one explicit envelope around stored rows so future post-launch
+// migrations can add variants intentionally. Pre-launch historical variants were removed
+// because production accounts start from empty state.
 //
-// [`VConfig`]: [`AsRef`] / [`AsMut`] for in-place `Contract.config` access. Map values: [`From`] / `into()` only.
-// Do not match `V*::V0` outside this module.
+// [`VConfig`]: [`AsRef`] / [`AsMut`] for in-place `Contract.config` access. Map values:
+// [`From`] / `into()` only.
 // -----------------------------------------------------------------------------
 
 #[derive(Clone)]
 #[near(serializers = [borsh])]
-pub struct ConfigV0 {
-    pub owner_account_id: AccountId,
-    pub proposed_new_owner_account_id: Option<AccountId>,
-    pub guardians: Vec<AccountId>,
-    pub min_lock_duration_ns: U64,
-    pub max_lock_duration_ns: U64,
-    pub epoch_unstake_settle_epochs: u64,
-    pub min_storage_deposit: NearToken,
-    pub per_lock_storage_stake: NearToken,
-    pub per_purchase_storage_stake: NearToken,
-    pub min_lock_amount: NearToken,
-}
-
-impl From<ConfigV0> for Config {
-    fn from(value: ConfigV0) -> Self {
-        Self {
-            owner_account_id: value.owner_account_id,
-            proposed_new_owner_account_id: value.proposed_new_owner_account_id,
-            guardians: value.guardians,
-            min_lock_duration_ns: value.min_lock_duration_ns,
-            max_lock_duration_ns: value.max_lock_duration_ns,
-            epoch_unstake_settle_epochs: value.epoch_unstake_settle_epochs,
-            min_storage_deposit: value.min_storage_deposit,
-            per_lock_storage_stake: value.per_lock_storage_stake,
-            per_farm_position_storage_stake: NearToken::from_yoctonear(0),
-            per_purchase_storage_stake: value.per_purchase_storage_stake,
-            min_lock_amount: value.min_lock_amount,
-        }
-    }
-}
-
-#[derive(Clone)]
-#[near(serializers = [borsh])]
 pub enum VConfig {
-    V0(ConfigV0),
-    V1(Config),
+    Current(Config),
 }
 
 impl From<Config> for VConfig {
     fn from(value: Config) -> Self {
-        Self::V1(value)
+        Self::Current(value)
     }
 }
 
 impl From<VConfig> for Config {
     fn from(value: VConfig) -> Self {
         match value {
-            VConfig::V0(inner) => inner.into(),
-            VConfig::V1(inner) => inner,
+            VConfig::Current(inner) => inner,
         }
     }
 }
@@ -737,8 +616,7 @@ impl From<VConfig> for Config {
 impl AsRef<Config> for VConfig {
     fn as_ref(&self) -> &Config {
         match self {
-            VConfig::V0(_) => env::panic_str("ConfigV0 must be migrated before use"),
-            VConfig::V1(c) => c,
+            VConfig::Current(c) => c,
         }
     }
 }
@@ -746,8 +624,7 @@ impl AsRef<Config> for VConfig {
 impl AsMut<Config> for VConfig {
     fn as_mut(&mut self) -> &mut Config {
         match self {
-            VConfig::V0(_) => env::panic_str("ConfigV0 must be migrated before use"),
-            VConfig::V1(c) => c,
+            VConfig::Current(c) => c,
         }
     }
 }
@@ -755,30 +632,19 @@ impl AsMut<Config> for VConfig {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VValidator {
-    V0(ValidatorV0),
-    V1(Validator),
+    Current(Validator),
 }
 
 impl From<Validator> for VValidator {
     fn from(value: Validator) -> Self {
-        Self::V1(value)
+        Self::Current(value)
     }
 }
 
 impl From<VValidator> for Validator {
     fn from(value: VValidator) -> Self {
         match value {
-            VValidator::V0(inner) => inner.into(),
-            VValidator::V1(inner) => inner,
-        }
-    }
-}
-
-impl VValidator {
-    pub(crate) fn legacy_accounts_with_pending_unstake(&self) -> &[AccountId] {
-        match self {
-            VValidator::V0(inner) => &inner.accounts_with_pending_unstake,
-            VValidator::V1(_) => &[],
+            VValidator::Current(inner) => inner,
         }
     }
 }
@@ -786,81 +652,39 @@ impl VValidator {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VProduct {
-    V0(Product),
+    Current(Product),
 }
 
 impl From<Product> for VProduct {
     fn from(value: Product) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VProduct> for Product {
     fn from(value: VProduct) -> Self {
         match value {
-            VProduct::V0(inner) => inner,
+            VProduct::Current(inner) => inner,
         }
     }
 }
 
 #[derive(Clone)]
+#[near(serializers = [borsh])]
 pub enum VPrice {
-    V0(Price),
-    V1(Price),
+    Current(Price),
 }
 
 impl From<Price> for VPrice {
     fn from(value: Price) -> Self {
-        Self::V1(value)
+        Self::Current(value)
     }
 }
 
 impl From<VPrice> for Price {
     fn from(value: VPrice) -> Self {
         match value {
-            VPrice::V0(inner) => inner,
-            VPrice::V1(inner) => inner,
-        }
-    }
-}
-
-impl BorshSerialize for VPrice {
-    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
-        match self {
-            // Kept for compatibility with farm-upgrade records that were already written as
-            // variant 0 with the two-field PriceMetadata layout.
-            VPrice::V0(inner) => {
-                0u8.serialize(writer)?;
-                inner.serialize(writer)
-            }
-            VPrice::V1(inner) => {
-                1u8.serialize(writer)?;
-                inner.serialize(writer)
-            }
-        }
-    }
-}
-
-impl BorshDeserialize for VPrice {
-    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
-        let variant = u8::deserialize_reader(reader)?;
-        match variant {
-            0 => {
-                let mut payload = Vec::new();
-                reader.read_to_end(&mut payload)?;
-                match Price::try_from_slice(&payload) {
-                    Ok(price) => Ok(VPrice::V0(price)),
-                    Err(price_err) => match PriceV0::try_from_slice(&payload) {
-                        Ok(price_v0) => Ok(VPrice::V0(price_v0.into())),
-                        Err(_) => Err(price_err),
-                    },
-                }
-            }
-            1 => Ok(VPrice::V1(Price::deserialize_reader(reader)?)),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Unexpected VPrice variant: {variant}"),
-            )),
+            VPrice::Current(inner) => inner,
         }
     }
 }
@@ -868,19 +692,19 @@ impl BorshDeserialize for VPrice {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VAccount {
-    V0(Account),
+    Current(Account),
 }
 
 impl From<Account> for VAccount {
     fn from(value: Account) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VAccount> for Account {
     fn from(value: VAccount) -> Self {
         match value {
-            VAccount::V0(inner) => inner,
+            VAccount::Current(inner) => inner,
         }
     }
 }
@@ -888,19 +712,19 @@ impl From<VAccount> for Account {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VSubscription {
-    V0(Subscription),
+    Current(Subscription),
 }
 
 impl From<Subscription> for VSubscription {
     fn from(value: Subscription) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VSubscription> for Subscription {
     fn from(value: VSubscription) -> Self {
         match value {
-            VSubscription::V0(inner) => inner,
+            VSubscription::Current(inner) => inner,
         }
     }
 }
@@ -908,19 +732,19 @@ impl From<VSubscription> for Subscription {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VLock {
-    V0(Lock),
+    Current(Lock),
 }
 
 impl From<Lock> for VLock {
     fn from(value: Lock) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VLock> for Lock {
     fn from(value: VLock) -> Self {
         match value {
-            VLock::V0(inner) => inner,
+            VLock::Current(inner) => inner,
         }
     }
 }
@@ -928,25 +752,25 @@ impl From<VLock> for Lock {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VPurchase {
-    V0(Purchase),
+    Current(Purchase),
 }
 
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VFarmPool {
-    V0(FarmPool),
+    Current(FarmPool),
 }
 
 impl From<FarmPool> for VFarmPool {
     fn from(value: FarmPool) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VFarmPool> for FarmPool {
     fn from(value: VFarmPool) -> Self {
         match value {
-            VFarmPool::V0(inner) => inner,
+            VFarmPool::Current(inner) => inner,
         }
     }
 }
@@ -954,19 +778,19 @@ impl From<VFarmPool> for FarmPool {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VFarmPosition {
-    V0(FarmPosition),
+    Current(FarmPosition),
 }
 
 impl From<FarmPosition> for VFarmPosition {
     fn from(value: FarmPosition) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VFarmPosition> for FarmPosition {
     fn from(value: VFarmPosition) -> Self {
         match value {
-            VFarmPosition::V0(inner) => inner,
+            VFarmPosition::Current(inner) => inner,
         }
     }
 }
@@ -974,19 +798,19 @@ impl From<VFarmPosition> for FarmPosition {
 #[derive(Clone)]
 #[near(serializers = [borsh])]
 pub enum VFarmAccount {
-    V0(FarmAccount),
+    Current(FarmAccount),
 }
 
 impl From<FarmAccount> for VFarmAccount {
     fn from(value: FarmAccount) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VFarmAccount> for FarmAccount {
     fn from(value: VFarmAccount) -> Self {
         match value {
-            VFarmAccount::V0(inner) => inner,
+            VFarmAccount::Current(inner) => inner,
         }
     }
 }
@@ -994,24 +818,6 @@ impl From<VFarmAccount> for FarmAccount {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn price_v0_with_metadata() -> PriceV0 {
-        PriceV0 {
-            price_id: "price_v0".to_string(),
-            product_id: "product_v0".to_string(),
-            name: "Starter".to_string(),
-            description: "[1, 10] NEAR".to_string(),
-            amount: U128(1),
-            price_type: PriceType::Recurring,
-            billing_period: Some(BillingPeriod::Monthly),
-            lock_factor_near_months: U128(1),
-            metadata: Some(PriceMetadataV0 {
-                max_amount: Some(U128(10)),
-            }),
-            status: CatalogStatus::Active,
-            usage_count: 3,
-        }
-    }
 
     fn farm_price() -> Price {
         Price {
@@ -1050,58 +856,13 @@ mod tests {
         }
     }
 
-    fn validator_v0_with_pending_account() -> ValidatorV0 {
-        let current = validator();
-        ValidatorV0 {
-            validator_id: current.validator_id,
-            status: current.status,
-            total_shares: current.total_shares,
-            total_staked_balance: current.total_staked_balance,
-            last_balance_refresh_ns: current.last_balance_refresh_ns,
-            pending_to_stake: current.pending_to_stake,
-            pending_to_unstake: current.pending_to_unstake,
-            last_unstake_epoch: current.last_unstake_epoch,
-            last_settlement_epoch: current.last_settlement_epoch,
-            pending_to_withdraw: current.pending_to_withdraw,
-            pending_to_claim: current.pending_to_claim,
-            accounts_with_pending_unstake: vec!["buyer.near".parse().unwrap()],
-            tx_status: current.tx_status,
-        }
-    }
-
     #[test]
-    fn vprice_reads_price_v0_metadata_as_farm_reward_none() {
-        let mut bytes = vec![0u8];
-        price_v0_with_metadata().serialize(&mut bytes).unwrap();
-
-        let price: Price = VPrice::try_from_slice(&bytes).unwrap().into();
-
-        assert_eq!(price.price_id, "price_v0");
-        assert_eq!(price.metadata.as_ref().unwrap().max_amount, Some(U128(10)));
-        assert_eq!(price.metadata.as_ref().unwrap().farm_reward_rate, None);
-    }
-
-    #[test]
-    fn vprice_reads_farm_upgrade_variant_zero_price_layout() {
-        let mut bytes = vec![0u8];
-        farm_price().serialize(&mut bytes).unwrap();
-
-        let price: Price = VPrice::try_from_slice(&bytes).unwrap().into();
-
-        assert_eq!(price.price_type, PriceType::Farm);
-        assert_eq!(
-            price.metadata.as_ref().unwrap().farm_reward_rate,
-            Some(U128(7))
-        );
-    }
-
-    #[test]
-    fn vprice_writes_new_prices_as_variant_one() {
+    fn vprice_writes_launch_prices_as_current_variant() {
         let price = farm_price();
         let mut bytes = Vec::new();
         VPrice::from(price.clone()).serialize(&mut bytes).unwrap();
 
-        assert_eq!(bytes.first().copied(), Some(1));
+        assert_eq!(bytes.first().copied(), Some(0));
         let decoded: Price = VPrice::try_from_slice(&bytes).unwrap().into();
         assert_eq!(decoded.price_id, price.price_id);
         assert_eq!(
@@ -1111,45 +872,31 @@ mod tests {
     }
 
     #[test]
-    fn vvalidator_writes_new_validators_as_variant_one_without_pending_account_vector() {
+    fn vvalidator_writes_launch_validators_as_current_variant() {
         let mut bytes = Vec::new();
         VValidator::from(validator()).serialize(&mut bytes).unwrap();
 
-        assert_eq!(bytes.first().copied(), Some(1));
+        assert_eq!(bytes.first().copied(), Some(0));
         let decoded = VValidator::try_from_slice(&bytes).unwrap();
-        assert!(decoded.legacy_accounts_with_pending_unstake().is_empty());
         let decoded: Validator = decoded.into();
         assert_eq!(decoded.validator_id.as_str(), "pool.near");
-    }
-
-    #[test]
-    fn vvalidator_reads_legacy_variant_zero_pending_account_vector() {
-        let mut bytes = Vec::new();
-        VValidator::V0(validator_v0_with_pending_account())
-            .serialize(&mut bytes)
-            .unwrap();
-
-        let decoded = VValidator::try_from_slice(&bytes).unwrap();
         assert_eq!(
-            decoded.legacy_accounts_with_pending_unstake(),
-            &["buyer.near".parse::<AccountId>().unwrap()]
-        );
-        let decoded: Validator = decoded.into();
-        assert_eq!(decoded.validator_id.as_str(), "pool.near");
-        assert!(decoded.catalog_manager_account_ids.is_empty());
+            decoded.catalog_manager_account_ids,
+            vec!["manager.near".parse::<AccountId>().unwrap()]
+        )
     }
 }
 
 impl From<Purchase> for VPurchase {
     fn from(value: Purchase) -> Self {
-        Self::V0(value)
+        Self::Current(value)
     }
 }
 
 impl From<VPurchase> for Purchase {
     fn from(value: VPurchase) -> Self {
         match value {
-            VPurchase::V0(inner) => inner,
+            VPurchase::Current(inner) => inner,
         }
     }
 }
@@ -1160,7 +907,7 @@ mod versioned_tests {
     use near_sdk::json_types::U64;
 
     #[test]
-    fn vconfig_v0_roundtrip() {
+    fn vconfig_current_roundtrip() {
         let owner: AccountId = "owner.near".parse().unwrap();
         let cfg = Config {
             owner_account_id: owner.clone(),

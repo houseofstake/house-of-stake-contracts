@@ -48,8 +48,6 @@ enum StorageKeys {
     PendingUpdateTargetProductCounts,
     Purchases,
     PurchaseIds,
-    PurchasesByAccount,
-    PurchasesByProduct,
     UserPurchaseCount,
     RevenueByValidator,
     FarmPools,
@@ -60,8 +58,8 @@ enum StorageKeys {
     UserPendingUnstakeValidatorCount,
     PurchasesByAccountVector { account_hash: Vec<u8> },
     PurchasesByProductVector { product_hash: Vec<u8> },
-    PurchasesByAccountV2,
-    PurchasesByProductV2,
+    PurchasesByAccount,
+    PurchasesByProduct,
     SubscriptionsByProduct,
     SubscriptionsByProductSet { product_hash: Vec<u8> },
     AccountIds,
@@ -91,8 +89,7 @@ pub struct Contract {
     pub prices: LookupMap<PriceId, VPrice>,
     /// Per-user accounting: NEP-145-style registered storage (`storage_deposit`).
     pub accounts: LookupMap<AccountId, VAccount>,
-    /// Enumerable registered-account index. During migration this is backfilled for accounts
-    /// discoverable from existing enumerable records, and all later storage mutations maintain it.
+    /// Enumerable registered-account index.
     pub account_ids: IterableSet<AccountId>,
     /// Subscription records keyed by [`Subscription::subscription_id`] (`sub_*`).
     pub subscriptions: LookupMap<SubscriptionId, VSubscription>,
@@ -178,8 +175,8 @@ impl Contract {
             user_lock_count: LookupMap::new(StorageKeys::UserLockCount),
             purchases: LookupMap::new(StorageKeys::Purchases),
             purchase_ids: Vector::new(StorageKeys::PurchaseIds),
-            purchases_by_account: LookupMap::new(StorageKeys::PurchasesByAccountV2),
-            purchases_by_product: LookupMap::new(StorageKeys::PurchasesByProductV2),
+            purchases_by_account: LookupMap::new(StorageKeys::PurchasesByAccount),
+            purchases_by_product: LookupMap::new(StorageKeys::PurchasesByProduct),
             user_purchase_count: LookupMap::new(StorageKeys::UserPurchaseCount),
             revenue_by_validator: LookupMap::new(StorageKeys::RevenueByValidator),
             farm_pools: LookupMap::new(StorageKeys::FarmPools),
