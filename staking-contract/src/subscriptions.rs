@@ -711,7 +711,7 @@ impl Contract {
         sub.pending_update = None;
     }
 
-    fn projected_subscription_window_from(
+    pub(crate) fn projected_subscription_window_from(
         &self,
         anchor_day: u8,
         mut start: u64,

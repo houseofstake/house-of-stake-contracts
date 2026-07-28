@@ -15,7 +15,7 @@ use near_sdk::testing_env;
 use staking_contract::types::PriceMetadata;
 use staking_contract::types::TransactionStatus;
 use staking_contract::types::{LockStatus, OrderRef, SubscriptionStatus};
-use staking_contract::utils::AVG_MONTH_NS;
+use staking_contract::utils::{AVG_MONTH_NS, NS_PER_DAY_TIMESTAMP};
 
 const BASE_TS: u64 = 1_700_000_000_000_000_000;
 const JAN_1_2026_10_UTC_NS: u64 = 1_767_261_600_000_000_000;
@@ -218,6 +218,44 @@ fn active_renewal_reuses_subscription_indexes() {
             .cloned()
             .unwrap_or_default(),
         vec![sub_after.subscription_id]
+    );
+}
+
+#[test]
+fn late_calendar_renewal_uses_next_stored_anchor_boundary() {
+    let mut c = deploy();
+    let (product_id, price_id) = setup_catalog_near_subscription(&mut c);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_near(50),
+        JAN_31_2026_10_UTC_NS
+    ));
+    let _ = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, None));
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_near(50),
+        FEB_28_2026_10_UTC_NS.saturating_add(1)
+    ));
+    let projected = c
+        .get_subscription_for_product(acct(BUYER), product_id.clone())
+        .expect("projected subscription");
+    assert_eq!(projected.start_ns.0, FEB_28_2026_10_UTC_NS);
+
+    let renewed_at = FEB_28_2026_10_UTC_NS.saturating_add(NS_PER_DAY_TIMESTAMP);
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), renewed_at,));
+    let _ = unwrap_sync_lock_id(c.lock(Some(price_id), None, None));
+
+    let renewed = c
+        .get_subscription_for_product(acct(BUYER), product_id)
+        .expect("renewed subscription");
+    assert_eq!(renewed.start_ns.0, projected.start_ns.0);
+    assert_eq!(renewed.end_ns.0, projected.end_ns.0);
+    assert!(
+        renewed.end_ns.0.saturating_sub(renewed_at) < 31 * NS_PER_DAY_TIMESTAMP,
+        "late renewal must not create a nearly two-month billing window"
     );
 }
 

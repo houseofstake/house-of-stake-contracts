@@ -217,8 +217,13 @@ impl Contract {
                 (sub_new, sid_new, true)
             } else {
                 // Renewal window: extend billing period for the current effective tier.
-                let start = sub.end_ns.0.max(subscription_now);
-                let end = crate::subscriptions::add_months_stripe_style(sub.anchor_day, 1, start);
+                let (stored_boundary, next_boundary) = self.projected_subscription_window_from(
+                    sub.anchor_day,
+                    sub.start_ns.0,
+                    subscription_now,
+                );
+                let start = stored_boundary.0;
+                let end = next_boundary.0;
                 sub.start_ns = U64(start);
                 sub.end_ns = U64(end);
                 sub.status = SubscriptionStatus::Active;
