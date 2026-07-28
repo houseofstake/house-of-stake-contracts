@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-const DEFAULT_STAKING_WASM: &str = "res/local/staking_contract.wasm";
+const DEFAULT_STAKING_WASM: &str = "res/release/staking_contract.wasm";
 const DEFAULT_STAKING_TEST_WASM: &str = "res/local/staking_contract_test.wasm";
 const DEFAULT_MOCK_POOL_WASM: &str = "res/local/mock_staking_pool_contract.wasm";
 

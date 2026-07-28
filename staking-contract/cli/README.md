@@ -24,6 +24,12 @@ Build the test-feature contract WASM with the existing Makefile target:
 make staking-contract-test
 ```
 
+Normal deploys use `res/release/staking_contract.wasm` by default. Build it with:
+
+```bash
+make build-release
+```
+
 Environment config files live under `staking-contract/cli/config/`:
 
 - `dev.testnet.json` targets `hos-e2e-0601144939.testnet`
