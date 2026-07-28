@@ -281,15 +281,51 @@ impl Contract {
 
     pub fn get_lock(&self, lock_id: LockId, effective: Option<bool>) -> Option<Lock> {
         let lock = self.internal_get_lock(&lock_id)?;
-        if effective == Some(true) {
-            Some(self.project_lock_view_now(lock))
-        } else {
-            Some(lock)
-        }
+        Some(self.lock_view(lock, effective))
+    }
+
+    pub fn get_locks(&self, from_index: u64, limit: u64, effective: Option<bool>) -> Vec<Lock> {
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        self.lock_ids
+            .iter()
+            .skip(skip)
+            .take(take)
+            .filter_map(|id| {
+                self.internal_get_lock(id)
+                    .map(|lock| self.lock_view(lock, effective))
+            })
+            .collect()
+    }
+
+    pub fn get_locks_for_account(
+        &self,
+        account_id: AccountId,
+        from_index: u64,
+        limit: u64,
+        effective: Option<bool>,
+    ) -> Vec<Lock> {
+        let Some(ids) = self.locks_by_account.get(&account_id) else {
+            return Vec::new();
+        };
+        let total_len = u64::from(ids.len());
+        self.collect_paginated(from_index, limit, total_len, |index| {
+            ids.get(index)
+                .and_then(|id| self.internal_get_lock(id))
+                .map(|lock| self.lock_view(lock, effective))
+        })
     }
 }
 
 impl Contract {
+    fn lock_view(&self, lock: Lock, effective: Option<bool>) -> Lock {
+        if effective == Some(true) {
+            self.project_lock_view_now(lock)
+        } else {
+            lock
+        }
+    }
+
     fn project_lock_view_now(&self, mut lock: Lock) -> Lock {
         let OrderRef::Subscription {
             subscription_id, ..
@@ -393,6 +429,24 @@ impl Contract {
 
     pub(crate) fn internal_set_lock(&mut self, id: LockId, lock: Lock) {
         self.locks.insert(id, lock.into());
+    }
+
+    pub(crate) fn add_lock_to_indexes(&mut self, account_id: &AccountId, lock_id: &LockId) {
+        self.lock_ids.insert(lock_id.clone());
+        if let Some(ids) = self.locks_by_account.get_mut(account_id) {
+            ids.push(lock_id.clone());
+            return;
+        }
+
+        let mut ids = near_sdk::store::Vector::new(Self::locks_by_account_vector_key(account_id));
+        ids.push(lock_id.clone());
+        self.locks_by_account.insert(account_id.clone(), ids);
+    }
+
+    pub(crate) fn locks_by_account_vector_key(account_id: &AccountId) -> StorageKeys {
+        StorageKeys::LocksByAccountVector {
+            account_hash: env::sha256(account_id.as_bytes()),
+        }
     }
 
     pub(crate) fn lock_entry_preamble(&self) -> (AccountId, NearToken) {
@@ -514,6 +568,7 @@ impl Contract {
             status: LockStatus::Active,
         };
         self.internal_set_lock(lock_id.clone(), lock);
+        self.add_lock_to_indexes(&buyer, &lock_id);
 
         // Catalog usage counters + persist updated price, product, and validator state.
         price.usage_count = price.usage_count.saturating_add(1);

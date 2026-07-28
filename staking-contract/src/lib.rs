@@ -65,6 +65,9 @@ enum StorageKeys {
     SubscriptionsByProduct,
     SubscriptionsByProductSet { product_hash: Vec<u8> },
     AccountIds,
+    LockIds,
+    LocksByAccount,
+    LocksByAccountVector { account_hash: Vec<u8> },
 }
 
 #[derive(PanicOnDefault)]
@@ -95,6 +98,10 @@ pub struct Contract {
     pub subscriptions: LookupMap<SubscriptionId, VSubscription>,
     /// Active and historical locks keyed by [`Lock::lock_id`] (`lock_*`).
     pub locks: LookupMap<LockId, VLock>,
+    /// Active and historical lock ids; drives paginated lock views.
+    pub lock_ids: IterableSet<LockId>,
+    /// Secondary index: lock owner account -> paginated lock ids.
+    pub locks_by_account: LookupMap<AccountId, Vector<LockId>>,
     /// User stake position on a pool: `(AccountId, ValidatorId)` → outstanding share units (integer, same scale as [`Validator::total_shares`]). [`ValidatorId`](crate::types::ValidatorId) is the pool contract account.
     pub user_validator_shares: LookupMap<(AccountId, ValidatorId), u128>,
     /// After unlock, NEAR liability slices for this user on this pool until [`crate::Contract::withdraw`]
@@ -161,6 +168,8 @@ impl Contract {
             account_ids: IterableSet::new(StorageKeys::AccountIds),
             subscriptions: LookupMap::new(StorageKeys::Subscriptions),
             locks: LookupMap::new(StorageKeys::Locks),
+            lock_ids: IterableSet::new(StorageKeys::LockIds),
+            locks_by_account: LookupMap::new(StorageKeys::LocksByAccount),
             user_validator_shares: LookupMap::new(StorageKeys::UserValidatorShares),
             user_pending_unstake: LookupMap::new(StorageKeys::UserPendingUnstake),
             user_pending_unstake_validator_count: LookupMap::new(

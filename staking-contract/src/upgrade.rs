@@ -65,6 +65,8 @@ impl From<ContractV1_1_1> for Contract {
     fn from(mut old: ContractV1_1_1) -> Self {
         let mut account_ids = IterableSet::new(StorageKeys::AccountIds);
         let mut subscriptions_by_product = LookupMap::new(StorageKeys::SubscriptionsByProduct);
+        let mut lock_ids = IterableSet::new(StorageKeys::LockIds);
+        let mut locks_by_account = LookupMap::new(StorageKeys::LocksByAccount);
 
         for (subscription_id, _) in old.subscription_ids.iter() {
             if let Some(subscription) = old.subscriptions.get(subscription_id) {
@@ -81,6 +83,12 @@ impl From<ContractV1_1_1> for Contract {
                     &mut subscriptions_by_product,
                     &subscription.product_id,
                     subscription_id,
+                );
+                add_lock_to_indexes_for_migration(
+                    &mut lock_ids,
+                    &mut locks_by_account,
+                    &old.locks,
+                    &subscription.last_lock_id,
                 );
             }
         }
@@ -112,6 +120,8 @@ impl From<ContractV1_1_1> for Contract {
             account_ids,
             subscriptions: old.subscriptions,
             locks: old.locks,
+            lock_ids,
+            locks_by_account,
             user_validator_shares: old.user_validator_shares,
             user_pending_unstake: old.user_pending_unstake,
             user_pending_unstake_validator_count: old.user_pending_unstake_validator_count,
@@ -168,6 +178,30 @@ fn add_subscription_to_product_index_for_migration(
     subscriptions_by_product.insert(product_id.clone(), ids);
 }
 
+fn add_lock_to_indexes_for_migration(
+    lock_ids: &mut IterableSet<LockId>,
+    locks_by_account: &mut LookupMap<AccountId, Vector<LockId>>,
+    old_locks: &LookupMap<LockId, VLock>,
+    lock_id: &LockId,
+) {
+    let Some(lock) = old_locks.get(lock_id) else {
+        return;
+    };
+    if lock_ids.iter().any(|stored| stored == lock_id) {
+        return;
+    }
+    let lock: Lock = lock.clone().into();
+    lock_ids.insert(lock_id.clone());
+    if let Some(ids) = locks_by_account.get_mut(&lock.account_id) {
+        ids.push(lock_id.clone());
+        return;
+    }
+
+    let mut ids = Vector::new(Contract::locks_by_account_vector_key(&lock.account_id));
+    ids.push(lock_id.clone());
+    locks_by_account.insert(lock.account_id, ids);
+}
+
 #[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub extern "C" fn upgrade() {
@@ -213,7 +247,7 @@ pub extern "C" fn upgrade() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::json_types::U64;
+    use near_sdk::json_types::{U64, U128};
     use near_sdk::test_utils::VMContextBuilder;
     use near_sdk::{AccountId, NearToken, testing_env};
 
@@ -266,6 +300,8 @@ mod tests {
             account_ids: _,
             subscriptions,
             locks,
+            lock_ids: _,
+            locks_by_account: _,
             user_validator_shares,
             user_pending_unstake,
             user_pending_unstake_validator_count,
@@ -330,15 +366,44 @@ mod tests {
         test_context(AUG_01_2026_000000_000000_NS);
         let mut current = Contract::new(test_config());
         let subscription_id = "sub_legacy".to_string();
+        let lock_id = "lock_legacy".to_string();
+        let buyer = acct("buyer.near");
+        current.accounts.insert(
+            buyer.clone(),
+            Account {
+                storage_deposit: NearToken::from_near(1),
+            }
+            .into(),
+        );
+        current.locks.insert(
+            lock_id.clone(),
+            Lock {
+                lock_id: lock_id.clone(),
+                account_id: buyer.clone(),
+                validator_id: acct("pool.near"),
+                amount_near: NearToken::from_near(5),
+                shares: U128(5),
+                start_ns: U64(JUL_28_2026_063128_629578_NS),
+                end_ns: U64(AUG_28_2026_063128_629578_NS),
+                order: OrderRef::Subscription {
+                    subscription_id: subscription_id.clone(),
+                    price_id: "price_legacy".to_string(),
+                    period_start_ns: U64(JUL_28_2026_063128_629578_NS),
+                    period_end_ns: U64(AUG_28_2026_063128_629578_NS),
+                },
+                status: LockStatus::Active,
+            }
+            .into(),
+        );
         let subscription = Subscription {
             subscription_id: subscription_id.clone(),
-            account_id: acct("buyer.near"),
+            account_id: buyer.clone(),
             product_id: "prod_legacy".to_string(),
             price_id: "price_legacy".to_string(),
             start_ns: U64(JUL_28_2026_063128_629578_NS),
             end_ns: U64(AUG_28_2026_063128_629578_NS),
             anchor_day: 17,
-            last_lock_id: "lock_legacy".to_string(),
+            last_lock_id: lock_id.clone(),
             status: SubscriptionStatus::Active,
             cancel_at_period_end: false,
             pending_update: None,
@@ -361,6 +426,11 @@ mod tests {
         assert_eq!(
             migrated.project_subscription_view_now(stored).end_ns.0,
             AUG_28_2026_063128_629578_NS
+        );
+        assert_eq!(migrated.get_locks(0, 10, None)[0].lock_id, lock_id);
+        assert_eq!(
+            migrated.get_locks_for_account(buyer, 0, 10, None)[0].lock_id,
+            lock_id
         );
     }
 }
