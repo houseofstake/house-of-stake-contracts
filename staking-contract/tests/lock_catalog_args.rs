@@ -46,7 +46,7 @@ fn lock_one_off_resolves_product_id_via_default_price() {
     testing_env!(ctx(acct(BUYER), NearToken::from_near(50)));
     let lock_id = unwrap_sync_lock_id(c.lock(None, Some(product_id.clone()), Some(U64(dur))));
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(lock.validator_id, acct(POOL));
     match &lock.order {
         OrderRef::ProductPurchase { price_id: p, .. } => assert_eq!(p, &price_id),

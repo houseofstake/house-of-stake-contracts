@@ -44,7 +44,7 @@ fn recurring_lock_uses_calendar_month_window_and_utc_anchor() {
     assert_eq!(sub.end_ns.0, FEB_28_2026_10_UTC_NS);
     assert_eq!(sub.anchor_day, 31);
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(lock.start_ns, sub.start_ns);
     assert_eq!(lock.end_ns, sub.end_ns);
     match lock.order {
@@ -393,7 +393,7 @@ fn update_subscription_updates_tier_and_lock_amount() {
 
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
     let lock_low = unwrap_sync_lock_id(c.lock(Some(price_low.clone()), None, None));
-    let lock_before = c.get_lock(lock_low.clone()).expect("lock");
+    let lock_before = c.get_lock(lock_low.clone(), None).expect("lock");
     let amt_before = lock_before.amount_near.as_yoctonear();
 
     let sub_before = c
@@ -439,7 +439,7 @@ fn update_subscription_updates_tier_and_lock_amount() {
     };
     assert_eq!(outcome.kind, "changed_immediately");
 
-    let lock_after = c.get_lock(lock_low).expect("lock");
+    let lock_after = c.get_lock(lock_low, None).expect("lock");
     assert!(lock_after.amount_near.as_yoctonear() > amt_before);
     assert_eq!(lock_after.amount_near.as_yoctonear(), target_amount);
     assert_eq!(lock_after.status, LockStatus::Active);
@@ -602,7 +602,7 @@ fn update_subscription_uses_projected_billing_window_after_stale_end_ns() {
         .expect("subscription");
     assert_eq!(sub.price_id, price_high);
     assert_eq!(sub.end_ns.0, projected_end);
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(lock.start_ns, sub.start_ns);
     assert_eq!(lock.end_ns, sub.end_ns);
     match lock.order {
@@ -924,6 +924,253 @@ fn pending_update_projects_after_apply_time_without_manual_lock() {
 }
 
 #[test]
+fn get_lock_effective_projects_due_subscription_downgrade_without_mutation() {
+    let mut c = deploy();
+    let (product_id, price_low) = setup_catalog_near_subscription(&mut c);
+    let price_high = add_subscription_price(&mut c, product_id.clone(), "High", 10);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
+    let lock_id = unwrap_sync_lock_id(c.lock(Some(price_high.clone()), None, None));
+
+    let sub_high = c
+        .get_subscription_for_product(acct(BUYER), product_id.clone())
+        .expect("subscription");
+    testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
+    let _ = c.update_subscription(
+        sub_high.subscription_id.clone(),
+        price_low.clone(),
+        U128(NearToken::from_near(25).as_yoctonear()),
+    );
+
+    let scheduled = c
+        .get_subscription(sub_high.subscription_id.clone())
+        .expect("subscription");
+    let apply_ns = scheduled
+        .pending_update
+        .as_ref()
+        .expect("pending update")
+        .apply_ns;
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_yoctonear(0),
+        apply_ns.0.saturating_add(1),
+    ));
+
+    let raw_lock = c.get_lock(lock_id.clone(), None).expect("raw lock");
+    let raw_lock_false = c
+        .get_lock(lock_id.clone(), Some(false))
+        .expect("raw lock with false");
+    let effective_lock = c
+        .get_lock(lock_id.clone(), Some(true))
+        .expect("effective lock");
+    let projected_sub = c
+        .get_subscription(sub_high.subscription_id)
+        .expect("projected subscription");
+
+    assert_eq!(
+        raw_lock.amount_near.as_yoctonear(),
+        NearToken::from_near(50).as_yoctonear()
+    );
+    assert_eq!(raw_lock_false.amount_near, raw_lock.amount_near);
+    assert_eq!(
+        effective_lock.amount_near.as_yoctonear(),
+        NearToken::from_near(25).as_yoctonear()
+    );
+    assert_eq!(
+        effective_lock.shares.0,
+        raw_lock.shares.0 / 2,
+        "effective view must project the same share exit as the renewal path"
+    );
+    assert_eq!(effective_lock.status, LockStatus::Active);
+    assert_eq!(effective_lock.start_ns, projected_sub.start_ns);
+    assert_eq!(effective_lock.end_ns, projected_sub.end_ns);
+    match effective_lock.order {
+        OrderRef::Subscription {
+            price_id,
+            period_start_ns,
+            period_end_ns,
+            ..
+        } => {
+            assert_eq!(price_id, price_low);
+            assert_eq!(period_start_ns, projected_sub.start_ns);
+            assert_eq!(period_end_ns, projected_sub.end_ns);
+        }
+        OrderRef::ProductPurchase { .. } => panic!("expected subscription order"),
+    }
+
+    let stored_after = c.get_lock(lock_id, None).expect("stored lock");
+    assert_eq!(
+        stored_after.amount_near.as_yoctonear(),
+        NearToken::from_near(50).as_yoctonear(),
+        "effective view must not mutate stored lock"
+    );
+    assert!(
+        c.user_pending_unstake
+            .get(&(acct(BUYER), acct(POOL)))
+            .is_none(),
+        "effective view must not queue pending unstake"
+    );
+}
+
+#[test]
+fn get_lock_effective_keeps_future_pending_update_raw() {
+    let mut c = deploy();
+    let (product_id, price_low) = setup_catalog_near_subscription(&mut c);
+    let price_high = add_subscription_price(&mut c, product_id.clone(), "High", 10);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
+    let lock_id = unwrap_sync_lock_id(c.lock(Some(price_high.clone()), None, None));
+
+    let sub_high = c
+        .get_subscription_for_product(acct(BUYER), product_id)
+        .expect("subscription");
+    testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
+    let _ = c.update_subscription(
+        sub_high.subscription_id,
+        price_low,
+        U128(NearToken::from_near(25).as_yoctonear()),
+    );
+
+    let raw_lock = c.get_lock(lock_id.clone(), None).expect("raw lock");
+    let effective_lock = c
+        .get_lock(lock_id, Some(true))
+        .expect("future effective lock");
+    assert_eq!(effective_lock.amount_near, raw_lock.amount_near);
+    assert_eq!(effective_lock.start_ns, raw_lock.start_ns);
+    assert_eq!(effective_lock.end_ns, raw_lock.end_ns);
+}
+
+#[test]
+fn get_lock_effective_keeps_historical_subscription_lock_raw() {
+    let mut c = deploy();
+    let (product_id, _price_low) = setup_catalog_near_subscription(&mut c);
+    let price_high = add_subscription_price(&mut c, product_id.clone(), "High", 10);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
+    let first_lock_id = unwrap_sync_lock_id(c.lock(Some(price_high.clone()), None, None));
+    let first_sub = c
+        .get_subscription_for_product(acct(BUYER), product_id.clone())
+        .expect("subscription");
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_near(50),
+        first_sub.end_ns.0.saturating_add(1),
+    ));
+    let second_lock_id = unwrap_sync_lock_id(c.lock(Some(price_high.clone()), None, None));
+    assert_ne!(first_lock_id, second_lock_id);
+
+    let sub = c
+        .get_subscription_for_product(acct(BUYER), product_id)
+        .expect("renewed subscription");
+    testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
+    let _ = c.update_subscription(
+        sub.subscription_id.clone(),
+        price_high,
+        U128(NearToken::from_near(25).as_yoctonear()),
+    );
+    let scheduled = c
+        .get_subscription(sub.subscription_id)
+        .expect("scheduled subscription");
+    let apply_ns = scheduled
+        .pending_update
+        .as_ref()
+        .expect("pending update")
+        .apply_ns;
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_yoctonear(0),
+        apply_ns.0.saturating_add(1),
+    ));
+
+    let historical_raw = c.get_lock(first_lock_id.clone(), None).expect("raw lock");
+    let historical_effective = c
+        .get_lock(first_lock_id, Some(true))
+        .expect("historical effective lock");
+    let current_effective = c
+        .get_lock(second_lock_id, Some(true))
+        .expect("current effective lock");
+
+    assert_eq!(historical_effective.amount_near, historical_raw.amount_near);
+    assert_eq!(historical_effective.shares, historical_raw.shares);
+    assert_eq!(historical_effective.status, historical_raw.status);
+    assert_eq!(
+        current_effective.amount_near.as_yoctonear(),
+        NearToken::from_near(25).as_yoctonear()
+    );
+}
+
+#[test]
+fn get_lock_effective_projects_full_share_exit_status() {
+    let mut c = deploy();
+    let (product_id, price_low) = setup_catalog_near_subscription(&mut c);
+    let price_high = add_subscription_price(&mut c, product_id.clone(), "High", 10);
+    register_buyer(&mut c);
+
+    testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), BASE_TS));
+    let lock_id = unwrap_sync_lock_id(c.lock(Some(price_high.clone()), None, None));
+
+    let sub = c
+        .get_subscription_for_product(acct(BUYER), product_id)
+        .expect("subscription");
+    testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
+    let _ = c.update_subscription(
+        sub.subscription_id.clone(),
+        price_low,
+        U128(NearToken::from_near(25).as_yoctonear()),
+    );
+    let scheduled = c
+        .get_subscription(sub.subscription_id)
+        .expect("scheduled subscription");
+    let apply_ns = scheduled
+        .pending_update
+        .as_ref()
+        .expect("pending update")
+        .apply_ns;
+
+    let mut validator = c.get_validator(acct(POOL)).expect("validator");
+    validator.total_staked_balance = NearToken::from_near(20);
+    validator.pending_to_stake = NearToken::from_near(0);
+    c.validators.insert(acct(POOL), validator.into());
+
+    testing_env!(ctx_ts(
+        acct(BUYER),
+        NearToken::from_yoctonear(0),
+        apply_ns.0.saturating_add(1),
+    ));
+
+    let raw_lock = c.get_lock(lock_id.clone(), None).expect("raw lock");
+    let effective_lock = c.get_lock(lock_id, Some(true)).expect("effective lock");
+
+    assert_eq!(raw_lock.amount_near, NearToken::from_near(50));
+    assert!(raw_lock.shares.0 > 0);
+    assert_eq!(raw_lock.status, LockStatus::Active);
+    assert_eq!(effective_lock.amount_near, NearToken::from_near(30));
+    assert_eq!(effective_lock.shares.0, 0);
+    assert_eq!(effective_lock.status, LockStatus::UnlockRequested);
+    assert_eq!(effective_lock.start_ns, raw_lock.start_ns);
+    assert_eq!(effective_lock.end_ns, raw_lock.end_ns);
+    match effective_lock.order {
+        OrderRef::Subscription {
+            price_id,
+            period_start_ns,
+            period_end_ns,
+            ..
+        } => {
+            assert_eq!(price_id, price_high);
+            assert_eq!(period_start_ns, raw_lock.start_ns);
+            assert_eq!(period_end_ns, raw_lock.end_ns);
+        }
+        OrderRef::ProductPurchase { .. } => panic!("expected subscription order"),
+    }
+}
+
+#[test]
 fn cross_product_pending_update_projects_under_target_product() {
     let mut c = deploy();
     let (product_low, price_low) = setup_catalog_near_subscription(&mut c);
@@ -1055,7 +1302,7 @@ fn plan_upgrade_with_stake_decrease_applies_plan_and_schedules_amount() {
         NearToken::from_near(25).as_yoctonear()
     );
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(
         lock.amount_near.as_yoctonear(),
         NearToken::from_near(50).as_yoctonear()
@@ -1092,7 +1339,7 @@ fn same_plan_stake_increase_applies_amount_only() {
     assert!(!outcome.pending_plan_change);
     assert!(outcome.pending_stake_decrease.is_none());
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(
         lock.amount_near.as_yoctonear(),
         NearToken::from_near(75).as_yoctonear()
@@ -1196,7 +1443,7 @@ fn plan_downgrade_with_stake_increase_stakes_now_and_schedules_plan() {
     assert_eq!(pending.target_price_id.as_ref(), Some(&price_low));
     assert!(pending.target_amount.is_none());
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(
         lock.amount_near.as_yoctonear(),
         NearToken::from_near(75).as_yoctonear()
@@ -1320,7 +1567,7 @@ fn pending_only_update_syncs_lock_window_after_stale_end_ns() {
     let sub = c
         .get_subscription_for_product(acct(BUYER), product_id)
         .expect("subscription");
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(lock.start_ns, sub.start_ns);
     assert_eq!(lock.end_ns, sub.end_ns);
     match lock.order {
@@ -1379,7 +1626,7 @@ fn cancel_clears_pending_update_without_applying_stake_decrease() {
             .is_none(),
         "cancel should not apply a pending stake decrease"
     );
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(
         lock.amount_near.as_yoctonear(),
         NearToken::from_near(50).as_yoctonear()
@@ -1633,7 +1880,7 @@ fn cancel_subscription_normalizes_stale_window_before_marking_cancel_at_end() {
     );
     assert!(after.cancel_at_period_end);
 
-    let lock = c.get_lock(lock_id).expect("lock");
+    let lock = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(lock.start_ns, after.start_ns);
     assert_eq!(lock.end_ns, after.end_ns);
     match lock.order {

@@ -37,7 +37,7 @@ Reference for **on-chain methods** exposed by `staking-contract` (Rust type name
 | `get_price` | `price_id: string` | `Price \| null` | Catalog price (`price_*`). |
 | `get_products` | `from_index: u64`, `limit: u64` | `Product[]` | Paginated catalog (stable creation order in contract index). |
 | `get_product_default_price` | `product_id: string` | `string \| null` | Same as **`Product.default_price_id`** from **`get_product`** / **`get_products`** — default catalog **`price_id`** (see **`set_product_default_price`**); **`null`** if unset. |
-| `get_lock` | `lock_id: string` | `Lock \| null` | Lock record (`lock_*`). |
+| `get_lock` | `lock_id: string`, `effective?: bool` | `Lock \| null` | Lock record (`lock_*`). By default, or with `effective=false`, returns the raw stored lock. With `effective=true`, the current active subscription lock can include due pending subscription update projection for amount, shares, status, period, and price. Projected stake decreases are view-only and do not represent actual `pending_to_unstake` or user pending-unstake accounting until a later mutating renewal/update path applies them. Historical subscription locks and cancelled subscriptions return raw locks. |
 | `get_subscription` | `subscription_id: string` | `Subscription \| null` | Subscription (`sub_*`). |
 | `get_subscription_for_product` | `account_id`, `product_id` | `Subscription \| null` | Lookup by `(account, product)`. |
 | `get_subscription_for_price` | `account_id`, `price_id` | `Subscription \| null` | Resolves product from price, then same as above. |

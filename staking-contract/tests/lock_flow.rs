@@ -20,7 +20,7 @@ fn lock_one_off_happy_path_records_lock_and_usage() {
     testing_env!(ctx(acct(BUYER), NearToken::from_near(50)));
     let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id.clone()), None, Some(U64(dur))));
 
-    let lock = c.get_lock(lock_id.clone()).expect("lock");
+    let lock = c.get_lock(lock_id.clone(), None).expect("lock");
     assert_eq!(lock.account_id, acct(BUYER));
     assert_eq!(lock.status, LockStatus::Active);
     match &lock.order {

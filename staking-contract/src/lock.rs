@@ -1,5 +1,8 @@
-use crate::utils::{block_timestamp, check_near_price_lock, check_near_recurring_price_lock};
+use crate::utils::{
+    block_timestamp, check_near_price_lock, check_near_recurring_price_lock, near_from_shares,
+};
 use crate::*;
+use common::U256;
 use near_sdk::json_types::{U64, U128};
 use near_sdk::{AccountId, NearToken, PromiseOrValue, env, near, require};
 
@@ -276,12 +279,114 @@ impl Contract {
         )
     }
 
-    pub fn get_lock(&self, lock_id: LockId) -> Option<Lock> {
-        self.internal_get_lock(&lock_id)
+    pub fn get_lock(&self, lock_id: LockId, effective: Option<bool>) -> Option<Lock> {
+        let lock = self.internal_get_lock(&lock_id)?;
+        if effective == Some(true) {
+            Some(self.project_lock_view_now(lock))
+        } else {
+            Some(lock)
+        }
     }
 }
 
 impl Contract {
+    fn project_lock_view_now(&self, mut lock: Lock) -> Lock {
+        let OrderRef::Subscription {
+            subscription_id, ..
+        } = lock.order.clone()
+        else {
+            return lock;
+        };
+
+        let Some(stored_sub) = self.internal_get_subscription(&subscription_id) else {
+            return lock;
+        };
+        if stored_sub.last_lock_id != lock.lock_id
+            || stored_sub.account_id != lock.account_id
+            || lock.status != LockStatus::Active
+        {
+            return lock;
+        }
+        if stored_sub.status != SubscriptionStatus::Active || stored_sub.cancel_at_period_end {
+            return lock;
+        }
+        let Some(pending) = stored_sub.pending_update.clone() else {
+            return lock;
+        };
+
+        let now = self.subscription_now(&subscription_id);
+        if now < pending.apply_ns.0 {
+            return lock;
+        }
+
+        if let Some(target_amount) = pending.target_amount {
+            self.project_scheduled_stake_decrease_lock(&mut lock, target_amount);
+            if lock.status != LockStatus::Active {
+                return lock;
+            }
+        }
+
+        let (period_start_ns, period_end_ns) =
+            self.projected_subscription_window_from(stored_sub.anchor_day, pending.apply_ns.0, now);
+        lock.start_ns = period_start_ns;
+        lock.end_ns = period_end_ns;
+
+        let effective_price_id = pending
+            .target_price_id
+            .clone()
+            .unwrap_or_else(|| stored_sub.price_id.clone());
+        if let OrderRef::Subscription {
+            subscription_id,
+            price_id,
+            period_start_ns,
+            period_end_ns,
+        } = &mut lock.order
+        {
+            if *subscription_id == stored_sub.subscription_id {
+                *price_id = effective_price_id;
+                *period_start_ns = lock.start_ns;
+                *period_end_ns = lock.end_ns;
+            }
+        }
+
+        lock
+    }
+
+    fn project_scheduled_stake_decrease_lock(&self, lock: &mut Lock, target_amount: NearToken) {
+        let surplus_target = lock
+            .amount_near
+            .as_yoctonear()
+            .saturating_sub(target_amount.as_yoctonear());
+        if surplus_target == 0 {
+            return;
+        }
+
+        let validator = self.require_validator(&lock.validator_id);
+        let net_stake = validator.net_stake_yocto();
+        let validator_total_shares = validator.total_shares.0;
+        let lock_near_val = near_from_shares(lock.shares.0, net_stake, validator_total_shares);
+        if lock_near_val == 0 {
+            return;
+        }
+
+        let surplus_near = surplus_target.min(lock_near_val);
+        let shares_remove = (U256::from(lock.shares.0) * U256::from(surplus_near)
+            / U256::from(lock_near_val))
+        .as_u128()
+        .min(lock.shares.0);
+        if shares_remove == 0 {
+            return;
+        }
+
+        let near_amt = near_from_shares(shares_remove, net_stake, validator_total_shares);
+        lock.shares = U128(lock.shares.0.saturating_sub(shares_remove));
+        lock.amount_near =
+            NearToken::from_yoctonear(lock.amount_near.as_yoctonear().saturating_sub(near_amt));
+        if lock.shares.0 == 0 {
+            lock.status = LockStatus::UnlockRequested;
+        }
+    }
+
     pub(crate) fn internal_get_lock(&self, id: &LockId) -> Option<Lock> {
         self.locks.get(id).cloned().map(Into::into)
     }
