@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -307,6 +308,8 @@ fn deploy(args: DeployArgs) -> Result<()> {
     let ctx = MutContext::new(args.common, account_id.clone(), account_id.clone())?;
     guard_mainnet(&ctx)?;
     require_file(&wasm)?;
+    let init_args = matches!(mode, DeployMode::Fresh)
+        .then(|| json!({ "config": init_json(&owner, &config.init) }));
 
     println!(
         "network:        {}",
@@ -318,6 +321,18 @@ fn deploy(args: DeployArgs) -> Result<()> {
     println!("wasm:           {}", wasm.display());
     println!("wasm sha256:    {}", wasm_sha256(&wasm)?);
     println!("test feature:   {test_feature}");
+    if let Some(init_args) = init_args.as_ref() {
+        println!("init method:    new");
+        println!("init args:      {init_args}");
+    }
+    if ctx.common.send {
+        confirm_sent_operation(
+            "deploy",
+            ctx.common.readonly.network,
+            &account_id,
+            &ctx.signer,
+        )?;
+    }
 
     let mut cmd = NearCommand::new(ctx.common.readonly.network);
     cmd.arg("contract")
@@ -328,11 +343,15 @@ fn deploy(args: DeployArgs) -> Result<()> {
 
     match mode {
         DeployMode::Fresh => {
-            let init_args = json!({ "config": init_json(&owner, &config.init) });
             cmd.arg("with-init-call")
                 .arg("new")
                 .arg("json-args")
-                .arg(init_args.to_string())
+                .arg(
+                    init_args
+                        .as_ref()
+                        .expect("fresh deploy init args must be set")
+                        .to_string(),
+                )
                 .arg("prepaid-gas")
                 .arg("100.0 Tgas")
                 .arg("attached-deposit")
@@ -415,6 +434,14 @@ fn configure(args: ConfigureArgs) -> Result<()> {
     println!("account: {account_id}");
     println!("signer:  {}", ctx.signer);
     println!("send:    {}", ctx.common.send);
+    if ctx.common.send {
+        confirm_sent_operation(
+            "configure",
+            ctx.common.readonly.network,
+            &account_id,
+            &ctx.signer,
+        )?;
+    }
 
     for validator in &config.validators {
         configure_validator(&ctx, &account_id, validator, &args.mock_pool_wasm)?;
@@ -1517,6 +1544,30 @@ fn run_tx(ctx: &MutContext, cmd: NearCommand) -> Result<()> {
         .with_context(|| "failed to run near CLI")?;
     if !status.success() {
         bail!("near transaction failed with status {status}");
+    }
+    Ok(())
+}
+
+fn confirm_sent_operation(
+    operation: &str,
+    network: Network,
+    account_id: &str,
+    signer: &str,
+) -> Result<()> {
+    print!(
+        "Type `{operation}` to send {operation} transactions on {} for {account_id} signed by {signer}: ",
+        network.as_near_network()
+    );
+    io::stdout()
+        .flush()
+        .with_context(|| "failed to flush confirmation prompt")?;
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .with_context(|| "failed to read confirmation")?;
+    if input.trim() != operation {
+        bail!("{operation} aborted by user");
     }
     Ok(())
 }

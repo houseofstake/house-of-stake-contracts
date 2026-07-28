@@ -8,7 +8,8 @@ environment-variable-heavy shell flow for the first-pass staking use cases:
 - `verify`
 
 Mutating commands default to dry-run. Pass `--send` to submit transactions. Mainnet mutations also
-require `--yes-mainnet`.
+require `--yes-mainnet`. `deploy --send` and `configure --send` ask for typed confirmation before
+submitting transactions.
 
 ## Build
 
