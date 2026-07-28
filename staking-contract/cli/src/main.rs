@@ -28,6 +28,8 @@ struct Cli {
 enum Commands {
     /// Deploy a fresh staking contract or replace code without running init.
     Deploy(DeployArgs),
+    /// Grant validator catalog-management rights to an account.
+    AddCatalogManager(CatalogManagerArgs),
     /// Apply validator and catalog bootstrap configuration.
     Configure(ConfigureArgs),
     /// Run read-only post-deploy checks.
@@ -62,6 +64,21 @@ struct ConfigureArgs {
     /// Mock pool WASM used by validators with `deploy_mock_pool: true`.
     #[arg(long, default_value = DEFAULT_MOCK_POOL_WASM)]
     mock_pool_wasm: PathBuf,
+}
+
+#[derive(Args)]
+struct CatalogManagerArgs {
+    #[command(flatten)]
+    common: CommonArgs,
+    /// Validator pool account id.
+    #[arg(long)]
+    validator_id: String,
+    /// Account id to grant as catalog manager for this validator.
+    #[arg(long)]
+    catalog_manager_account_id: String,
+    /// Validator pool owner signer. Defaults to config validators[].owner_account_id, then --signer.
+    #[arg(long)]
+    owner: Option<String>,
 }
 
 #[derive(Args)]
@@ -184,6 +201,8 @@ struct ValidatorConfig {
     #[serde(default)]
     owner_account_id: Option<String>,
     #[serde(default)]
+    catalog_manager_account_ids: Vec<String>,
+    #[serde(default)]
     deploy_mock_pool: bool,
 }
 
@@ -194,6 +213,8 @@ struct ProductConfig {
     validator_id: String,
     #[serde(default)]
     owner_account_id: Option<String>,
+    #[serde(default)]
+    catalog_manager_account_id: Option<String>,
     name: String,
     #[serde(default)]
     description: String,
@@ -242,6 +263,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Deploy(args) => deploy(args),
+        Commands::AddCatalogManager(args) => add_catalog_manager(args),
         Commands::Configure(args) => configure(args),
         Commands::Verify(args) => verify(args),
     }
@@ -342,6 +364,38 @@ fn deploy(args: DeployArgs) -> Result<()> {
     Ok(())
 }
 
+fn add_catalog_manager(args: CatalogManagerArgs) -> Result<()> {
+    let config = load_config(args.common.readonly.config.as_deref())?;
+    let account_id = resolve_account(&args.common.readonly, &config)?;
+    let signer = args
+        .owner
+        .or_else(|| validator_owner_from_config(&config, &args.validator_id))
+        .or_else(|| args.common.readonly.signer.clone())
+        .or_else(|| config.staking.signer_account_id.clone())
+        .or_else(|| config.staking.owner_account_id.clone())
+        .unwrap_or_else(|| account_id.clone());
+    let ctx = MutContext::new(args.common, account_id.clone(), signer)?;
+    guard_mainnet(&ctx)?;
+
+    println!(
+        "network:   {}",
+        ctx.common.readonly.network.as_near_network()
+    );
+    println!("account:   {account_id}");
+    println!("validator: {}", args.validator_id);
+    println!("manager:   {}", args.catalog_manager_account_id);
+    println!("signer:    {}", ctx.signer);
+    println!("send:      {}", ctx.common.send);
+
+    add_validator_catalog_manager_if_needed(
+        &ctx,
+        &account_id,
+        &args.validator_id,
+        &args.catalog_manager_account_id,
+        ctx.signer.as_str(),
+    )
+}
+
 fn configure(args: ConfigureArgs) -> Result<()> {
     let config = load_config(args.common.readonly.config.as_deref())?;
     validate_config(&config)?;
@@ -364,14 +418,18 @@ fn configure(args: ConfigureArgs) -> Result<()> {
 
     for validator in &config.validators {
         configure_validator(&ctx, &account_id, validator, &args.mock_pool_wasm)?;
+        configure_validator_catalog_managers(&ctx, &account_id, validator)?;
     }
 
-    let validator_owners: HashMap<String, String> = config
+    let validator_catalog_managers: HashMap<String, String> = config
         .validators
         .iter()
         .filter_map(|validator| {
-            non_empty(validator.owner_account_id.as_deref())
-                .map(|owner| (validator.validator_id.clone(), owner.to_string()))
+            validator
+                .catalog_manager_account_ids
+                .iter()
+                .find_map(|manager| non_empty(Some(manager.as_str())))
+                .map(|manager| (validator.validator_id.clone(), manager.to_string()))
         })
         .collect();
     let mut product_cache = HashMap::new();
@@ -380,7 +438,7 @@ fn configure(args: ConfigureArgs) -> Result<()> {
             &ctx,
             &account_id,
             product,
-            &validator_owners,
+            &validator_catalog_managers,
             &mut product_cache,
         )?;
         for price in &product.prices {
@@ -390,7 +448,7 @@ fn configure(args: ConfigureArgs) -> Result<()> {
                 &product_id,
                 product,
                 price,
-                &validator_owners,
+                &validator_catalog_managers,
             )?;
             if price.set_default {
                 set_default_price(
@@ -399,7 +457,7 @@ fn configure(args: ConfigureArgs) -> Result<()> {
                     product,
                     &product_id,
                     &price_id,
-                    &validator_owners,
+                    &validator_catalog_managers,
                 )?;
             }
         }
@@ -582,6 +640,130 @@ fn configure_validator(
     )
 }
 
+fn configure_validator_catalog_managers(
+    ctx: &MutContext,
+    staking_account: &str,
+    validator: &ValidatorConfig,
+) -> Result<()> {
+    let Some(owner) = validator_owner_signer(ctx, validator) else {
+        if validator
+            .catalog_manager_account_ids
+            .iter()
+            .any(|manager| non_empty(Some(manager.as_str())).is_some())
+        {
+            bail!(
+                "validator {} config includes catalog managers but no validator owner signer; set validators[].owner_account_id or pass --signer",
+                validator.validator_id
+            );
+        }
+        return Ok(());
+    };
+
+    for manager in &validator.catalog_manager_account_ids {
+        let Some(manager) = non_empty(Some(manager.as_str())) else {
+            continue;
+        };
+        add_validator_catalog_manager_if_needed(
+            ctx,
+            staking_account,
+            &validator.validator_id,
+            manager,
+            owner,
+        )?;
+    }
+    Ok(())
+}
+
+fn add_validator_catalog_manager_if_needed(
+    ctx: &MutContext,
+    staking_account: &str,
+    validator_id: &str,
+    catalog_manager_account_id: &str,
+    signer: &str,
+) -> Result<()> {
+    let stored = view_json(
+        ctx.common.readonly.network,
+        staking_account,
+        "get_validator",
+        json!({ "validator_id": validator_id }),
+    )?;
+    if stored.is_null() {
+        if !ctx.common.send {
+            return add_validator_catalog_manager(
+                ctx,
+                staking_account,
+                validator_id,
+                catalog_manager_account_id,
+                signer,
+            );
+        }
+        bail!("configured validator was not found: {validator_id}");
+    }
+    if validator_has_catalog_manager(&stored, catalog_manager_account_id) {
+        println!("catalog manager already granted: {validator_id} -> {catalog_manager_account_id}");
+        return Ok(());
+    }
+
+    add_validator_catalog_manager(
+        ctx,
+        staking_account,
+        validator_id,
+        catalog_manager_account_id,
+        signer,
+    )
+}
+
+fn add_validator_catalog_manager(
+    ctx: &MutContext,
+    staking_account: &str,
+    validator_id: &str,
+    catalog_manager_account_id: &str,
+    signer: &str,
+) -> Result<()> {
+    near_tx(
+        ctx,
+        staking_account,
+        "add_validator_catalog_manager",
+        json!({
+            "validator_id": validator_id,
+            "catalog_manager_account_id": catalog_manager_account_id,
+        }),
+        "100.0 Tgas",
+        "1 yoctoNEAR",
+        signer,
+    )
+}
+
+fn validator_has_catalog_manager(stored: &Value, catalog_manager_account_id: &str) -> bool {
+    stored
+        .get("catalog_manager_account_ids")
+        .and_then(Value::as_array)
+        .is_some_and(|managers| {
+            managers
+                .iter()
+                .filter_map(Value::as_str)
+                .any(|manager| manager == catalog_manager_account_id)
+        })
+}
+
+fn validator_owner_signer<'a>(
+    ctx: &'a MutContext,
+    validator: &'a ValidatorConfig,
+) -> Option<&'a str> {
+    non_empty(validator.owner_account_id.as_deref())
+        .or(ctx.common.readonly.signer.as_deref())
+        .or(Some(ctx.signer.as_str()))
+}
+
+fn validator_owner_from_config(config: &BootstrapConfig, validator_id: &str) -> Option<String> {
+    config
+        .validators
+        .iter()
+        .find(|validator| validator.validator_id == validator_id)
+        .and_then(|validator| non_empty(validator.owner_account_id.as_deref()))
+        .map(ToString::to_string)
+}
+
 fn mock_pool_has_owner(network: Network, validator_id: &str, owner: &str) -> Result<bool> {
     match view_json(network, validator_id, "get_owner_id", json!({})) {
         Ok(stored) if stored.as_str() == Some(owner) => Ok(true),
@@ -603,11 +785,17 @@ fn configure_product(
     ctx: &MutContext,
     staking_account: &str,
     product: &ProductConfig,
-    validator_owners: &HashMap<String, String>,
+    validator_catalog_managers: &HashMap<String, String>,
     cache: &mut HashMap<(String, String), String>,
 ) -> Result<String> {
     if let Some(product_id) = non_empty(product.product_id.as_deref()) {
-        sync_product_by_id(ctx, staking_account, product_id, product, validator_owners)?;
+        sync_product_by_id(
+            ctx,
+            staking_account,
+            product_id,
+            product,
+            validator_catalog_managers,
+        )?;
         return Ok(product_id.to_string());
     }
 
@@ -622,7 +810,7 @@ fn configure_product(
         return Ok(product_id);
     }
 
-    let signer = catalog_signer(ctx, product, validator_owners);
+    let signer = catalog_signer(ctx, product, validator_catalog_managers);
     near_tx(
         ctx,
         staking_account,
@@ -654,7 +842,7 @@ fn sync_product_by_id(
     staking_account: &str,
     product_id: &str,
     product: &ProductConfig,
-    validator_owners: &HashMap<String, String>,
+    validator_catalog_managers: &HashMap<String, String>,
 ) -> Result<()> {
     let stored = view_json(
         ctx.common.readonly.network,
@@ -682,7 +870,7 @@ fn sync_product_by_id(
         return Ok(());
     }
 
-    let signer = catalog_signer(ctx, product, validator_owners);
+    let signer = catalog_signer(ctx, product, validator_catalog_managers);
     near_tx(
         ctx,
         staking_account,
@@ -704,7 +892,7 @@ fn configure_price(
     product_id: &str,
     product: &ProductConfig,
     price: &PriceConfig,
-    validator_owners: &HashMap<String, String>,
+    validator_catalog_managers: &HashMap<String, String>,
 ) -> Result<String> {
     if let Some(price_id) = non_empty(price.price_id.as_deref()) {
         sync_price_by_id(
@@ -714,7 +902,7 @@ fn configure_price(
             price_id,
             product,
             price,
-            validator_owners,
+            validator_catalog_managers,
         )?;
         return Ok(price_id.to_string());
     }
@@ -729,7 +917,7 @@ fn configure_price(
         return Ok(price_id);
     }
 
-    let signer = catalog_signer(ctx, product, validator_owners);
+    let signer = catalog_signer(ctx, product, validator_catalog_managers);
     near_tx(
         ctx,
         staking_account,
@@ -769,7 +957,7 @@ fn sync_price_by_id(
     price_id: &str,
     product: &ProductConfig,
     price: &PriceConfig,
-    validator_owners: &HashMap<String, String>,
+    validator_catalog_managers: &HashMap<String, String>,
 ) -> Result<()> {
     let stored = view_json(
         ctx.common.readonly.network,
@@ -811,7 +999,7 @@ fn sync_price_by_id(
         return Ok(());
     }
 
-    let signer = catalog_signer(ctx, product, validator_owners);
+    let signer = catalog_signer(ctx, product, validator_catalog_managers);
     near_tx(
         ctx,
         staking_account,
@@ -849,6 +1037,17 @@ fn verify_configured_state(
             );
         }
         assert_active_status(&stored, &validator.validator_id)?;
+        for manager in &validator.catalog_manager_account_ids {
+            let Some(manager) = non_empty(Some(manager.as_str())) else {
+                continue;
+            };
+            if !validator_has_catalog_manager(&stored, manager) {
+                bail!(
+                    "configured validator {} is missing catalog manager {manager}",
+                    validator.validator_id
+                );
+            }
+        }
     }
 
     for product in &config.products {
@@ -1087,7 +1286,7 @@ fn set_default_price(
     product: &ProductConfig,
     product_id: &str,
     price_id: &str,
-    validator_owners: &HashMap<String, String>,
+    validator_catalog_managers: &HashMap<String, String>,
 ) -> Result<()> {
     if price_id.starts_with('<') {
         println!("skip default price dry-run placeholder for product {product_id}");
@@ -1104,7 +1303,7 @@ fn set_default_price(
         println!("default price already set: {product_id} -> {price_id}");
         return Ok(());
     }
-    let signer = catalog_signer(ctx, product, validator_owners);
+    let signer = catalog_signer(ctx, product, validator_catalog_managers);
     near_tx(
         ctx,
         staking_account,
@@ -1119,13 +1318,19 @@ fn set_default_price(
 fn catalog_signer<'a>(
     ctx: &'a MutContext,
     product: &'a ProductConfig,
-    _validator_owners: &'a HashMap<String, String>,
+    validator_catalog_managers: &'a HashMap<String, String>,
 ) -> &'a str {
     if let Some(signer) = ctx.common.readonly.signer.as_deref() {
         return signer;
     }
+    if let Some(manager) = non_empty(product.catalog_manager_account_id.as_deref()) {
+        return manager;
+    }
     if let Some(owner) = non_empty(product.owner_account_id.as_deref()) {
         return owner;
+    }
+    if let Some(manager) = validator_catalog_managers.get(&product.validator_id) {
+        return manager;
     }
     ctx.signer.as_str()
 }
@@ -1653,6 +1858,7 @@ mod tests {
             product_id: None,
             validator_id: "pool.testnet".to_string(),
             owner_account_id: None,
+            catalog_manager_account_id: None,
             name: "Product".to_string(),
             description: "Description".to_string(),
             prices: Vec::new(),
@@ -1722,6 +1928,7 @@ mod tests {
             product_id: None,
             validator_id: "pool.testnet".to_string(),
             owner_account_id: Some("pool-owner.testnet".to_string()),
+            catalog_manager_account_id: None,
             name: "Product".to_string(),
             description: String::new(),
             prices: Vec::new(),
@@ -1731,5 +1938,84 @@ mod tests {
             catalog_signer(&ctx, &product, &HashMap::new()),
             "manager.testnet"
         );
+    }
+
+    #[test]
+    fn product_catalog_manager_signer_precedes_owner_field() {
+        let ctx = MutContext {
+            common: CommonArgs {
+                readonly: ReadOnlyCommonArgs {
+                    network: Network::Testnet,
+                    account: None,
+                    config: None,
+                    signer: None,
+                },
+                send: false,
+                yes_mainnet: false,
+            },
+            signer: "config-signer.testnet".to_string(),
+        };
+        let product = ProductConfig {
+            product_id: None,
+            validator_id: "pool.testnet".to_string(),
+            owner_account_id: Some("pool-owner.testnet".to_string()),
+            catalog_manager_account_id: Some("catalog-manager.testnet".to_string()),
+            name: "Product".to_string(),
+            description: String::new(),
+            prices: Vec::new(),
+        };
+
+        assert_eq!(
+            catalog_signer(&ctx, &product, &HashMap::new()),
+            "catalog-manager.testnet"
+        );
+    }
+
+    #[test]
+    fn validator_catalog_manager_is_default_catalog_signer() {
+        let ctx = MutContext {
+            common: CommonArgs {
+                readonly: ReadOnlyCommonArgs {
+                    network: Network::Testnet,
+                    account: None,
+                    config: None,
+                    signer: None,
+                },
+                send: false,
+                yes_mainnet: false,
+            },
+            signer: "config-signer.testnet".to_string(),
+        };
+        let product = ProductConfig {
+            product_id: None,
+            validator_id: "pool.testnet".to_string(),
+            owner_account_id: None,
+            catalog_manager_account_id: None,
+            name: "Product".to_string(),
+            description: String::new(),
+            prices: Vec::new(),
+        };
+        let managers = HashMap::from([(
+            "pool.testnet".to_string(),
+            "catalog-manager.testnet".to_string(),
+        )]);
+
+        assert_eq!(
+            catalog_signer(&ctx, &product, &managers),
+            "catalog-manager.testnet"
+        );
+    }
+
+    #[test]
+    fn validator_manager_view_detection_uses_catalog_manager_list() {
+        let validator = json!({
+            "catalog_manager_account_ids": [
+                "one.testnet",
+                "two.testnet"
+            ]
+        });
+
+        assert!(validator_has_catalog_manager(&validator, "two.testnet"));
+        assert!(!validator_has_catalog_manager(&validator, "three.testnet"));
     }
 }

@@ -96,12 +96,12 @@
       "product_id": "prod_DMBHDlk4bg37Up",
       "validator_id": "mock-pool-0.stake-dao.testnet",
       "name": "NEAR AI Cloud Credits",
-      "description": "Stake NEAR to earn NEAR AI Cloud credits",
+      "description": "Stake $NEAR to earn NEAR AI Cloud credits",
       "prices": [
         {
           "price_id": "price_2mxjUvO0ItEEizy3TWpa2h3Q",
           "name": "Staking Farm",
-          "description": "$100 NEAR x 1 month = $1 credit",
+          "description": "100 $NEAR x 1 month = $1 credit",
           "amount": "1000000000000000000000000",
           "price_type": "Farm",
           "billing_period": null,

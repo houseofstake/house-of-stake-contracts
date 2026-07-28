@@ -88,11 +88,11 @@
     {
       "validator_id": "nearai.pool.near",
       "name": "NEAR AI Cloud Credits",
-      "description": "Stake NEAR to earn NEAR AI Cloud credits",
+      "description": "Stake $NEAR to earn NEAR AI Cloud credits",
       "prices": [
         {
           "name": "Staking Farm",
-          "description": "$100 NEAR x 1 month = $1 credit",
+          "description": "100 $NEAR x 1 month = $1 credit",
           "amount": "1000000000000000000000000",
           "price_type": "Farm",
           "billing_period": null,
