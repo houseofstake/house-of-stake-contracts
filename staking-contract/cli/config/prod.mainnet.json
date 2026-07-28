@@ -1,0 +1,24 @@
+{
+  "staking": {
+    "account_id": "stake.dao",
+    "owner_account_id": "stake.dao",
+    "signer_account_id": "stake.dao"
+  },
+  "init": {
+    "guardians": [],
+    "min_lock_duration_ns": "1",
+    "max_lock_duration_ns": "63072000000000000",
+    "epoch_unstake_settle_epochs": 4,
+    "min_storage_deposit": "10000000000000000000000",
+    "per_lock_storage_stake": "10000000000000000000000",
+    "per_farm_position_storage_stake": "5000000000000000000000",
+    "per_purchase_storage_stake": "5000000000000000000000",
+    "min_lock_amount": "1000000000000000000000000"
+  },
+  "validators": [
+    {
+      "validator_id": "nearai.pool.near"
+    }
+  ],
+  "products": []
+}

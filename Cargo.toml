@@ -13,6 +13,7 @@ members = [
     "venear-contract",
     "voting-contract",
     "staking-contract",
+    "staking-contract/cli",
     "mock-staking-pool-contract",
     "merkle-tree",
     "common",
