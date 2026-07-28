@@ -3,7 +3,7 @@
 //! stays in [`crate::lock`] because it shares the pool refresh / mint pipeline with product locks.
 
 use crate::utils::{
-    AVG_MONTH_NS, NS_PER_DAY_TIMESTAMP, block_timestamp, check_near_price_lock, near_from_shares,
+    NS_PER_DAY_TIMESTAMP, block_timestamp, check_near_recurring_price_lock, near_from_shares,
 };
 use crate::*;
 use common::U256;
@@ -89,7 +89,6 @@ struct SubscriptionUpdateInputs {
     target_price: Price,
     target_product: Product,
     lock: Lock,
-    now_ns: u64,
 }
 
 struct SubscriptionUpdateDecision {
@@ -912,7 +911,6 @@ impl Contract {
             target_price,
             target_product,
             lock,
-            now_ns: now,
         }
     }
 
@@ -931,8 +929,6 @@ impl Contract {
             .0
             .cmp(&inputs.current_price.amount.0);
         let stake_direction = target_amount.0.cmp(&current_amount);
-        let rem_ns = u128::from(inputs.sub.end_ns.0.saturating_sub(inputs.now_ns));
-
         // Plan and stake amount can move independently: e.g. upgrade the plan now
         // while scheduling a lower stake amount for the next billing period.
         let immediate_stake_increase = (stake_direction == std::cmp::Ordering::Greater)
@@ -946,22 +942,14 @@ impl Contract {
             match plan_direction {
                 std::cmp::Ordering::Greater => {
                     if pending_stake_decrease_target.is_some() {
-                        self.price_supports_amount_for_duration(
-                            &inputs.target_price,
-                            current_amount,
-                            rem_ns,
-                        )
+                        self.price_supports_recurring_amount(&inputs.target_price, current_amount)
                     } else {
                         true
                     }
                 }
                 std::cmp::Ordering::Equal => {
                     if pending_stake_decrease_target.is_some() {
-                        self.price_supports_amount_for_duration(
-                            &inputs.target_price,
-                            current_amount,
-                            rem_ns,
-                        )
+                        self.price_supports_recurring_amount(&inputs.target_price, current_amount)
                     } else {
                         true
                     }
@@ -982,12 +970,12 @@ impl Contract {
             } else {
                 current_amount
             };
-            check_near_price_lock(immediate_price, immediate_amount, rem_ns)
+            check_near_recurring_price_lock(immediate_price, immediate_amount)
                 .unwrap_or_else(|e| env::panic_str(e));
         }
 
         if pending_plan_change || pending_stake_decrease_target.is_some() {
-            check_near_price_lock(&inputs.target_price, target_amount.0, AVG_MONTH_NS)
+            check_near_recurring_price_lock(&inputs.target_price, target_amount.0)
                 .unwrap_or_else(|e| env::panic_str(e));
         }
 
@@ -1001,12 +989,7 @@ impl Contract {
         }
     }
 
-    fn price_supports_amount_for_duration(
-        &self,
-        price: &Price,
-        amount: u128,
-        duration_ns: u128,
-    ) -> bool {
+    fn price_supports_recurring_amount(&self, price: &Price, amount: u128) -> bool {
         if amount < price.amount.0 {
             return false;
         }
@@ -1015,7 +998,7 @@ impl Contract {
                 return false;
             }
         }
-        check_near_price_lock(price, amount, duration_ns).is_ok()
+        check_near_recurring_price_lock(price, amount).is_ok()
     }
 
     fn subscription_update_outcome(

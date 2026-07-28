@@ -1,4 +1,4 @@
-use crate::utils::{block_timestamp, check_near_price_lock};
+use crate::utils::{block_timestamp, check_near_price_lock, check_near_recurring_price_lock};
 use crate::*;
 use near_sdk::json_types::{U64, U128};
 use near_sdk::{AccountId, NearToken, PromiseOrValue, env, near, require};
@@ -251,7 +251,7 @@ impl Contract {
         let duration_ns = u128::from(subscription.end_ns.0.saturating_sub(subscription_now));
         require!(duration_ns > 0, "Lock duration must be positive");
 
-        check_near_price_lock(&price, locked.as_yoctonear(), duration_ns)
+        check_near_recurring_price_lock(&price, locked.as_yoctonear())
             .unwrap_or_else(|e| env::panic_str(e));
 
         let order = OrderRef::Subscription {
