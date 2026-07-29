@@ -23,12 +23,12 @@ fn unlock_after_end_ns_requests_unlock() {
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), start_ts));
     let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id), None, Some(U64(dur))));
 
-    let lock = c.get_lock(lock_id.clone()).expect("lock");
+    let lock = c.get_lock(lock_id.clone(), None).expect("lock");
     let end_ns = lock.end_ns.0;
 
     testing_env!(ctx_ts(acct(BUYER), one_yocto(), end_ns));
     c.unlock(lock_id.clone());
 
-    let after = c.get_lock(lock_id).expect("lock");
+    let after = c.get_lock(lock_id, None).expect("lock");
     assert_eq!(after.status, LockStatus::UnlockRequested);
 }

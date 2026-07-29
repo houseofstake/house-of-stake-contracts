@@ -71,6 +71,13 @@ pub fn check_near_price_lock(
     }
 }
 
+pub fn check_near_recurring_price_lock(
+    price: &Price,
+    locked_yocto: u128,
+) -> Result<(), &'static str> {
+    check_near_price_lock(price, locked_yocto, AVG_MONTH_NS)
+}
+
 fn required_near_months(price: &Price) -> U256 {
     U256::from(price.amount.0) * U256::from(price.lock_factor_near_months.0)
         / U256::from(LOCK_FACTOR_DENOM)

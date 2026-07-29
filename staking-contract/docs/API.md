@@ -27,6 +27,8 @@ Reference for **on-chain methods** exposed by `staking-contract` (Rust type name
 | `get_version` | — | `string` | Crate package version string. |
 | `is_paused` | — | `bool` | Global pause flag. |
 | `get_account` | `account_id: AccountId` | `Account \| null` | NEP-style prepaid **`storage_deposit`** only. |
+| `get_accounts` | `from_index: u64`, `limit: u64` | `AccountView[]` | Paginated registered accounts from the enumerable account index, including each row's account id. |
+| `get_account_ids` | `from_index: u64`, `limit: u64` | `AccountId[]` | Paginated registered account ids from the enumerable account index. |
 | `storage_balance_bounds` | — | `StorageBalanceBounds` | NEP-145 minimum registration balance; `max` is `null` because storage top-ups are unbounded. |
 | `storage_balance_of` | `account_id: AccountId` | `StorageBalance \| null` | NEP-145 storage balance; returns `null` for unregistered accounts. |
 | `get_validator` | `validator_id: AccountId` | `Validator \| null` | Validator row for one staking pool contract account. |
@@ -35,11 +37,15 @@ Reference for **on-chain methods** exposed by `staking-contract` (Rust type name
 | `get_price` | `price_id: string` | `Price \| null` | Catalog price (`price_*`). |
 | `get_products` | `from_index: u64`, `limit: u64` | `Product[]` | Paginated catalog (stable creation order in contract index). |
 | `get_product_default_price` | `product_id: string` | `string \| null` | Same as **`Product.default_price_id`** from **`get_product`** / **`get_products`** — default catalog **`price_id`** (see **`set_product_default_price`**); **`null`** if unset. |
-| `get_lock` | `lock_id: string` | `Lock \| null` | Lock record (`lock_*`). |
+| `get_lock` | `lock_id: string`, `effective?: bool` | `Lock \| null` | Lock record (`lock_*`). By default, or with `effective=false`, returns the raw stored lock. With `effective=true`, the current active subscription lock can include due pending subscription update projection for amount, shares, status, period, and price. Projected stake decreases are view-only and do not represent actual `pending_to_unstake` or user pending-unstake accounting until a later mutating renewal/update path applies them. Historical subscription locks and cancelled subscriptions return raw locks. |
+| `get_locks` | `from_index: u64`, `limit: u64`, `effective?: bool` | `Lock[]` | Paginated active and historical locks in creation order. `effective` has the same projection semantics as `get_lock`. |
+| `get_locks_for_account` | `account_id`, `from_index: u64`, `limit: u64`, `effective?: bool` | `Lock[]` | Paginated active and historical locks owned by an account in creation order. `effective` has the same projection semantics as `get_lock`. |
 | `get_subscription` | `subscription_id: string` | `Subscription \| null` | Subscription (`sub_*`). |
 | `get_subscription_for_product` | `account_id`, `product_id` | `Subscription \| null` | Lookup by `(account, product)`. |
 | `get_subscription_for_price` | `account_id`, `price_id` | `Subscription \| null` | Resolves product from price, then same as above. |
+| `get_subscriptions` | `from_index: u64`, `limit: u64` | `Subscription[]` | Paginated subscriptions, with due pending updates projected in the returned views. |
 | `get_subscriptions_for_account` | `account_id`, `from_index: u64`, `limit: u64` | `Subscription[]` | Paginated subscriptions owned by an account, with due pending updates projected in the returned views. |
+| `get_subscriptions_for_product` | `product_id`, `from_index: u64`, `limit: u64` | `Subscription[]` | Paginated subscriptions currently indexed under a product, with due pending updates projected in the returned views. |
 | `get_purchase` | `purchase_id: string` | `Purchase \| null` | Direct payment purchase record (`pay_*`). |
 | `get_purchases` | `from_index: u64`, `limit: u64` | `Purchase[]` | Paginated direct payment purchases. |
 | `get_purchases_for_account` | `account_id`, `from_index: u64`, `limit: u64` | `Purchase[]` | Paginated direct payment purchases by buyer account. |
@@ -59,6 +65,8 @@ Reference for **on-chain methods** exposed by `staking-contract` (Rust type name
 | `storage_deposit` | Any | **Attach NEAR** | NEP-145 register/top-up: `account_id?: AccountId`, `registration_only?: bool`. With `registration_only=true`, only the amount needed to reach `min_storage_deposit` is retained and excess is refunded. Non-registration top-ups must satisfy retained storage for `min_storage_deposit + per_lock_storage_stake × user_lock_count + per_farm_position_storage_stake × user_farm_position_count + per_purchase_storage_stake × user_purchase_count`. |
 | `storage_withdraw` | Account owner | **1 yocto** + optional `amount: NearToken` | NEP-145 withdraw from `available`; omitting `amount` withdraws all available storage. |
 | `storage_unregister` | Account owner | **1 yocto** + optional `force: bool` | NEP-145 unregister/refund when the account has no retained per-lock, per-purchase, subscription, farm-position, or pending-unstake storage. `force=true` is rejected; without force the method returns `false` instead of deleting accounts that still own retained records. |
+| `get_accounts` | Anyone | 0 | `from_index`, `limit`. Lists registered account rows from the enumerable account index with `account_id` and storage fields. |
+| `get_account_ids` | Anyone | 0 | `from_index`, `limit`. Lists registered account ids from the enumerable account index. |
 
 ---
 
@@ -138,6 +146,9 @@ Lifecycle RPCs (locking / renewal stays in **`lock`** above).
 | `cancel_subscription` | Subscriber | **1 yocto** | — | **`subscription_id`** — set **`cancel_at_period_end`**; lock remains until **`lock.end_ns`**, then **`unlock`**. After **`end_ns`**, next **`lock`** starts a new period. |
 | `resume_subscription` | Subscriber | **1 yocto** | — | **`subscription_id`** — clear **`cancel_at_period_end`** while **`Active`**, only before stored **`end_ns`** (current billing period). Fails after period end; use **`lock`** for a new period. Requires **`cancel_at_period_end == true`**. |
 | `update_subscription` | Subscriber | **Attach delta NEAR for increases; 1 yocto otherwise** | **`PromiseOrValue<SubscriptionPlanChangeOutcome>`** | **`subscription_id`, `target_price_id`, `target_amount`** — unified plan update. Stake increases apply immediately after the same pre-user pipeline as **`lock`**; stake decreases are scheduled for the billing boundary, projected in views after `apply_ns`, and lazily committed by later mutations after validator settlement; price-only changes with unchanged stake apply immediately. |
+| `get_subscriptions` | Anyone | 0 | `from_index`, `limit`. Lists subscriptions from the global subscription index. |
+| `get_subscriptions_for_account` | Anyone | 0 | `account_id`, `from_index`, `limit`. Lists subscriptions by subscriber account. |
+| `get_subscriptions_for_product` | Anyone | 0 | `product_id`, `from_index`, `limit`. Lists subscriptions by current product. |
 
 ---
 
@@ -249,7 +260,7 @@ Pipeline steps and callbacks: [features/lazy-epoch-pipeline.md](features/lazy-ep
 
 | Method | Access | Description |
 |--------|--------|-------------|
-| `migrate_state` | **`#[private]`** — contract account only | **`#[init(ignore_state)]`** — returns deserialized state after code upgrade (used by deploy script). |
+| `migrate_state` | **`#[private]`** — contract account only | **`#[init(ignore_state)]`** — identity state read used by the owner-gated upgrade transaction. |
 | `get_version` | Any | Version string (see Views). |
 
 ---

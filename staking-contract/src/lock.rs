@@ -1,14 +1,10 @@
-use crate::utils::{NS_PER_DAY_TIMESTAMP, block_timestamp, check_near_price_lock};
+use crate::utils::{
+    block_timestamp, check_near_price_lock, check_near_recurring_price_lock, near_from_shares,
+};
 use crate::*;
+use common::U256;
 use near_sdk::json_types::{U64, U128};
 use near_sdk::{AccountId, NearToken, PromiseOrValue, env, near, require};
-
-/// Stripe-style **billing anchor day** (1–31). Not the real UTC calendar day-of-month; it is a stable
-/// fingerprint from block time until civil-calendar billing is implemented.
-fn anchor_day_from_timestamp(ts: u64) -> u8 {
-    let d = (ts / NS_PER_DAY_TIMESTAMP) % 31;
-    (d as u8 + 1).min(31)
-}
 
 #[near]
 impl Contract {
@@ -224,8 +220,13 @@ impl Contract {
                 (sub_new, sid_new, true)
             } else {
                 // Renewal window: extend billing period for the current effective tier.
-                let start = sub.end_ns.0.max(subscription_now);
-                let end = crate::subscriptions::add_months_stripe_style(sub.anchor_day, 1, start);
+                let (stored_boundary, next_boundary) = self.projected_subscription_window_from(
+                    sub.anchor_day,
+                    sub.start_ns.0,
+                    subscription_now,
+                );
+                let start = stored_boundary.0;
+                let end = next_boundary.0;
                 sub.start_ns = U64(start);
                 sub.end_ns = U64(end);
                 sub.status = SubscriptionStatus::Active;
@@ -258,7 +259,7 @@ impl Contract {
         let duration_ns = u128::from(subscription.end_ns.0.saturating_sub(subscription_now));
         require!(duration_ns > 0, "Lock duration must be positive");
 
-        check_near_price_lock(&price, locked.as_yoctonear(), duration_ns)
+        check_near_recurring_price_lock(&price, locked.as_yoctonear())
             .unwrap_or_else(|e| env::panic_str(e));
 
         let order = OrderRef::Subscription {
@@ -278,18 +279,174 @@ impl Contract {
         )
     }
 
-    pub fn get_lock(&self, lock_id: LockId) -> Option<Lock> {
-        self.internal_get_lock(&lock_id)
+    pub fn get_lock(&self, lock_id: LockId, effective: Option<bool>) -> Option<Lock> {
+        let lock = self.internal_get_lock(&lock_id)?;
+        Some(self.lock_view(lock, effective))
+    }
+
+    pub fn get_locks(&self, from_index: u64, limit: u64, effective: Option<bool>) -> Vec<Lock> {
+        let skip = usize::try_from(from_index).unwrap_or(usize::MAX);
+        let take = usize::try_from(limit).unwrap_or(usize::MAX);
+        self.lock_ids
+            .iter()
+            .skip(skip)
+            .take(take)
+            .filter_map(|id| {
+                self.internal_get_lock(id)
+                    .map(|lock| self.lock_view(lock, effective))
+            })
+            .collect()
+    }
+
+    pub fn get_locks_for_account(
+        &self,
+        account_id: AccountId,
+        from_index: u64,
+        limit: u64,
+        effective: Option<bool>,
+    ) -> Vec<Lock> {
+        let Some(ids) = self.locks_by_account.get(&account_id) else {
+            return Vec::new();
+        };
+        let total_len = u64::from(ids.len());
+        self.collect_paginated(from_index, limit, total_len, |index| {
+            ids.get(index)
+                .and_then(|id| self.internal_get_lock(id))
+                .map(|lock| self.lock_view(lock, effective))
+        })
     }
 }
 
 impl Contract {
+    fn lock_view(&self, lock: Lock, effective: Option<bool>) -> Lock {
+        if effective == Some(true) {
+            self.project_lock_view_now(lock)
+        } else {
+            lock
+        }
+    }
+
+    fn project_lock_view_now(&self, mut lock: Lock) -> Lock {
+        let OrderRef::Subscription {
+            subscription_id, ..
+        } = lock.order.clone()
+        else {
+            return lock;
+        };
+
+        let Some(stored_sub) = self.internal_get_subscription(&subscription_id) else {
+            return lock;
+        };
+        if stored_sub.last_lock_id != lock.lock_id
+            || stored_sub.account_id != lock.account_id
+            || lock.status != LockStatus::Active
+        {
+            return lock;
+        }
+        if stored_sub.status != SubscriptionStatus::Active || stored_sub.cancel_at_period_end {
+            return lock;
+        }
+        let Some(pending) = stored_sub.pending_update.clone() else {
+            return lock;
+        };
+
+        let now = self.subscription_now(&subscription_id);
+        if now < pending.apply_ns.0 {
+            return lock;
+        }
+
+        if let Some(target_amount) = pending.target_amount {
+            self.project_scheduled_stake_decrease_lock(&mut lock, target_amount);
+            if lock.status != LockStatus::Active {
+                return lock;
+            }
+        }
+
+        let (period_start_ns, period_end_ns) =
+            self.projected_subscription_window_from(stored_sub.anchor_day, pending.apply_ns.0, now);
+        lock.start_ns = period_start_ns;
+        lock.end_ns = period_end_ns;
+
+        let effective_price_id = pending
+            .target_price_id
+            .clone()
+            .unwrap_or_else(|| stored_sub.price_id.clone());
+        if let OrderRef::Subscription {
+            subscription_id,
+            price_id,
+            period_start_ns,
+            period_end_ns,
+        } = &mut lock.order
+        {
+            if *subscription_id == stored_sub.subscription_id {
+                *price_id = effective_price_id;
+                *period_start_ns = lock.start_ns;
+                *period_end_ns = lock.end_ns;
+            }
+        }
+
+        lock
+    }
+
+    fn project_scheduled_stake_decrease_lock(&self, lock: &mut Lock, target_amount: NearToken) {
+        let surplus_target = lock
+            .amount_near
+            .as_yoctonear()
+            .saturating_sub(target_amount.as_yoctonear());
+        if surplus_target == 0 {
+            return;
+        }
+
+        let validator = self.require_validator(&lock.validator_id);
+        let net_stake = validator.net_stake_yocto();
+        let validator_total_shares = validator.total_shares.0;
+        let lock_near_val = near_from_shares(lock.shares.0, net_stake, validator_total_shares);
+        if lock_near_val == 0 {
+            return;
+        }
+
+        let surplus_near = surplus_target.min(lock_near_val);
+        let shares_remove = (U256::from(lock.shares.0) * U256::from(surplus_near)
+            / U256::from(lock_near_val))
+        .as_u128()
+        .min(lock.shares.0);
+        if shares_remove == 0 {
+            return;
+        }
+
+        let near_amt = near_from_shares(shares_remove, net_stake, validator_total_shares);
+        lock.shares = U128(lock.shares.0.saturating_sub(shares_remove));
+        lock.amount_near =
+            NearToken::from_yoctonear(lock.amount_near.as_yoctonear().saturating_sub(near_amt));
+        if lock.shares.0 == 0 {
+            lock.status = LockStatus::UnlockRequested;
+        }
+    }
+
     pub(crate) fn internal_get_lock(&self, id: &LockId) -> Option<Lock> {
         self.locks.get(id).cloned().map(Into::into)
     }
 
     pub(crate) fn internal_set_lock(&mut self, id: LockId, lock: Lock) {
         self.locks.insert(id, lock.into());
+    }
+
+    pub(crate) fn add_lock_to_indexes(&mut self, account_id: &AccountId, lock_id: &LockId) {
+        self.lock_ids.insert(lock_id.clone());
+        if let Some(ids) = self.locks_by_account.get_mut(account_id) {
+            ids.push(lock_id.clone());
+            return;
+        }
+
+        let mut ids = near_sdk::store::Vector::new(Self::locks_by_account_vector_key(account_id));
+        ids.push(lock_id.clone());
+        self.locks_by_account.insert(account_id.clone(), ids);
+    }
+
+    pub(crate) fn locks_by_account_vector_key(account_id: &AccountId) -> StorageKeys {
+        StorageKeys::LocksByAccountVector {
+            account_hash: env::sha256(account_id.as_bytes()),
+        }
     }
 
     pub(crate) fn lock_entry_preamble(&self) -> (AccountId, NearToken) {
@@ -344,7 +501,7 @@ impl Contract {
         price_id: &PriceId,
         start_ns: u64,
     ) -> (SubscriptionId, Subscription) {
-        let anchor = anchor_day_from_timestamp(start_ns);
+        let anchor = crate::subscriptions::billing_anchor_day_from_timestamp(start_ns);
         let end_ns = crate::subscriptions::add_months_stripe_style(anchor, 1, start_ns);
         let subscription_id = crate::ids::next_subscription_id(&mut self.id_nonce);
         let subscription = Subscription {
@@ -411,6 +568,7 @@ impl Contract {
             status: LockStatus::Active,
         };
         self.internal_set_lock(lock_id.clone(), lock);
+        self.add_lock_to_indexes(&buyer, &lock_id);
 
         // Catalog usage counters + persist updated price, product, and validator state.
         price.usage_count = price.usage_count.saturating_add(1);

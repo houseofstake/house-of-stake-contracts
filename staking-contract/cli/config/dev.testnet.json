@@ -1,0 +1,171 @@
+{
+  "staking": {
+    "account_id": "hos-e2e-0601144939.testnet",
+    "owner_account_id": "hos-e2e-0601144939.testnet",
+    "signer_account_id": "hos-e2e-0601144939.testnet",
+    "test_feature": true
+  },
+  "init": {
+    "guardians": [],
+    "min_lock_duration_ns": "1",
+    "max_lock_duration_ns": "63072000000000000",
+    "epoch_unstake_settle_epochs": 1,
+    "min_storage_deposit": "10000000000000000000000",
+    "per_lock_storage_stake": "10000000000000000000000",
+    "per_farm_position_storage_stake": "5000000000000000000000",
+    "per_purchase_storage_stake": "5000000000000000000000",
+    "min_lock_amount": "1000000000000000000000000"
+  },
+  "validators": [
+    {
+      "validator_id": "mock-pool-0.hos-e2e-0601144939.testnet",
+      "owner_account_id": "hos-e2e-0601144939.testnet"
+    }
+  ],
+  "products": [
+    {
+      "product_id": "prod_5lklj46roIwKZK",
+      "validator_id": "mock-pool-0.hos-e2e-0601144939.testnet",
+      "name": "NEAR AI Agents",
+      "description": "Monthly NEAR AI Agents subscription tiers",
+      "prices": [
+        {
+          "price_id": "price_RjiajH4KEZ43w68DgY5xVaVU",
+          "name": "Starter",
+          "description": "1 agent; stake range [1, 10] NEAR",
+          "amount": "1000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "10000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "price_id": "price_h577VYQUEynPA3uQt1u1neGn",
+          "name": "Basic",
+          "description": "2 agents; stake range [10, 40] NEAR",
+          "amount": "10000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "40000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "price_id": "price_7EAls0E844ULR06EEl53fQoI",
+          "name": "Pro",
+          "description": "5 agents; stake range [40, 400] NEAR",
+          "amount": "40000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "400000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "price_id": "price_dIMZ1c88xUwvvXlP521TgZ8W",
+          "name": "Starter",
+          "description": "1 agent; stake range [50, 500] NEAR",
+          "amount": "50000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "500000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": true
+        },
+        {
+          "price_id": "price_u6GUB9EgjZEk0nbQ3fomC2k3",
+          "name": "Pro",
+          "description": "5 agents; stake range [2000, 20000] NEAR",
+          "amount": "2000000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "20000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "price_id": "price_saAr3F0Dj2jGJzUaJFhPH6Mh",
+          "name": "Basic",
+          "description": "2 agents; stake range [500, 2000] NEAR",
+          "amount": "500000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "2000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        }
+      ]
+    },
+    {
+      "product_id": "prod_37o5G0rr2wMJ5C",
+      "validator_id": "mock-pool-0.hos-e2e-0601144939.testnet",
+      "name": "NEAR AI Agent One-Off Credits",
+      "description": "One-off NEAR AI agents credits",
+      "prices": [
+        {
+          "price_id": "price_z2EbTifr7Nyqwt6v5kFqSiUb",
+          "name": "One-Off Credits at NEAR Price $2.5",
+          "description": "One-Off NEAR AI credit",
+          "amount": "400000000000000000000000",
+          "price_type": "OneOff",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": null,
+          "set_default": false
+        },
+        {
+          "price_id": "price_VvzS2XkxbcL2w6kl2mxoHpXu",
+          "name": "One-Off Credits at NEAR Price $2",
+          "description": "One-Off NEAR AI credit",
+          "amount": "500000000000000000000000",
+          "price_type": "OneOff",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": null,
+          "set_default": true
+        }
+      ]
+    },
+    {
+      "product_id": "prod_gmi5BX4U0jIOIA",
+      "validator_id": "mock-pool-0.hos-e2e-0601144939.testnet",
+      "name": "NEAR AI Cloud Credits",
+      "description": "Stake NEAR to earn NEAR AI Cloud credits",
+      "prices": [
+        {
+          "price_id": "price_SPM8tuhxYl3WLaXWouapdUL1",
+          "name": "Staking Farm",
+          "description": "$100 NEAR x 1 month = $1 credit",
+          "amount": "1000000000000000000000000",
+          "price_type": "Farm",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": {
+            "max_amount": null,
+            "farm_reward_rate": "3802570537683474"
+          },
+          "set_default": false
+        }
+      ]
+    }
+  ]
+}

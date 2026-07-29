@@ -7,7 +7,7 @@ use common::{
     setup_catalog_near_oneoff,
 };
 use near_sdk::{NearToken, testing_env};
-use staking_contract::PendingUnstakeTranche;
+use staking_contract::{AccountView, PendingUnstakeTranche};
 
 #[test]
 fn storage_balance_of_returns_none_for_unregistered_account() {
@@ -39,6 +39,66 @@ fn storage_deposit_returns_updated_balance() {
     let stored = c.storage_balance_of(acct(BUYER)).expect("registered");
     assert_eq!(stored.total, balance.total);
     assert_eq!(stored.available, balance.available);
+}
+
+#[test]
+fn get_account_ids_lists_registered_accounts() {
+    let mut c = deploy_with_config(base_config());
+
+    testing_env!(ctx(acct(BUYER), NearToken::from_millinear(100)));
+    c.storage_deposit(None, None);
+    testing_env!(ctx(acct("second.testnet"), NearToken::from_millinear(100)));
+    c.storage_deposit(None, None);
+
+    assert_eq!(
+        c.get_account_ids(0, 10),
+        vec![acct(BUYER), acct("second.testnet")]
+    );
+    assert_eq!(c.get_account_ids(1, 1), vec![acct("second.testnet")]);
+    assert_eq!(
+        c.get_accounts(0, 10),
+        vec![
+            AccountView {
+                account_id: acct(BUYER),
+                storage_deposit: NearToken::from_millinear(100),
+            },
+            AccountView {
+                account_id: acct("second.testnet"),
+                storage_deposit: NearToken::from_millinear(100),
+            },
+        ]
+    );
+    assert_eq!(
+        c.get_accounts(1, 1),
+        vec![AccountView {
+            account_id: acct("second.testnet"),
+            storage_deposit: NearToken::from_millinear(100),
+        }]
+    );
+}
+
+#[test]
+fn get_account_ids_filters_unregistered_accounts_without_duplicates() {
+    let mut c = deploy_with_config(base_config());
+
+    testing_env!(ctx(acct(BUYER), NearToken::from_millinear(100)));
+    c.storage_deposit(None, None);
+    testing_env!(ctx(acct(BUYER), NearToken::from_yoctonear(1)));
+    assert!(c.storage_unregister(None));
+    assert!(c.get_account_ids(0, 10).is_empty());
+    assert!(c.get_accounts(0, 10).is_empty());
+
+    testing_env!(ctx(acct(BUYER), NearToken::from_millinear(100)));
+    c.storage_deposit(None, None);
+
+    assert_eq!(c.get_account_ids(0, 10), vec![acct(BUYER)]);
+    assert_eq!(
+        c.get_accounts(0, 10),
+        vec![AccountView {
+            account_id: acct(BUYER),
+            storage_deposit: NearToken::from_millinear(100),
+        }]
+    );
 }
 
 #[test]

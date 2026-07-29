@@ -1,0 +1,109 @@
+{
+  "staking": {
+    "account_id": "stake.dao",
+    "owner_account_id": "stake.dao",
+    "signer_account_id": "stake.dao"
+  },
+  "init": {
+    "guardians": [],
+    "min_lock_duration_ns": "1",
+    "max_lock_duration_ns": "63072000000000000",
+    "epoch_unstake_settle_epochs": 4,
+    "min_storage_deposit": "10000000000000000000000",
+    "per_lock_storage_stake": "10000000000000000000000",
+    "per_farm_position_storage_stake": "5000000000000000000000",
+    "per_purchase_storage_stake": "5000000000000000000000",
+    "min_lock_amount": "1000000000000000000000000"
+  },
+  "validators": [
+    {
+      "validator_id": "nearai.pool.near",
+      "owner_account_id": "jasnah-treasury.sputnik-dao.near"
+    }
+  ],
+  "products": [
+    {
+      "validator_id": "nearai.pool.near",
+      "name": "NEAR AI Agents",
+      "description": "Monthly NEAR AI Agents subscription tiers",
+      "prices": [
+        {
+          "name": "Starter",
+          "description": "1 agent; stake range [50, 500] NEAR",
+          "amount": "50000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "500000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": true
+        },
+        {
+          "name": "Basic",
+          "description": "2 agents; stake range [500, 2000] NEAR",
+          "amount": "500000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "2000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "name": "Pro",
+          "description": "5 agents; stake range [2000, 20000] NEAR",
+          "amount": "2000000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "20000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        }
+      ]
+    },
+    {
+      "validator_id": "nearai.pool.near",
+      "name": "NEAR AI Agent One-Off Credits",
+      "description": "One-off NEAR AI agents credits",
+      "prices": [
+        {
+          "name": "One-Off Credits at NEAR Price $2",
+          "description": "One-Off NEAR AI credit",
+          "amount": "500000000000000000000000",
+          "price_type": "OneOff",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": null,
+          "set_default": true
+        }
+      ]
+    },
+    {
+      "validator_id": "nearai.pool.near",
+      "name": "NEAR AI Cloud Credits",
+      "description": "Stake $NEAR to earn NEAR AI Cloud credits",
+      "prices": [
+        {
+          "name": "Staking Farm",
+          "description": "100 $NEAR x 1 month = $1 credit",
+          "amount": "1000000000000000000000000",
+          "price_type": "Farm",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": {
+            "max_amount": null,
+            "farm_reward_rate": "3802570537683474"
+          },
+          "set_default": false
+        }
+      ]
+    }
+  ]
+}

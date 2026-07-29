@@ -22,7 +22,7 @@ fn unlock_rejects_wrong_predecessor() {
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), start_ts));
     let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id), None, Some(U64(dur))));
 
-    let lock = c.get_lock(lock_id.clone()).expect("lock");
+    let lock = c.get_lock(lock_id.clone(), None).expect("lock");
     let end_ns = lock.end_ns.0;
 
     testing_env!(ctx_ts(acct(OWNER), one_yocto(), end_ns));
@@ -78,7 +78,7 @@ fn unlock_rejects_active_subscription_after_projected_renewal() {
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), start_ts));
     let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id), None, None));
 
-    let lock = c.get_lock(lock_id.clone()).expect("lock");
+    let lock = c.get_lock(lock_id.clone(), None).expect("lock");
     testing_env!(ctx_ts(
         acct(BUYER),
         one_yocto(),
@@ -124,7 +124,7 @@ fn unlock_rejects_second_call_after_unlock_requested() {
     testing_env!(ctx_ts(acct(BUYER), NearToken::from_near(50), start_ts));
     let lock_id = unwrap_sync_lock_id(c.lock(Some(price_id), None, Some(U64(dur))));
 
-    let lock = c.get_lock(lock_id.clone()).expect("lock");
+    let lock = c.get_lock(lock_id.clone(), None).expect("lock");
     let end_ns = lock.end_ns.0;
 
     testing_env!(ctx_ts(acct(BUYER), one_yocto(), end_ns));

@@ -1,0 +1,118 @@
+{
+  "staking": {
+    "account_id": "stake-dao.testnet",
+    "owner_account_id": "stake-dao.testnet",
+    "signer_account_id": "stake-dao.testnet"
+  },
+  "init": {
+    "guardians": [],
+    "min_lock_duration_ns": "1",
+    "max_lock_duration_ns": "63072000000000000",
+    "epoch_unstake_settle_epochs": 4,
+    "min_storage_deposit": "10000000000000000000000",
+    "per_lock_storage_stake": "10000000000000000000000",
+    "per_farm_position_storage_stake": "5000000000000000000000",
+    "per_purchase_storage_stake": "5000000000000000000000",
+    "min_lock_amount": "1000000000000000000000000"
+  },
+  "validators": [
+    {
+      "validator_id": "mock-pool-0.stake-dao.testnet",
+      "owner_account_id": "stake-dao.testnet",
+      "deploy_mock_pool": true
+    }
+  ],
+  "products": [
+    {
+      "product_id": "prod_OeTOKKV8u76VHF",
+      "validator_id": "mock-pool-0.stake-dao.testnet",
+      "name": "NEAR AI Agents",
+      "description": "Monthly NEAR AI Agents subscription tiers",
+      "prices": [
+        {
+          "price_id": "price_dDcCegF0PuF3MYFJf0uEPhtz",
+          "name": "Starter",
+          "description": "1 agent; stake range [50, 500] NEAR",
+          "amount": "50000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "500000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": true
+        },
+        {
+          "price_id": "price_5HdBvLEW961r5yP76jw4Bc3P",
+          "name": "Basic",
+          "description": "2 agents; stake range [500, 2000] NEAR",
+          "amount": "500000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "2000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        },
+        {
+          "price_id": "price_d4wWdit4i9VmmA374Nl1UHe3",
+          "name": "Pro",
+          "description": "5 agents; stake range [2000, 20000] NEAR",
+          "amount": "2000000000000000000000000000",
+          "price_type": "Recurring",
+          "billing_period": "Monthly",
+          "lock_factor_near_months": "1000000000000000000000000",
+          "metadata": {
+            "max_amount": "20000000000000000000000000000",
+            "farm_reward_rate": null
+          },
+          "set_default": false
+        }
+      ]
+    },
+    {
+      "product_id": "prod_MGu7vEHx6TMs0v",
+      "validator_id": "mock-pool-0.stake-dao.testnet",
+      "name": "NEAR AI Agent One-Off Credits",
+      "description": "One-off NEAR AI agents credits",
+      "prices": [
+        {
+          "price_id": "price_sLhbPk118B4ZbV4T91978SXY",
+          "name": "One-Off Credits at NEAR Price $2",
+          "description": "One-Off NEAR AI credit",
+          "amount": "500000000000000000000000",
+          "price_type": "OneOff",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": null,
+          "set_default": true
+        }
+      ]
+    },
+    {
+      "product_id": "prod_DMBHDlk4bg37Up",
+      "validator_id": "mock-pool-0.stake-dao.testnet",
+      "name": "NEAR AI Cloud Credits",
+      "description": "Stake $NEAR to earn NEAR AI Cloud credits",
+      "prices": [
+        {
+          "price_id": "price_2mxjUvO0ItEEizy3TWpa2h3Q",
+          "name": "Staking Farm",
+          "description": "100 $NEAR x 1 month = $1 credit",
+          "amount": "1000000000000000000000000",
+          "price_type": "Farm",
+          "billing_period": null,
+          "lock_factor_near_months": "0",
+          "metadata": {
+            "max_amount": null,
+            "farm_reward_rate": "3802570537683474"
+          },
+          "set_default": false
+        }
+      ]
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all-contracts \
+.PHONY: help all-contracts build-release \
 	sandbox-staking-whitelist-contract venear-contract lockup-contract voting-contract \
 	staking-contract staking-contract-test mock-staking-pool-contract \
 	whitelist venear lockup voting staking staking-test mock-pool \
@@ -26,6 +26,7 @@ help:
 	@echo "  make staking-contract-test                build test-feature WASM with mocked clock"
 	@echo "  make mock-staking-pool-contract           (alias: make mock-pool) for staking-contract sandbox tests"
 	@echo "  make all-contracts                        all deployable contract WASM artifacts"
+	@echo "  make build-release                        reproducible release-contract WASM artifacts in res/release/"
 	@echo ""
 	@echo "Fast compile checks:"
 	@echo "  make check-<name>   e.g. make check-staking-contract, make check-whitelist"
@@ -72,6 +73,9 @@ mock-staking-pool-contract:
 	cp "$(ROOT)target/near/mock_staking_pool_contract/mock_staking_pool_contract.wasm" "$(RES_LOCAL)/"
 
 all-contracts: sandbox-staking-whitelist-contract venear-contract lockup-contract voting-contract staking-contract mock-staking-pool-contract
+
+build-release:
+	"$(ROOT)build_release.sh"
 
 whitelist: sandbox-staking-whitelist-contract
 venear: venear-contract

@@ -24,7 +24,7 @@ pub mod withdraw;
 pub use config::Config;
 pub use types::*;
 
-use near_sdk::store::{IterableMap, LookupMap, Vector};
+use near_sdk::store::{IterableMap, IterableSet, LookupMap, Vector};
 use near_sdk::{AccountId, BorshStorageKey, NearToken, PanicOnDefault, near};
 
 #[derive(BorshStorageKey)]
@@ -48,8 +48,6 @@ enum StorageKeys {
     PendingUpdateTargetProductCounts,
     Purchases,
     PurchaseIds,
-    PurchasesByAccount,
-    PurchasesByProduct,
     UserPurchaseCount,
     RevenueByValidator,
     FarmPools,
@@ -60,6 +58,14 @@ enum StorageKeys {
     UserPendingUnstakeValidatorCount,
     PurchasesByAccountVector { account_hash: Vec<u8> },
     PurchasesByProductVector { product_hash: Vec<u8> },
+    PurchasesByAccount,
+    PurchasesByProduct,
+    SubscriptionsByProduct,
+    SubscriptionsByProductSet { product_hash: Vec<u8> },
+    AccountIds,
+    LockIds,
+    LocksByAccount,
+    LocksByAccountVector { account_hash: Vec<u8> },
 }
 
 #[derive(PanicOnDefault)]
@@ -83,10 +89,16 @@ pub struct Contract {
     pub prices: LookupMap<PriceId, VPrice>,
     /// Per-user accounting: NEP-145-style registered storage (`storage_deposit`).
     pub accounts: LookupMap<AccountId, VAccount>,
+    /// Enumerable registered-account index.
+    pub account_ids: IterableSet<AccountId>,
     /// Subscription records keyed by [`Subscription::subscription_id`] (`sub_*`).
     pub subscriptions: LookupMap<SubscriptionId, VSubscription>,
     /// Active and historical locks keyed by [`Lock::lock_id`] (`lock_*`).
     pub locks: LookupMap<LockId, VLock>,
+    /// Active and historical lock ids; drives paginated lock views.
+    pub lock_ids: IterableSet<LockId>,
+    /// Secondary index: lock owner account -> paginated lock ids.
+    pub locks_by_account: LookupMap<AccountId, Vector<LockId>>,
     /// User stake position on a pool: `(AccountId, ValidatorId)` → outstanding share units (integer, same scale as [`Validator::total_shares`]). [`ValidatorId`](crate::types::ValidatorId) is the pool contract account.
     pub user_validator_shares: LookupMap<(AccountId, ValidatorId), u128>,
     /// After unlock, NEAR liability slices for this user on this pool until [`crate::Contract::withdraw`]
@@ -124,6 +136,8 @@ pub struct Contract {
     /// Secondary index: `subscriber` → owned subscription ids. Used for account-level listing and
     /// subscription-specific plan changes without scanning the full catalog.
     pub subscriptions_by_account: LookupMap<AccountId, Vec<SubscriptionId>>,
+    /// Secondary index: product id -> subscription ids currently stored under that product.
+    pub subscriptions_by_product: LookupMap<ProductId, IterableSet<SubscriptionId>>,
     /// Subscription ids keyed for efficient membership and removal while remaining iterable for views.
     pub subscription_ids: IterableMap<SubscriptionId, ()>,
     /// Pending subscription-update target price reference counts, used by bounded catalog guards.
@@ -148,8 +162,11 @@ impl Contract {
             products: LookupMap::new(StorageKeys::Products),
             prices: LookupMap::new(StorageKeys::Prices),
             accounts: LookupMap::new(StorageKeys::Accounts),
+            account_ids: IterableSet::new(StorageKeys::AccountIds),
             subscriptions: LookupMap::new(StorageKeys::Subscriptions),
             locks: LookupMap::new(StorageKeys::Locks),
+            lock_ids: IterableSet::new(StorageKeys::LockIds),
+            locks_by_account: LookupMap::new(StorageKeys::LocksByAccount),
             user_validator_shares: LookupMap::new(StorageKeys::UserValidatorShares),
             user_pending_unstake: LookupMap::new(StorageKeys::UserPendingUnstake),
             user_pending_unstake_validator_count: LookupMap::new(
@@ -173,6 +190,7 @@ impl Contract {
                 StorageKeys::SubscriptionByAccountProduct,
             ),
             subscriptions_by_account: LookupMap::new(StorageKeys::SubscriptionsByAccount),
+            subscriptions_by_product: LookupMap::new(StorageKeys::SubscriptionsByProduct),
             subscription_ids: IterableMap::new(StorageKeys::SubscriptionIds),
             pending_update_target_price_counts: LookupMap::new(
                 StorageKeys::PendingUpdateTargetPriceCounts,
