@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -14,6 +15,9 @@ use sha2::{Digest, Sha256};
 const DEFAULT_STAKING_WASM: &str = "res/release/staking_contract.wasm";
 const DEFAULT_STAKING_TEST_WASM: &str = "res/local/staking_contract_test.wasm";
 const DEFAULT_MOCK_POOL_WASM: &str = "res/local/mock_staking_pool_contract.wasm";
+const DEFAULT_DAO_PROPOSAL_GAS: &str = "100.0 Tgas";
+const DEFAULT_CATALOG_MANAGER_CALL_GAS: &str = "100000000000000";
+const DEFAULT_CATALOG_MANAGER_CALL_DEPOSIT: &str = "1";
 
 #[derive(Parser)]
 #[command(
@@ -31,6 +35,8 @@ enum Commands {
     Deploy(DeployArgs),
     /// Grant validator catalog-management rights to an account.
     AddCatalogManager(CatalogManagerArgs),
+    /// Propose a Sputnik DAO catalog-manager grant for a DAO-owned validator.
+    ProposeAddCatalogManager(ProposeCatalogManagerArgs),
     /// Apply validator and catalog bootstrap configuration.
     Configure(ConfigureArgs),
     /// Run read-only post-deploy checks.
@@ -80,6 +86,39 @@ struct CatalogManagerArgs {
     /// Validator pool owner signer. Defaults to config validators[].owner_account_id, then --signer.
     #[arg(long)]
     owner: Option<String>,
+}
+
+#[derive(Args)]
+struct ProposeCatalogManagerArgs {
+    #[command(flatten)]
+    common: CommonArgs,
+    /// Validator owner Sputnik DAO account. Defaults to validators[].owner_account_id.
+    #[arg(long)]
+    dao: Option<String>,
+    /// Account that signs the DAO add_proposal call. Defaults to --signer.
+    #[arg(long)]
+    proposer: Option<String>,
+    /// Validator pool account id. Defaults to validators[].validator_id when unambiguous.
+    #[arg(long)]
+    validator_id: Option<String>,
+    /// Account id to grant as catalog manager. Defaults to validators[].catalog_manager_account_ids when unambiguous.
+    #[arg(long)]
+    catalog_manager_account_id: Option<String>,
+    /// DAO proposal description.
+    #[arg(long)]
+    description: Option<String>,
+    /// Gas attached by the DAO to the wrapped staking-contract call, in raw gas units.
+    #[arg(long, default_value = DEFAULT_CATALOG_MANAGER_CALL_GAS)]
+    call_gas: String,
+    /// YoctoNEAR attached by the DAO to the wrapped staking-contract call.
+    #[arg(long, default_value = DEFAULT_CATALOG_MANAGER_CALL_DEPOSIT)]
+    call_deposit_yocto: String,
+    /// Gas for the DAO add_proposal transaction.
+    #[arg(long, default_value = DEFAULT_DAO_PROPOSAL_GAS)]
+    proposal_gas: String,
+    /// Expected DAO proposal bond in yoctoNEAR. If provided, it must match get_policy().proposal_bond.
+    #[arg(long)]
+    proposal_bond_yocto: Option<String>,
 }
 
 #[derive(Args)]
@@ -265,6 +304,7 @@ fn main() -> Result<()> {
     match cli.command {
         Commands::Deploy(args) => deploy(args),
         Commands::AddCatalogManager(args) => add_catalog_manager(args),
+        Commands::ProposeAddCatalogManager(args) => propose_add_catalog_manager(args),
         Commands::Configure(args) => configure(args),
         Commands::Verify(args) => verify(args),
     }
@@ -412,6 +452,95 @@ fn add_catalog_manager(args: CatalogManagerArgs) -> Result<()> {
         &args.validator_id,
         &args.catalog_manager_account_id,
         ctx.signer.as_str(),
+    )
+}
+
+fn propose_add_catalog_manager(args: ProposeCatalogManagerArgs) -> Result<()> {
+    let config = load_config(args.common.readonly.config.as_deref())?;
+    let account_id = resolve_account(&args.common.readonly, &config)?;
+    let validator_id = resolve_validator_id(args.validator_id.as_deref(), &config)?;
+    let dao = resolve_catalog_manager_dao(args.dao.as_deref(), &config, &validator_id)?;
+    let proposal_bond_yocto = resolve_dao_proposal_bond_yocto(
+        args.common.readonly.network,
+        &dao,
+        args.proposal_bond_yocto.as_deref(),
+    )?;
+    let proposal_bond = format!("{proposal_bond_yocto} yoctoNEAR");
+    let catalog_manager_account_id = resolve_catalog_manager_account(
+        args.catalog_manager_account_id.as_deref(),
+        &config,
+        &validator_id,
+    )?;
+    let proposer = args
+        .proposer
+        .as_deref()
+        .or(args.common.readonly.signer.as_deref())
+        .ok_or_else(|| anyhow!("missing DAO proposer; pass --proposer or --signer"))?
+        .to_string();
+    let description = args.description.unwrap_or_else(|| {
+        format!(
+            "Grant {catalog_manager_account_id} catalog-manager rights for {validator_id} on {account_id}"
+        )
+    });
+    let proposal_args = catalog_manager_dao_proposal_args(
+        &description,
+        &account_id,
+        &validator_id,
+        &catalog_manager_account_id,
+        &args.call_gas,
+        &args.call_deposit_yocto,
+    )?;
+    let wrapped_call = json!({
+        "receiver_id": account_id,
+        "method_name": "add_validator_catalog_manager",
+        "args": {
+            "validator_id": validator_id,
+            "catalog_manager_account_id": catalog_manager_account_id,
+        },
+        "deposit": args.call_deposit_yocto,
+        "gas": args.call_gas,
+    });
+    let ctx = MutContext::new(args.common, dao.clone(), proposer.clone())?;
+    guard_mainnet(&ctx)?;
+
+    println!(
+        "network:   {}",
+        ctx.common.readonly.network.as_near_network()
+    );
+    println!("dao:       {dao}");
+    println!("proposer:  {proposer}");
+    println!("account:   {account_id}");
+    println!("bond:      {proposal_bond}");
+    println!(
+        "validator: {}",
+        wrapped_call
+            .get("args")
+            .and_then(|value| value.get("validator_id"))
+            .and_then(Value::as_str)
+            .unwrap_or("<missing>")
+    );
+    println!(
+        "manager:   {}",
+        wrapped_call
+            .get("args")
+            .and_then(|value| value.get("catalog_manager_account_id"))
+            .and_then(Value::as_str)
+            .unwrap_or("<missing>")
+    );
+    println!("send:      {}", ctx.common.send);
+    println!("wrapped staking call:");
+    println!("{}", serde_json::to_string_pretty(&wrapped_call)?);
+    println!("dao proposal args:");
+    println!("{}", serde_json::to_string_pretty(&proposal_args)?);
+
+    near_tx(
+        &ctx,
+        &dao,
+        "add_proposal",
+        proposal_args,
+        &args.proposal_gas,
+        &proposal_bond,
+        &proposer,
     )
 }
 
@@ -789,6 +918,132 @@ fn validator_owner_from_config(config: &BootstrapConfig, validator_id: &str) -> 
         .find(|validator| validator.validator_id == validator_id)
         .and_then(|validator| non_empty(validator.owner_account_id.as_deref()))
         .map(ToString::to_string)
+}
+
+fn resolve_validator_id(arg: Option<&str>, config: &BootstrapConfig) -> Result<String> {
+    if let Some(validator_id) = non_empty(arg) {
+        return Ok(validator_id.to_string());
+    }
+    let mut validator_ids = config
+        .validators
+        .iter()
+        .filter_map(|validator| non_empty(Some(validator.validator_id.as_str())))
+        .collect::<Vec<_>>();
+    validator_ids.sort_unstable();
+    validator_ids.dedup();
+    match validator_ids.as_slice() {
+        [validator_id] => Ok((*validator_id).to_string()),
+        [] => bail!("missing validator id; pass --validator-id or set validators[].validator_id"),
+        _ => bail!("multiple validators configured; pass --validator-id"),
+    }
+}
+
+fn resolve_catalog_manager_dao(
+    arg: Option<&str>,
+    config: &BootstrapConfig,
+    validator_id: &str,
+) -> Result<String> {
+    if let Some(dao) = non_empty(arg) {
+        return Ok(dao.to_string());
+    }
+    validator_owner_from_config(config, validator_id).ok_or_else(|| {
+        anyhow!("missing validator owner DAO; pass --dao or set validators[].owner_account_id")
+    })
+}
+
+fn resolve_catalog_manager_account(
+    arg: Option<&str>,
+    config: &BootstrapConfig,
+    validator_id: &str,
+) -> Result<String> {
+    if let Some(manager) = non_empty(arg) {
+        return Ok(manager.to_string());
+    }
+    let mut managers = config
+        .validators
+        .iter()
+        .filter(|validator| validator.validator_id == validator_id)
+        .flat_map(|validator| validator.catalog_manager_account_ids.iter())
+        .filter_map(|manager| non_empty(Some(manager.as_str())))
+        .collect::<Vec<_>>();
+    managers.sort_unstable();
+    managers.dedup();
+    match managers.as_slice() {
+        [manager] => Ok((*manager).to_string()),
+        [] => bail!(
+            "missing catalog manager account; pass --catalog-manager-account-id or set validators[].catalog_manager_account_ids for {validator_id}"
+        ),
+        _ => bail!("multiple catalog managers configured; pass --catalog-manager-account-id"),
+    }
+}
+
+fn resolve_dao_proposal_bond_yocto(
+    network: Network,
+    dao: &str,
+    explicit_bond_yocto: Option<&str>,
+) -> Result<String> {
+    let policy = view_json(network, dao, "get_policy", json!({}))
+        .with_context(|| format!("failed to read {dao}.get_policy()"))?;
+    let live_bond = policy_proposal_bond_yocto(&policy)
+        .ok_or_else(|| anyhow!("{dao}.get_policy() did not include proposal_bond"))?;
+    validate_proposal_bond_override(&live_bond, explicit_bond_yocto)
+}
+
+fn policy_proposal_bond_yocto(policy: &Value) -> Option<String> {
+    policy.get("proposal_bond").and_then(|value| match value {
+        Value::String(raw) => non_empty(Some(raw.as_str())).map(ToString::to_string),
+        Value::Number(raw) => Some(raw.to_string()),
+        _ => None,
+    })
+}
+
+fn validate_proposal_bond_override(
+    live_bond_yocto: &str,
+    explicit_bond_yocto: Option<&str>,
+) -> Result<String> {
+    let live_bond_yocto = non_empty(Some(live_bond_yocto))
+        .ok_or_else(|| anyhow!("DAO policy proposal_bond is empty"))?;
+    let Some(explicit) = non_empty(explicit_bond_yocto) else {
+        return Ok(live_bond_yocto.to_string());
+    };
+    if explicit != live_bond_yocto {
+        bail!(
+            "--proposal-bond-yocto {explicit} does not match DAO get_policy().proposal_bond {live_bond_yocto}"
+        );
+    }
+    Ok(live_bond_yocto.to_string())
+}
+
+fn catalog_manager_dao_proposal_args(
+    description: &str,
+    staking_account: &str,
+    validator_id: &str,
+    catalog_manager_account_id: &str,
+    gas: &str,
+    deposit: &str,
+) -> Result<Value> {
+    let staking_call_args = json!({
+        "validator_id": validator_id,
+        "catalog_manager_account_id": catalog_manager_account_id,
+    });
+    let staking_call_args = serde_json::to_vec(&staking_call_args)
+        .with_context(|| "failed to encode catalog-manager call args")?;
+    Ok(json!({
+        "proposal": {
+            "description": description,
+            "kind": {
+                "FunctionCall": {
+                    "receiver_id": staking_account,
+                    "actions": [{
+                        "method_name": "add_validator_catalog_manager",
+                        "args": BASE64_STANDARD.encode(staking_call_args),
+                        "deposit": deposit,
+                        "gas": gas,
+                    }]
+                }
+            }
+        }
+    }))
 }
 
 fn mock_pool_has_owner(network: Network, validator_id: &str, owner: &str) -> Result<bool> {
@@ -2068,5 +2323,167 @@ mod tests {
 
         assert!(validator_has_catalog_manager(&validator, "two.testnet"));
         assert!(!validator_has_catalog_manager(&validator, "three.testnet"));
+    }
+
+    #[test]
+    fn dao_catalog_manager_proposal_uses_sputnik_function_call_shape() {
+        let proposal = catalog_manager_dao_proposal_args(
+            "Grant catalog manager",
+            "stake.dao",
+            "nearai.pool.near",
+            "ironbuild.near",
+            "100000000000000",
+            "1",
+        )
+        .unwrap();
+
+        let function_call = &proposal["proposal"]["kind"]["FunctionCall"];
+        assert_eq!(function_call["receiver_id"], json!("stake.dao"));
+        let action = &function_call["actions"][0];
+        assert_eq!(
+            action["method_name"],
+            json!("add_validator_catalog_manager")
+        );
+        assert_eq!(action["deposit"], json!("1"));
+        assert_eq!(action["gas"], json!("100000000000000"));
+
+        let encoded_args = action["args"].as_str().unwrap();
+        let decoded_args = BASE64_STANDARD.decode(encoded_args).unwrap();
+        let decoded_args: Value = serde_json::from_slice(&decoded_args).unwrap();
+        assert_eq!(
+            decoded_args,
+            json!({
+                "validator_id": "nearai.pool.near",
+                "catalog_manager_account_id": "ironbuild.near",
+            })
+        );
+    }
+
+    #[test]
+    fn dao_policy_proposal_bond_is_read_as_yocto_string() {
+        assert_eq!(
+            policy_proposal_bond_yocto(&json!({
+                "proposal_bond": "100000000000000000000000"
+            })),
+            Some("100000000000000000000000".to_string())
+        );
+        assert_eq!(
+            validate_proposal_bond_override("100000000000000000000000", None).unwrap(),
+            "100000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn dao_policy_proposal_bond_override_must_match_live_policy() {
+        assert!(
+            validate_proposal_bond_override(
+                "100000000000000000000000",
+                Some("100000000000000000000000")
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_proposal_bond_override(
+                "100000000000000000000000",
+                Some("1000000000000000000000000")
+            )
+            .unwrap_err()
+            .to_string()
+            .contains("does not match")
+        );
+    }
+
+    #[test]
+    fn dao_catalog_manager_defaults_resolve_from_unambiguous_config() {
+        let config: BootstrapConfig = serde_json::from_str(
+            r#"{
+                "validators": [{
+                    "validator_id": "nearai.pool.near",
+                    "owner_account_id": "jasnah-treasury.sputnik-dao.near",
+                    "catalog_manager_account_ids": ["ironbuild.near"]
+                }]
+            }"#,
+        )
+        .unwrap();
+
+        let validator_id = resolve_validator_id(None, &config).unwrap();
+        assert_eq!(validator_id, "nearai.pool.near");
+        assert_eq!(
+            resolve_catalog_manager_dao(None, &config, &validator_id).unwrap(),
+            "jasnah-treasury.sputnik-dao.near"
+        );
+        assert_eq!(
+            resolve_catalog_manager_account(None, &config, &validator_id).unwrap(),
+            "ironbuild.near"
+        );
+    }
+
+    #[test]
+    fn dao_catalog_manager_defaults_scope_manager_to_selected_validator() {
+        let config: BootstrapConfig = serde_json::from_str(
+            r#"{
+                "validators": [
+                    {
+                        "validator_id": "pool-a.near",
+                        "owner_account_id": "dao-a.sputnik-dao.near",
+                        "catalog_manager_account_ids": ["manager-a.near"]
+                    },
+                    {
+                        "validator_id": "pool-b.near",
+                        "owner_account_id": "dao-b.sputnik-dao.near",
+                        "catalog_manager_account_ids": ["manager-b.near"]
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            resolve_catalog_manager_account(None, &config, "pool-a.near").unwrap(),
+            "manager-a.near"
+        );
+    }
+
+    #[test]
+    fn dao_catalog_manager_defaults_reject_ambiguous_values() {
+        let config: BootstrapConfig = serde_json::from_str(
+            r#"{
+                "validators": [
+                    {
+                        "validator_id": "pool-a.near",
+                        "owner_account_id": "dao-a.sputnik-dao.near",
+                        "catalog_manager_account_ids": ["manager-a.near", "manager-b.near"]
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        assert!(
+            resolve_catalog_manager_account(None, &config, "pool-a.near")
+                .unwrap_err()
+                .to_string()
+                .contains("multiple catalog managers")
+        );
+    }
+
+    #[test]
+    fn dao_catalog_manager_defaults_reject_ambiguous_validators() {
+        let config: BootstrapConfig = serde_json::from_str(
+            r#"{
+                "validators": [
+                    { "validator_id": "pool-a.near" },
+                    { "validator_id": "pool-b.near" }
+                ]
+            }"#,
+        )
+        .unwrap();
+
+        assert!(
+            resolve_validator_id(None, &config)
+                .unwrap_err()
+                .to_string()
+                .contains("multiple validators")
+        );
     }
 }

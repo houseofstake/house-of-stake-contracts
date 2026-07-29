@@ -93,6 +93,28 @@ cargo run -p staking-cli -- add-catalog-manager \
   --yes-mainnet
 ```
 
+If the validator pool owner is a Sputnik DAO, propose the same grant through the
+DAO instead of signing directly as the owner:
+
+```bash
+cargo run -p staking-cli -- propose-add-catalog-manager \
+  --network mainnet \
+  --config staking-contract/cli/config/prod.mainnet.json \
+  --dao jasnah-treasury.sputnik-dao.near \
+  --proposer <dao-member-account> \
+  --validator-id nearai.pool.near \
+  --catalog-manager-account-id ironbuild.near \
+  --send \
+  --yes-mainnet
+```
+
+Dry-run mode prints both the wrapped staking-contract call and the full Sputnik
+DAO `add_proposal` arguments. The wrapped proposal is a `FunctionCall` action
+that calls `add_validator_catalog_manager` with 1 yoctoNEAR on the staking
+contract, so it does not require a direct key for the DAO account. The CLI reads
+`get_policy().proposal_bond` from the DAO and attaches that exact yoctoNEAR
+amount to `add_proposal`; Sputnik DAO rejects underpayment and overpayment.
+
 The same grant can be made as part of `configure` by adding managers to the validator config:
 
 ```json
@@ -138,6 +160,6 @@ Mainnet catalog calls must be signed by the validator pool owner or by a catalog
 granted on the staking contract. For staging, `nearai.pool.near` is owned by
 `jasnah-treasury.sputnik-dao.near`, so `stg.mainnet.json` records that account on the validator
 entry for the pool-owner grant context. Add `catalog_manager_account_ids` to the validator config,
-or run `add-catalog-manager`, before relying on `stake-dao.near` to manage catalog rows. If the
-validator owner is a DAO, submit the same contract call through the DAO proposal flow; direct
-keychain signing only works for accounts that have a usable key.
+run `add-catalog-manager`, or submit `propose-add-catalog-manager` for DAO-owned validators before
+relying on a delegated account to manage catalog rows. Direct keychain signing only works for
+accounts that have a usable key.

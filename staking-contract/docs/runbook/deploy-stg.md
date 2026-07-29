@@ -120,9 +120,23 @@ near --quiet contract call-function as-transaction stake-dao.near \
 ## 6. DAO Proposal: Grant `ironbuild.near`
 
 `jasnah-treasury.sputnik-dao.near` owns `nearai.pool.near`, so it must execute
-the catalog-manager grant on `stake-dao.near`.
+the catalog-manager grant on `stake-dao.near`. Submit the proposal through a DAO
+member account with permission to add proposals:
 
-Proposal action:
+```bash
+cargo run -p staking-cli -- propose-add-catalog-manager \
+  --network mainnet \
+  --config staking-contract/cli/config/stg.mainnet.json \
+  --dao jasnah-treasury.sputnik-dao.near \
+  --proposer <dao-member-account> \
+  --validator-id nearai.pool.near \
+  --catalog-manager-account-id ironbuild.near \
+  --send \
+  --yes-mainnet
+```
+
+Dry-run without `--send` first if you want to inspect the payload. The command
+prints the wrapped staking-contract call, which should match:
 
 ```json
 {
@@ -136,6 +150,12 @@ Proposal action:
   "gas": "100000000000000"
 }
 ```
+
+It also prints the full Sputnik DAO `add_proposal` arguments. The proposal kind
+must be `FunctionCall`, with `receiver_id` set to `stake-dao.near`, one action
+named `add_validator_catalog_manager`, and base64-encoded action args matching
+the JSON above. The command reads `jasnah-treasury.sputnik-dao.near.get_policy()`
+and attaches the exact `proposal_bond` required by the DAO policy.
 
 After the proposal executes, confirm:
 
