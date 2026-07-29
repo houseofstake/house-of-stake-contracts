@@ -33,8 +33,9 @@ change.
 ## 1. Confirm The Commit
 
 ```bash
-git switch feat/stake-v1
-git pull --ff-only origin feat/stake-v1
+COMMIT_SHA=<reviewed-commit-sha>
+git fetch origin
+git switch --detach "$COMMIT_SHA"
 git status -sb
 git log -1 --oneline
 ```

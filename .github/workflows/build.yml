@@ -2,9 +2,9 @@ name: Build WASM
 
 on:
   push:
-    branches: [main, master, feat/stake-v1]
+    branches: [main, master]
   pull_request:
-    branches: [main, master, feat/stake-v1]
+    branches: [main, master]
 
 env:
   CARGO_TERM_COLOR: always
