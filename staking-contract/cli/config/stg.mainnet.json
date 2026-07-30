@@ -23,11 +23,13 @@
   ],
   "products": [
     {
+      "product_id": "prod_6YCF9JpSTLsTtH",
       "validator_id": "nearai.pool.near",
       "name": "NEAR AI Agents",
       "description": "Monthly NEAR AI Agents subscription tiers",
       "prices": [
         {
+          "price_id": "price_QluZQ8nOezCHBfcNzH5Nh7Tr",
           "name": "Starter",
           "description": "1 agent; stake range [50, 500] NEAR",
           "amount": "50000000000000000000000000",
@@ -41,6 +43,7 @@
           "set_default": true
         },
         {
+          "price_id": "price_GvY8h25RcfhaTWTycx9viGCV",
           "name": "Basic",
           "description": "2 agents; stake range [500, 2000] NEAR",
           "amount": "500000000000000000000000000",
@@ -54,6 +57,7 @@
           "set_default": false
         },
         {
+          "price_id": "price_ta9unjAzjtsiEIPp5eR3pofg",
           "name": "Pro",
           "description": "5 agents; stake range [2000, 20000] NEAR",
           "amount": "2000000000000000000000000000",
@@ -69,11 +73,13 @@
       ]
     },
     {
+      "product_id": "prod_A2ZbApd8A3V4hY",
       "validator_id": "nearai.pool.near",
       "name": "NEAR AI Agent One-Off Credits",
       "description": "One-off NEAR AI agents credits",
       "prices": [
         {
+          "price_id": "price_647FV107Bt3bd9E0bsoqWrLL",
           "name": "One-Off Credits at NEAR Price $2",
           "description": "One-Off NEAR AI credit",
           "amount": "500000000000000000000000",
@@ -86,11 +92,13 @@
       ]
     },
     {
+      "product_id": "prod_f0gU0b6xrLKfCj",
       "validator_id": "nearai.pool.near",
       "name": "NEAR AI Cloud Credits",
       "description": "Stake $NEAR to earn NEAR AI Cloud credits",
       "prices": [
         {
+          "price_id": "price_D89zQ8pcFUCql5HIXTGGeYAL",
           "name": "Staking Farm",
           "description": "100 $NEAR x 1 month = $1 credit",
           "amount": "1000000000000000000000000",
