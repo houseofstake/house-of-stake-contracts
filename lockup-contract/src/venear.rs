@@ -96,6 +96,8 @@ impl LockupContract {
             &Some(U64::from(self.lockup_update_nonce)),
             &Some(U64::from(env::block_timestamp())),
             &Some(NearToken::from_yoctonear(amount)),
+            &None,
+            &None,
         );
 
         self.venear_lockup_update().detach();

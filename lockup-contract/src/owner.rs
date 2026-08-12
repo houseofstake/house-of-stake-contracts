@@ -473,6 +473,8 @@ impl LockupContract {
             &Some(U64::from(self.lockup_update_nonce)),
             &None,
             &None,
+            &None,
+            &None,
         );
 
         Promise::new(env::current_account_id()).delete_account(self.owner_account_id.clone())
