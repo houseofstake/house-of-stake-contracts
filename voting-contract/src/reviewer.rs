@@ -18,7 +18,7 @@ impl Contract {
     pub fn approve_proposal(
         &mut self,
         proposal_id: ProposalId,
-        majority_type: Option<MajorityType>,
+        majority_type: MajorityType,
     ) -> PromiseOrValue<Option<ProposalInfo>> {
         assert_one_yocto();
         self.assert_not_paused();
@@ -28,9 +28,6 @@ impl Contract {
         let mut proposal = self.internal_expect_proposal_updated(proposal_id);
         if proposal.status != ProposalStatus::Created {
             env::panic_str("Proposal is not in the Created status");
-        }
-        if proposal.flow == ProposalFlow::FastTrack && majority_type.is_none() {
-            env::panic_str("FastTrack proposals require a majority_type");
         }
 
         events::emit::approve_proposal_action(&env::predecessor_account_id(), proposal_id);
@@ -46,15 +43,13 @@ impl Contract {
                 .detach();
             proposal.bond_amount = NearToken::ZERO;
         }
+        proposal.approval_threshold_bps = match majority_type {
+            MajorityType::Simple => self.config.simple_majority_threshold_bps,
+            MajorityType::Strong => self.config.strong_majority_threshold_bps,
+        };
         match proposal.flow {
-            ProposalFlow::Classic => {
-                proposal.approval_threshold_bps = self.config.approval_threshold_bps;
-            }
+            ProposalFlow::Classic => {}
             ProposalFlow::FastTrack => {
-                proposal.approval_threshold_bps = match majority_type.unwrap() {
-                    MajorityType::Simple => self.config.simple_majority_threshold_bps,
-                    MajorityType::Strong => self.config.strong_majority_threshold_bps,
-                };
                 proposal.sandbox_duration_ns = self.config.sandbox_duration_ns;
                 proposal.sandbox_threshold_bps = self.config.sandbox_threshold_bps;
             }

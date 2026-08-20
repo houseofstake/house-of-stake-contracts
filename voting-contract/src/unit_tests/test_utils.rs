@@ -106,9 +106,8 @@ pub fn create_proposal(contract: &mut Contract, flow: ProposalFlow) -> ProposalI
     contract.create_proposal(metadata, None, flow)
 }
 
-/// Approves a `Created` proposal from `reviewer()`. Auto-detects the flow off
-/// the stored proposal to pick the right `MajorityType` (None for Classic,
-/// `Simple` for FastTrack).
+/// Approves a `Created` proposal from `reviewer()` with a `Simple` majority.
+/// Tests that need `Strong` call `approve_proposal` on the contract directly.
 ///
 /// If `snapshot` is `Some`, also delivers the venear-callback snapshot tuple
 /// (`on_get_snapshot`) so the proposal lands fully active. Pass `None` to stop
@@ -119,17 +118,8 @@ pub fn approve_proposal(
     id: ProposalId,
     snapshot: Option<&SnapshotFixture>,
 ) {
-    let flow = contract
-        .get_proposal(id)
-        .expect("proposal exists")
-        .proposal
-        .flow;
-    let majority = match flow {
-        ProposalFlow::Classic => None,
-        ProposalFlow::FastTrack => Some(MajorityType::Simple),
-    };
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, majority);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     if let Some(fixture) = snapshot {
         contract.proposals.flush();
         near_sdk::testing_env!(

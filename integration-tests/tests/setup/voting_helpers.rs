@@ -112,29 +112,6 @@ pub async fn approve_proposal(
     v: &VenearTestWorkspace,
     user: &near_workspaces::Account,
     proposal_id: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let outcome = user
-        .call(v.voting_id(), "approve_proposal")
-        .args_json(json!({
-            "proposal_id": proposal_id,
-            "majority_type": serde_json::Value::Null,
-        }))
-        .deposit(NearToken::from_yoctonear(1))
-        .gas(Gas::from_tgas(200))
-        .transact()
-        .await?;
-
-    if !outcome.is_success() {
-        return Err(format!("Failed to approve proposal: {:#?}", outcome.outcomes()).into());
-    }
-
-    Ok(())
-}
-
-pub async fn approve_proposal_fst(
-    v: &VenearTestWorkspace,
-    user: &near_workspaces::Account,
-    proposal_id: u32,
     majority_type: MajorityType,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let outcome = user

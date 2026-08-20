@@ -59,14 +59,14 @@ pub struct Config {
     /// Absolute minimum veNEAR required for quorum, regardless of BPS calculation.
     pub quorum_floor: NearToken,
 
-    /// Approval threshold in basis points for the classic flow (e.g. 5000 = 50%).
-    /// Applied as: for_votes / (for_votes + against_votes) >= approval_threshold_bps / 10000.
+    /// TODO: remove with the next state migration.
+    /// Unused since approval requires an explicitmajority type.
     pub approval_threshold_bps: Bps,
 
-    /// Simple majority threshold in basis points for FastTrack proposals (e.g. 5000 = 50%).
+    /// Simple majority threshold in basis points (e.g. 5000 = 50%). Selectable at approval time.
     pub simple_majority_threshold_bps: Bps,
 
-    /// Strong (super) majority threshold in basis points for FastTrack proposals (e.g. 6667 ≈ 66.67%).
+    /// Strong (super) majority threshold in basis points (e.g. 6667 ≈ 66.67%). Selectable at approval time.
     pub strong_majority_threshold_bps: Bps,
 
     /// The duration of the sandbox pre-voting period in nanoseconds for FastTrack proposals.
