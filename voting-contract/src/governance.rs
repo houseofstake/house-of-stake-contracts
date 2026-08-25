@@ -155,8 +155,8 @@ impl Contract {
         self.config.quorum_floor = quorum_floor;
     }
 
-    /// Updates the classic-flow approval threshold in basis points (e.g. 5000 = 50%,
-    /// 6667 = ~66.67%).
+    /// TODO: remove with the next state migration.
+    /// The value no longer affects approvals — use the simple/strong majority setters instead.
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
     #[payable]
@@ -186,7 +186,7 @@ impl Contract {
         self.config.treasury_account_id = treasury_account_id;
     }
 
-    /// Updates the FastTrack simple majority threshold in basis points (e.g. 5000 = 50%).
+    /// Updates the simple majority threshold in basis points (e.g. 5000 = 50%).
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
     #[payable]
@@ -196,7 +196,7 @@ impl Contract {
         self.config.simple_majority_threshold_bps = simple_majority_threshold_bps;
     }
 
-    /// Updates the FastTrack strong (super) majority threshold in basis points (e.g. 6667 ≈ 66.67%).
+    /// Updates the strong (super) majority threshold in basis points (e.g. 6667 ≈ 66.67%).
     /// Can only be called by the owner.
     /// Requires 1 yocto NEAR.
     #[payable]

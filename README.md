@@ -70,7 +70,8 @@ All contracts are designed to be deployed without access keys, to make sure the 
   - Council members can veto a proposal during the timelock period (Classic) or while it is
     Scheduled/Voting (FastTrack), moving it to the `Vetoed` status.
   - On-chain quorum: proposals require a minimum participation threshold (`quorum_threshold_bps` or `quorum_floor`,
-    whichever is higher) and an approval threshold (`approval_threshold_bps`) to pass.
+    whichever is higher) and an approval threshold to pass. The reviewer selects a simple or strong majority at
+    approval time, which sets that threshold.
   - Proposals that have not been approved by a reviewer expire after a configurable deadline.
   - The duration of the voting process, the set of reviewers, the council members, the timelock duration, quorum and
     approval thresholds, and proposal expiration can be changed by the owner of the voting contract.
@@ -94,8 +95,9 @@ A Classic proposal moves through a series of statuses. Each transition is trigge
    - If no reviewer acts before `classic_proposal_expiration_ns`, the proposal becomes `Expired`.
    - If a reviewer rejects the proposal, it becomes `Rejected`.
 
-2. **Voting** — A reviewer approves the proposal.
+2. **Voting** — A reviewer approves the proposal, choosing a majority type (simple or strong).
    - A veNEAR snapshot is fetched at approval time to determine voting power.
+   - The chosen majority type sets the proposal's approval threshold.
    - Up to `max_active_proposals` proposals can occupy active slots (Sandbox / Scheduled /
      Voting / Timelock) simultaneously. If all slots are full, the proposal lands in
      `Queued` and is promoted FIFO as slots free up.
@@ -104,7 +106,7 @@ A Classic proposal moves through a series of statuses. Each transition is trigge
    - Voters can change their vote during this period.
    - When the voting duration expires, the result is evaluated:
      - **Quorum check**: total votes must meet the quorum threshold (% of supply) or the quorum floor (absolute minimum).
-     - **Approval check**: "For" / ("For" + "Against") must meet `approval_threshold_bps`. "Abstain" votes count toward quorum but not toward approval.
+     - **Approval check**: "For" / ("For" + "Against") must meet the proposal's approval threshold. "Abstain" votes count toward quorum but not toward approval.
    - If either check fails, the proposal becomes `Defeated`. Otherwise it enters `Timelock`.
 
 3. **Timelock** — Post-voting waiting period of `timelock_duration_ns` during which the proposal cannot yet execute.

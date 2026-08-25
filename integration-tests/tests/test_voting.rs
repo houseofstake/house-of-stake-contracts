@@ -2,7 +2,7 @@ mod setup;
 
 use crate::setup::VenearTestWorkspaceBuilder;
 use crate::setup::voting_helpers::*;
-use common::voting::{ProposalStatus, VoteOption};
+use common::voting::{MajorityType, ProposalStatus, VoteOption};
 use near_sdk::json_types::U64;
 use near_sdk::{Gas, NearToken};
 use near_workspaces::AccountId;
@@ -41,11 +41,19 @@ async fn test_voting() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(get_status(&proposal)?, ProposalStatus::Created);
 
     assert!(
-        approve_proposal(&v, &user_a, proposal_id).await.is_err(),
+        approve_proposal(&v, &user_a, proposal_id, MajorityType::Simple)
+            .await
+            .is_err(),
         "Regular user should not be able to approve the proposal"
     );
 
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     let proposal = v.get_proposal(proposal_id).await?;
     assert_eq!(proposal["total_votes"]["total_votes"].as_u64().unwrap(), 0);
@@ -415,7 +423,13 @@ async fn test_voting_veto_proposal() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     let council = &v.voting.as_ref().unwrap().council;
     let reviewer = &v.voting.as_ref().unwrap().reviewer;
@@ -508,8 +522,20 @@ async fn test_voting_noveto_proposal() -> Result<(), Box<dyn std::error::Error>>
     )
     .await?;
 
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id_2).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id_2,
+        MajorityType::Simple,
+    )
+    .await?;
 
     let council = &v.voting.as_ref().unwrap().council;
 
@@ -1274,7 +1300,13 @@ async fn test_voting_pause() -> Result<(), Box<dyn std::error::Error>> {
 
     // Prepare for pause testing
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
     let proposal_id_2 = create_proposal(&v, &user_a, None).await?;
     assert_ne!(proposal_id, proposal_id_2);
 
@@ -1395,9 +1427,14 @@ async fn test_voting_pause() -> Result<(), Box<dyn std::error::Error>> {
 
     // Attempt to approve a proposal while paused
     assert!(
-        approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id_2)
-            .await
-            .is_err(),
+        approve_proposal(
+            &v,
+            &v.voting.as_ref().unwrap().reviewer,
+            proposal_id_2,
+            MajorityType::Simple
+        )
+        .await
+        .is_err(),
         "Reviewer should not be able to approve proposal while paused"
     );
 
@@ -1454,9 +1491,14 @@ async fn test_voting_proposal_expiration() -> Result<(), Box<dyn std::error::Err
 
     // Attempt to approve — should fail because the proposal is expired
     assert!(
-        approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id)
-            .await
-            .is_err(),
+        approve_proposal(
+            &v,
+            &v.voting.as_ref().unwrap().reviewer,
+            proposal_id,
+            MajorityType::Simple
+        )
+        .await
+        .is_err(),
         "Should not be able to approve an expired proposal"
     );
 
@@ -1479,7 +1521,13 @@ async fn test_quorum_succeeded() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     // Both vote For
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
@@ -1492,6 +1540,54 @@ async fn test_quorum_succeeded() -> Result<(), Box<dyn std::error::Error>> {
         get_status(&proposal)?,
         ProposalStatus::Succeeded,
         "Proposal should succeed with enough For votes"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_classic_strong_majority() -> Result<(), Box<dyn std::error::Error>> {
+    // Classic proposals accept an optional majority type at approval. With Strong selected,
+    // a 60/40 split falls short of ~66.67% and is defeated, where the configured
+    // approval_threshold_bps (5000) would have passed it.
+    let v = VenearTestWorkspaceBuilder::default()
+        .with_voting()
+        .build()
+        .await?;
+    let user_a = v.create_account_with_lockup().await?;
+    let user_b = v.create_account_with_lockup().await?;
+
+    v.transfer_and_lock(&user_a, NearToken::from_near(600))
+        .await?;
+    v.transfer_and_lock(&user_b, NearToken::from_near(400))
+        .await?;
+
+    let proposal_id = create_proposal(&v, &user_a, None).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Strong,
+    )
+    .await?;
+
+    let proposal = v.get_proposal(proposal_id).await?;
+    assert_eq!(
+        proposal["approval_threshold_bps"].as_u64().unwrap(),
+        6667,
+        "Strong majority should record the configured strong threshold"
+    );
+
+    vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
+    vote_for_option(&v, &user_b, proposal_id, VoteOption::Against).await?;
+    v.fast_forward_to_proposal_status(proposal_id, ProposalStatus::Timelock)
+        .await?;
+
+    let proposal = v.get_proposal(proposal_id).await?;
+    assert_eq!(
+        get_status(&proposal)?,
+        ProposalStatus::Defeated,
+        "60/40 split should fail strong majority (~66.67%)"
     );
 
     Ok(())
@@ -1513,7 +1609,13 @@ async fn test_quorum_defeated_insufficient_votes() -> Result<(), Box<dyn std::er
         .await?;
 
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     // Only user_a votes, below 35% quorum threshold
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
@@ -1549,7 +1651,13 @@ async fn test_quorum_defeated_succeed_failed() -> Result<(), Box<dyn std::error:
         .await?;
 
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     // user_a votes For, user_b votes Against (more power)
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
@@ -1585,7 +1693,13 @@ async fn test_quorum_with_abstain() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let proposal_id = create_proposal(&v, &user_a, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     // user_a votes For (23% alone < 35% quorum), user_b votes Abstain
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
@@ -1642,7 +1756,13 @@ async fn test_proposal_with_transfer_action() -> Result<(), Box<dyn std::error::
     )
     .await?;
 
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
     vote_for_option(&v, &user_b, proposal_id, VoteOption::For).await?;
@@ -1749,7 +1869,7 @@ async fn test_proposal_with_function_call_actions() -> Result<(), Box<dyn std::e
     )
     .await?;
 
-    approve_proposal(&v, &voting.reviewer, proposal_id).await?;
+    approve_proposal(&v, &voting.reviewer, proposal_id, MajorityType::Simple).await?;
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
     vote_for_option(&v, &user_b, proposal_id, VoteOption::For).await?;
 
@@ -1812,7 +1932,13 @@ async fn test_execute_proposal_failure_is_terminal() -> Result<(), Box<dyn std::
     )
     .await?;
 
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     vote_for_option(&v, &user_a, proposal_id, VoteOption::For).await?;
     vote_for_option(&v, &user_b, proposal_id, VoteOption::For).await?;

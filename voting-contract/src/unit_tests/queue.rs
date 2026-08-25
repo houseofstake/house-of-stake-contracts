@@ -1,7 +1,7 @@
 //! Active-set membership checks also assert stored status via `assert_active_with_status`.
 use crate::metadata::ProposalMetadata;
 use crate::proposal::ProposalStatus::*;
-use crate::proposal::{Proposal, ProposalFlow, ProposalStatus};
+use crate::proposal::{MajorityType, Proposal, ProposalFlow, ProposalStatus};
 use crate::unit_tests::test_utils::*;
 use crate::*;
 use common::voting::VoteOption;
@@ -293,7 +293,7 @@ fn slot_frees_one_at_a_time_promotes_head_only() {
         ProposalFlow::Classic,
     );
     set_ctx(reviewer(), 1, b_creation);
-    let _ = contract.approve_proposal(b, None);
+    let _ = contract.approve_proposal(b, MajorityType::Simple);
     contract.proposals.flush();
     near_sdk::testing_env!(
         VMContextBuilder::new()
