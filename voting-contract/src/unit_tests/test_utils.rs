@@ -3,7 +3,7 @@ use crate::Contract;
 use crate::config::Config;
 use crate::metadata::ProposalMetadata;
 use crate::proposal::{MajorityType, ProposalFlow, ProposalId, ProposalStatus, is_active_status};
-use chrono::{FixedOffset, NaiveDate};
+use chrono::NaiveDate;
 use common::Bps;
 pub use common::test_utils::{
     SnapshotFixture, VMContextBuilder, VoterSpec, abstain_voter, acc, against_voter, council,
@@ -15,8 +15,9 @@ use near_sdk::{AccountId, NearToken};
 
 // Named-account fixtures are re-exported above from `common::test_utils`.
 
-/// Test default: 2026-06-01 00:00:00 UTC in nanoseconds, truncated to seconds.
-pub const TEST_NOW_NS: u64 = 1_780_272_000_000_000_000;
+/// Test default: 2026-06-01 01:00:00 UTC in nanoseconds, truncated to seconds.
+/// Offset from Monday midnight so week-boundary math is not measured from the edge.
+pub const TEST_NOW_NS: u64 = 1_780_275_600_000_000_000;
 
 // ---------------------------------------------------------------------------
 // Config and contract construction
@@ -106,9 +107,8 @@ pub fn create_proposal(contract: &mut Contract, flow: ProposalFlow) -> ProposalI
     contract.create_proposal(metadata, None, flow)
 }
 
-/// Approves a `Created` proposal from `reviewer()`. Auto-detects the flow off
-/// the stored proposal to pick the right `MajorityType` (None for Classic,
-/// `Simple` for FastTrack).
+/// Approves a `Created` proposal from `reviewer()` with a `Simple` majority.
+/// Tests that need `Strong` call `approve_proposal` on the contract directly.
 ///
 /// If `snapshot` is `Some`, also delivers the venear-callback snapshot tuple
 /// (`on_get_snapshot`) so the proposal lands fully active. Pass `None` to stop
@@ -119,17 +119,8 @@ pub fn approve_proposal(
     id: ProposalId,
     snapshot: Option<&SnapshotFixture>,
 ) {
-    let flow = contract
-        .get_proposal(id)
-        .expect("proposal exists")
-        .proposal
-        .flow;
-    let majority = match flow {
-        ProposalFlow::Classic => None,
-        ProposalFlow::FastTrack => Some(MajorityType::Simple),
-    };
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, majority);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     if let Some(fixture) = snapshot {
         contract.proposals.flush();
         near_sdk::testing_env!(
@@ -288,17 +279,15 @@ pub fn assert_queued_at(contract: &Contract, id: ProposalId, position: usize) {
 // Date math
 // ---------------------------------------------------------------------------
 
-/// Returns y-m-d 00:00 CET (fixed UTC+1) as UTC nanoseconds. Used by date-math
-/// unit tests for `next_voting_start_ns`.
+/// Returns y-m-d 00:00 UTC as nanoseconds. Used by date-math unit tests for
+/// `next_voting_start_ns`.
 pub fn date_ns(year: i32, month: u32, day: u32) -> u64 {
-    let cet = FixedOffset::east_opt(3600).unwrap();
     u64::try_from(
         NaiveDate::from_ymd_opt(year, month, day)
             .unwrap()
             .and_hms_opt(0, 0, 0)
             .unwrap()
-            .and_local_timezone(cet)
-            .unwrap()
+            .and_utc()
             .timestamp_nanos_opt()
             .unwrap(),
     )

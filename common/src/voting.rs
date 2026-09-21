@@ -21,7 +21,7 @@ impl From<VoteOption> for u8 {
     }
 }
 
-/// The majority type required for a FastTrack proposal to pass.
+/// The majority type required for a proposal to pass.
 #[derive(Clone, Copy, PartialEq)]
 #[near(serializers=[borsh, json])]
 pub enum MajorityType {

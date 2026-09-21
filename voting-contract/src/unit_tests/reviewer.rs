@@ -3,6 +3,7 @@ use crate::proposal::ProposalFlow;
 use crate::proposal::{MajorityType, ProposalStatus};
 use crate::unit_tests::test_utils::*;
 use crate::*;
+use common::Bps;
 use near_sdk::PromiseOrValue;
 use near_sdk::json_types::U64;
 
@@ -14,7 +15,7 @@ fn approve_requires_reviewer() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::Classic);
     set_ctx(acc("rando.test.near"), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
 }
 
 #[test]
@@ -23,16 +24,7 @@ fn approve_requires_one_yocto() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::Classic);
     set_ctx(reviewer(), 0, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
-}
-
-#[test]
-#[should_panic(expected = "FastTrack proposals require a majority_type")]
-fn approve_fasttrack_without_majority_type_panics() {
-    let mut contract = fresh_contract();
-    let id = create_proposal(&mut contract, ProposalFlow::FastTrack);
-    set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
 }
 
 #[test]
@@ -42,7 +34,7 @@ fn approve_twice_panics_when_already_active() {
     let id = create_proposal(&mut contract, ProposalFlow::Classic);
     approve_proposal(&mut contract, id, None);
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
 }
 
 #[test]
@@ -54,9 +46,34 @@ fn approve_classic_applies_configured_thresholds() {
     let p = contract.get_proposal(id).unwrap().proposal;
     assert_eq!(p.quorum_threshold_bps, cfg.quorum_threshold_bps);
     assert_eq!(p.quorum_floor, cfg.quorum_floor);
-    assert_eq!(p.approval_threshold_bps, cfg.approval_threshold_bps);
+    assert_eq!(p.approval_threshold_bps, cfg.simple_majority_threshold_bps);
     assert_eq!(p.reviewer_id.as_ref(), Some(&reviewer()));
     assert_eq!(p.approval_time_ns, Some(U64(TEST_NOW_NS)));
+}
+
+#[test]
+fn approve_classic_simple_majority_uses_simple_threshold() {
+    let mut contract = fresh_contract();
+    set_ctx(owner(), 1, TEST_NOW_NS);
+    contract.set_simple_majority_threshold_bps(Bps::new(5_100));
+    let id = create_proposal(&mut contract, ProposalFlow::Classic);
+    set_ctx(reviewer(), 1, TEST_NOW_NS);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
+    let p = contract.get_proposal(id).unwrap().proposal;
+    assert_eq!(p.approval_threshold_bps, Bps::new(5_100));
+}
+
+#[test]
+fn approve_classic_strong_majority_uses_strong_threshold() {
+    let mut contract = fresh_contract();
+    let id = create_proposal(&mut contract, ProposalFlow::Classic);
+    set_ctx(reviewer(), 1, TEST_NOW_NS);
+    let _ = contract.approve_proposal(id, MajorityType::Strong);
+    let p = contract.get_proposal(id).unwrap().proposal;
+    assert_eq!(
+        p.approval_threshold_bps,
+        default_config().strong_majority_threshold_bps
+    );
 }
 
 #[test]
@@ -64,7 +81,7 @@ fn approve_fasttrack_simple_majority_uses_simple_threshold() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::FastTrack);
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, Some(MajorityType::Simple));
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     let p = contract.get_proposal(id).unwrap().proposal;
     assert_eq!(
         p.approval_threshold_bps,
@@ -77,7 +94,7 @@ fn approve_fasttrack_strong_majority_uses_strong_threshold() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::FastTrack);
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, Some(MajorityType::Strong));
+    let _ = contract.approve_proposal(id, MajorityType::Strong);
     let p = contract.get_proposal(id).unwrap().proposal;
     assert_eq!(
         p.approval_threshold_bps,
@@ -90,7 +107,7 @@ fn approve_fasttrack_zeroes_bond_amount() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::FastTrack);
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, Some(MajorityType::Simple));
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     let p = contract.get_proposal(id).unwrap().proposal;
     assert_eq!(p.bond_amount, NearToken::ZERO);
 }
@@ -326,7 +343,7 @@ fn noveto_with_actions_moves_to_executable() {
         ProposalFlow::Classic,
     );
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     contract.proposals.flush();
     near_sdk::testing_env!(
         VMContextBuilder::new()
@@ -478,7 +495,7 @@ fn approve_panics_when_paused() {
     let id = create_proposal(&mut contract, ProposalFlow::Classic);
     contract.paused = true;
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
 }
 
 #[test]
@@ -531,7 +548,7 @@ fn on_get_snapshot_panics_when_paused() {
     let mut contract = fresh_contract();
     let id = create_proposal(&mut contract, ProposalFlow::Classic);
     set_ctx(reviewer(), 1, TEST_NOW_NS);
-    let _ = contract.approve_proposal(id, None);
+    let _ = contract.approve_proposal(id, MajorityType::Simple);
     contract.paused = true;
     near_sdk::testing_env!(
         VMContextBuilder::new()

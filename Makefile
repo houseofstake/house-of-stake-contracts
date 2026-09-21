@@ -4,8 +4,8 @@
 
 .PHONY: help all-contracts build-release \
 	sandbox-staking-whitelist-contract venear-contract lockup-contract voting-contract \
-	staking-contract staking-contract-test mock-staking-pool-contract \
-	whitelist venear lockup voting staking staking-test mock-pool \
+	staking-contract staking-contract-test mock-staking-pool-contract voting-contract-sandbox \
+	whitelist venear lockup voting staking staking-test mock-pool voting-sandbox \
 	check-sandbox-staking-whitelist-contract check-venear-contract check-lockup-contract \
 	check-voting-contract check-staking-contract check-mock-staking-pool-contract \
 	check-whitelist check-venear check-lockup check-voting check-staking check-mock-pool \
@@ -13,6 +13,7 @@
 
 ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 RES_LOCAL := $(ROOT)res/local
+RES_RELEASE := $(ROOT)res/release
 INTEGRATION_TEST_FILES := $(sort $(notdir $(wildcard $(ROOT)integration-tests/tests/test_*.rs)))
 INTEGRATION_TEST_ARGS := $(foreach test,$(patsubst %.rs,%,$(INTEGRATION_TEST_FILES)),--test $(test))
 
@@ -27,6 +28,8 @@ help:
 	@echo "  make mock-staking-pool-contract           (alias: make mock-pool) for staking-contract sandbox tests"
 	@echo "  make all-contracts                        all deployable contract WASM artifacts"
 	@echo "  make build-release                        reproducible release-contract WASM artifacts in res/release/"
+	@echo "  make voting-contract-sandbox              (alias: make voting-sandbox) sandbox-feature voting WASM"
+	@echo "                                            to res/release/voting_contract_sandbox.wasm (host build, testnet only)"
 	@echo ""
 	@echo "Fast compile checks:"
 	@echo "  make check-<name>   e.g. make check-staking-contract, make check-whitelist"
@@ -57,6 +60,11 @@ voting-contract:
 	mkdir -p "$(RES_LOCAL)"
 	cp "$(ROOT)target/near/voting_contract/voting_contract.wasm" "$(RES_LOCAL)/"
 
+voting-contract-sandbox:
+	cd "$(ROOT)voting-contract" && cargo near build non-reproducible-wasm --locked --features sandbox
+	mkdir -p "$(RES_RELEASE)"
+	cp "$(ROOT)target/near/voting_contract/voting_contract.wasm" "$(RES_RELEASE)/voting_contract_sandbox.wasm"
+
 staking-contract:
 	cd "$(ROOT)staking-contract" && cargo near build non-reproducible-wasm
 	mkdir -p "$(RES_LOCAL)"
@@ -84,6 +92,7 @@ voting: voting-contract
 staking: staking-contract
 staking-test: staking-contract-test
 mock-pool: mock-staking-pool-contract
+voting-sandbox: voting-contract-sandbox
 
 check-sandbox-staking-whitelist-contract check-whitelist:
 	cd "$(ROOT)" && cargo check -p sandbox-staking-whitelist-contract

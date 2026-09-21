@@ -22,11 +22,11 @@ async fn test_queued_promotes_on_veto() -> Result<(), Box<dyn std::error::Error>
     let mut ids = Vec::new();
     for _ in 0..4 {
         let id = create_proposal_fst(&v, &user, None).await?;
-        approve_proposal_fst(&v, reviewer, id, MajorityType::Simple).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         ids.push(id);
     }
     let classic_p = create_proposal(&v, &user, None).await?;
-    approve_proposal(&v, reviewer, classic_p).await?;
+    approve_proposal(&v, reviewer, classic_p, MajorityType::Simple).await?;
 
     assert_eq!(
         get_status(&v.get_proposal(ids[3]).await?)?,
@@ -99,7 +99,7 @@ async fn test_queued_promotes_on_sandbox_timeout() -> Result<(), Box<dyn std::er
     let mut ids = Vec::new();
     for _ in 0..4 {
         let id = create_proposal_fst(&v, &user, None).await?;
-        approve_proposal_fst(&v, reviewer, id, MajorityType::Simple).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         ids.push(id);
     }
     assert_eq!(
@@ -193,7 +193,7 @@ async fn test_classic_timelock_holds_slot() -> Result<(), Box<dyn std::error::Er
     let mut ids = Vec::new();
     for _ in 0..3 {
         let id = create_proposal(&v, &user, None).await?;
-        approve_proposal(&v, reviewer, id).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         ids.push(id);
     }
     for &id in &ids {
@@ -225,7 +225,7 @@ async fn test_classic_timelock_holds_slot() -> Result<(), Box<dyn std::error::Er
 
     // Approve a fourth Classic proposal. Cap is full of Timelocks — it must queue.
     let id4 = create_proposal(&v, &user, None).await?;
-    approve_proposal(&v, reviewer, id4).await?;
+    approve_proposal(&v, reviewer, id4, MajorityType::Simple).await?;
 
     assert_eq!(
         get_status(&v.get_proposal(id4).await?)?,
@@ -254,7 +254,7 @@ async fn test_classic_mixed_lifecycle_then_more_approvals() -> Result<(), Box<dy
     let mut ids = Vec::new();
     for _ in 0..6 {
         let id = create_proposal(&v, &user, None).await?;
-        approve_proposal(&v, reviewer, id).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         ids.push(id);
     }
     assert_eq!(get_queue_state(&v).await?.active_proposals.len() as u32, 3);
@@ -282,7 +282,7 @@ async fn test_classic_mixed_lifecycle_then_more_approvals() -> Result<(), Box<dy
     let mut new_ids = Vec::new();
     for _ in 0..4 {
         let id = create_proposal(&v, &user, None).await?;
-        approve_proposal(&v, reviewer, id).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         new_ids.push(id);
     }
 
@@ -321,8 +321,8 @@ async fn test_max_active_proposals_setter() -> Result<(), Box<dyn std::error::Er
     let p1 = create_proposal_fst(&v, &user, None).await?;
     let p2 = create_proposal_fst(&v, &user, None).await?;
 
-    approve_proposal_fst(&v, reviewer, p1, MajorityType::Simple).await?;
-    approve_proposal_fst(&v, reviewer, p2, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p1, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p2, MajorityType::Simple).await?;
 
     assert_eq!(
         get_status(&v.get_proposal(p1).await?)?,
@@ -372,7 +372,7 @@ async fn test_max_active_proposals_setter() -> Result<(), Box<dyn std::error::Er
 
     // Approve a third proposal while over-cap. It must queue.
     let p3 = create_proposal_fst(&v, &user, None).await?;
-    approve_proposal_fst(&v, reviewer, p3, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p3, MajorityType::Simple).await?;
     assert_eq!(
         get_status(&v.get_proposal(p3).await?)?,
         ProposalStatus::Queued,
@@ -408,7 +408,7 @@ async fn test_view_virtual_advance() -> Result<(), Box<dyn std::error::Error>> {
     let mut ids = Vec::new();
     for _ in 0..6 {
         let id = create_proposal_fst(&v, &user, None).await?;
-        approve_proposal_fst(&v, reviewer, id, MajorityType::Simple).await?;
+        approve_proposal(&v, reviewer, id, MajorityType::Simple).await?;
         ids.push(id);
     }
 
@@ -500,8 +500,8 @@ async fn test_vote_on_promoted_queued_without_snapshot() -> Result<(), Box<dyn s
     let p1 = create_proposal_fst(&v, &user, None).await?;
     let p2 = create_proposal_fst(&v, &user, None).await?;
 
-    approve_proposal_fst(&v, reviewer, p1, MajorityType::Simple).await?;
-    approve_proposal_fst(&v, reviewer, p2, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p1, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p2, MajorityType::Simple).await?;
 
     assert_eq!(
         get_status(&v.get_proposal(p1).await?)?,
@@ -631,8 +631,8 @@ async fn test_take_snapshot_and_vote_chained() -> Result<(), Box<dyn std::error:
     let p1 = create_proposal_fst(&v, &user_a, None).await?;
     let p2 = create_proposal_fst(&v, &user_a, None).await?;
 
-    approve_proposal_fst(&v, reviewer, p1, MajorityType::Simple).await?;
-    approve_proposal_fst(&v, reviewer, p2, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p1, MajorityType::Simple).await?;
+    approve_proposal(&v, reviewer, p2, MajorityType::Simple).await?;
 
     assert_eq!(
         get_status(&v.get_proposal(p2).await?)?,

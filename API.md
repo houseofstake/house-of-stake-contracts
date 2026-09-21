@@ -813,13 +813,14 @@ pub struct Config {
     /// Absolute minimum veNEAR required for quorum.
     pub quorum_floor: NearToken,
 
-    /// Approval threshold in basis points for Classic proposals (e.g. 5000 = 50%).
+    /// TODO: remove with the next state migration. Unused since approval requires an
+    /// explicit majority type; retained only to keep the stored layout unchanged.
     pub approval_threshold_bps: Bps,
 
-    /// FastTrack simple-majority threshold in basis points.
+    /// Simple-majority threshold in basis points.
     pub simple_majority_threshold_bps: Bps,
 
-    /// FastTrack strong-majority threshold in basis points.
+    /// Strong-majority threshold in basis points.
     pub strong_majority_threshold_bps: Bps,
 
     /// Sandbox pre-voting duration (FastTrack flow).
@@ -858,8 +859,8 @@ pub enum VoteOption {
     Abstain,
 }
 
-/// Majority type for FastTrack proposals; selected by the reviewer at approval time.
-/// Determines which configured threshold (`simple_majority_threshold_bps` vs
+/// Majority type selected by the reviewer at approval time. Determines which
+/// configured threshold (`simple_majority_threshold_bps` vs
 /// `strong_majority_threshold_bps`) is recorded on the proposal as
 /// `approval_threshold_bps`.
 pub enum MajorityType {
@@ -917,8 +918,8 @@ pub struct Proposal {
     pub quorum_threshold_bps: Bps,
     /// Absolute minimum veNEAR required for quorum.
     pub quorum_floor: NearToken,
-    /// Approval threshold in basis points. For Classic, copied from config; for
-    /// FastTrack, set at approval time based on `MajorityType`.
+    /// Approval threshold in basis points, set at approval time from the reviewer's
+    /// `MajorityType`.
     pub approval_threshold_bps: Bps,
     /// Optional list of on-chain actions to execute when the proposal succeeds.
     pub actions: Option<Vec<ProposalAction>>,
@@ -1117,19 +1118,20 @@ pub fn set_quorum_threshold_bps(&mut self, quorum_threshold_bps: Bps);
 #[payable]
 pub fn set_quorum_floor(&mut self, quorum_floor: NearToken);
 
-/// Updates the Classic-flow approval threshold in basis points (e.g. 5000 = 50%).
+/// TODO: remove with the next state migration, along with `approval_threshold_bps`.
+/// The value no longer affects approvals — use the simple/strong majority setters instead.
 /// Can only be called by the owner.
 /// Requires 1 yocto NEAR.
 #[payable]
 pub fn set_approval_threshold_bps(&mut self, approval_threshold_bps: Bps);
 
-/// Updates the FastTrack simple-majority threshold in basis points (e.g. 5000 = 50%).
+/// Updates the simple-majority threshold in basis points (e.g. 5000 = 50%).
 /// Can only be called by the owner.
 /// Requires 1 yocto NEAR.
 #[payable]
 pub fn set_simple_majority_threshold_bps(&mut self, simple_majority_threshold_bps: Bps);
 
-/// Updates the FastTrack strong-majority threshold in basis points (e.g. 6667 ≈ 66.67%).
+/// Updates the strong-majority threshold in basis points (e.g. 6667 ≈ 66.67%).
 /// Can only be called by the owner.
 /// Requires 1 yocto NEAR.
 #[payable]
@@ -1211,9 +1213,8 @@ pub fn get_num_proposals(&self) -> u32;
 /// Returns a list of proposals from the given index based on the proposal ID order.
 pub fn get_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<ProposalInfo>;
 
-/// Approves a proposal. For FastTrack proposals, `majority_type` is required
-/// and selects which configured majority threshold is recorded on the
-/// proposal; Classic proposals ignore it.
+/// Approves a proposal. `majority_type` is required for both flows and selects
+/// which configured majority threshold is recorded on the proposal.
 /// If an active slot is available the proposal is activated immediately
 /// (Classic → Voting, FastTrack → Sandbox) and a snapshot fetch is scheduled;
 /// otherwise the proposal is queued (`ProposalStatus::Queued`) and the
@@ -1224,7 +1225,7 @@ pub fn get_proposals(&self, from_index: u32, limit: Option<u32>) -> Vec<Proposal
 pub fn approve_proposal(
     &mut self,
     proposal_id: ProposalId,
-    majority_type: Option<MajorityType>,
+    majority_type: MajorityType,
 ) -> PromiseOrValue<Option<ProposalInfo>>;
 
 /// Rejects a proposal that is still in the `Created` status. The bond (if any)

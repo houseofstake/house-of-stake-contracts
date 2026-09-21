@@ -146,18 +146,15 @@ impl VoteStats {
 }
 
 /// Returns the next voting start time. In sandbox test mode, starts after 120 seconds.
-/// Otherwise, starts on the next Monday 00:00 CET (fixed UTC+1) strictly after `after_ns`.
+/// Otherwise, starts on the next Monday 00:00 UTC strictly after `after_ns`.
 pub fn next_voting_start_ns(after_ns: u64) -> u64 {
     if cfg!(feature = "sandbox") {
         after_ns + 120 * 1_000_000_000
     } else {
-        // CET = UTC+1. Compute the boundary in CET-shifted coords, then shift back.
-        const CET_OFFSET_NS: u64 = 3600 * 1_000_000_000;
-        let shifted = after_ns + CET_OFFSET_NS;
-        let days_since_epoch = shifted / NS_PER_DAY;
+        let days_since_epoch = after_ns / NS_PER_DAY;
         let day_of_week = days_since_epoch % 7;
         let days_until_monday = (10 - day_of_week) % 7 + 1;
-        (days_since_epoch + days_until_monday) * NS_PER_DAY - CET_OFFSET_NS
+        (days_since_epoch + days_until_monday) * NS_PER_DAY
     }
 }
 
@@ -530,7 +527,7 @@ mod tests {
 
     #[test]
     fn test_next_monday_from_each_weekday() {
-        // 2026-04-06 is Monday CET, next Monday CET is 2026-04-13.
+        // 2026-04-06 is Monday UTC, next Monday UTC is 2026-04-13.
         let expected = date_ns(2026, 4, 13);
 
         assert_eq!(next_voting_start_ns(date_ns(2026, 4, 6)), expected); // Monday
@@ -544,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_next_monday_from_time_within_day() {
-        // All inputs lie within Tuesday 2026-04-07 CET; result is next Monday CET.
+        // All inputs lie within Tuesday 2026-04-07 UTC; result is next Monday UTC.
         let expected = date_ns(2026, 4, 13);
         let day = date_ns(2026, 4, 7);
         assert_eq!(next_voting_start_ns(day), expected);

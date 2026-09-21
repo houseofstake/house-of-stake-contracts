@@ -3,7 +3,7 @@ mod setup;
 use crate::setup::venear_helpers::*;
 use crate::setup::voting_helpers::*;
 use crate::setup::{VenearTestWorkspaceBuilder, assert_almost_eq};
-use common::voting::VoteOption;
+use common::voting::{MajorityType, VoteOption};
 use near_sdk::NearToken;
 
 fn vote_venear(proposal: &serde_json::Value, vote_idx: usize) -> NearToken {
@@ -37,7 +37,13 @@ async fn test_partial_delegation_voting() -> Result<(), Box<dyn std::error::Erro
     .await?;
 
     let proposal_id = create_proposal(&v, &alice, None).await?;
-    approve_proposal(&v, &v.voting.as_ref().unwrap().reviewer, proposal_id).await?;
+    approve_proposal(
+        &v,
+        &v.voting.as_ref().unwrap().reviewer,
+        proposal_id,
+        MajorityType::Simple,
+    )
+    .await?;
 
     // ~0.107% worst-case veNEAR growth observed on the 280 NEAR total over the test
     // runtime; 500 millinear leaves ~60% headroom for sandbox-time variance.

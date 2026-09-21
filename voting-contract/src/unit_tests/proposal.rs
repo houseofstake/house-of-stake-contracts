@@ -84,7 +84,7 @@ mod lifecycle_tests {
             ProposalFlow::Classic,
         );
         set_ctx(reviewer(), 1, TEST_NOW_NS);
-        let _ = contract.approve_proposal(id, None);
+        let _ = contract.approve_proposal(id, MajorityType::Simple);
         contract.proposals.flush();
         near_sdk::testing_env!(
             VMContextBuilder::new()
@@ -486,7 +486,7 @@ mod lifecycle_tests {
             ProposalFlow::FastTrack,
         );
         set_ctx(reviewer(), 1, TEST_NOW_NS);
-        let _ = contract.approve_proposal(id, Some(MajorityType::Simple));
+        let _ = contract.approve_proposal(id, MajorityType::Simple);
         contract.proposals.flush();
         near_sdk::testing_env!(
             VMContextBuilder::new()
@@ -811,7 +811,7 @@ mod long_flow_tests {
 
         // 2. Reviewer approves -> Voting (with snapshot wired by helper)
         set_ctx(reviewer(), 1, TEST_NOW_NS);
-        let _ = contract.approve_proposal(id, None);
+        let _ = contract.approve_proposal(id, MajorityType::Simple);
         contract.proposals.flush();
         near_sdk::testing_env!(
             VMContextBuilder::new()
@@ -872,7 +872,7 @@ mod long_flow_tests {
             ProposalFlow::Classic,
         );
         set_ctx(reviewer(), 1, TEST_NOW_NS);
-        let _ = contract.approve_proposal(id, None);
+        let _ = contract.approve_proposal(id, MajorityType::Simple);
         contract.proposals.flush();
         near_sdk::testing_env!(
             VMContextBuilder::new()
@@ -910,7 +910,7 @@ mod long_flow_tests {
         );
 
         set_ctx(reviewer(), 1, TEST_NOW_NS);
-        let _ = contract.approve_proposal(id, Some(MajorityType::Simple));
+        let _ = contract.approve_proposal(id, MajorityType::Simple);
         contract.proposals.flush();
         near_sdk::testing_env!(
             VMContextBuilder::new()
@@ -933,7 +933,7 @@ mod long_flow_tests {
             ProposalStatus::Scheduled
         );
 
-        // Scheduled start is the next Monday CET; reading at that boundary -> Voting.
+        // Scheduled start is the next Monday UTC; reading at that boundary -> Voting.
         let voting_start = next_voting_start_ns(TEST_NOW_NS);
         assert_eq!(
             status_at(&contract, id, voting_start),
